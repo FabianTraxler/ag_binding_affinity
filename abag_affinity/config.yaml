@@ -1,0 +1,27 @@
+DATA:
+  path: "/home/fabian/Desktop/Uni/Masterthesis/data"
+  Benchmark5.5:
+    folder_path: "benchmark5.5"
+    pdb_path: "structures"
+    summary: "Table_BM5.5.xlsx"
+
+  AntibodyBenchmark:
+    folder_path: "antibody_benchmark"
+    pdb_path: "pdbs"
+    summary: "antibody_benchmark_cases.xlsx"
+
+  SAbDab:
+    folder_path: "SAbDab"
+    pdb_path: "pdbs"
+    summary: "summary.tsv"
+
+  AbDb:
+    folder_path: "AbDb"
+    pdb_path: "NR_LH_Protein_Martin"
+    summary: ""
+
+  Dataset_v1:
+    folder_path: "dataset_v1"
+    pdb_path: "../AbDb/NR_LH_Protein_Martin"
+    summary: "dataset_v1.csv"
+    dataset_path: "data"

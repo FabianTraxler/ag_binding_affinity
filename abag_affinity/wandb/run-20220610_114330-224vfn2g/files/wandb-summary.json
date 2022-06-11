@@ -1,0 +1,1 @@
+{"val_loss": 103.74126756346071, "train_loss": 98.54213425987646, "pearson_correlation": -0.06675796903840563, "_timestamp": 1654854296, "_runtime": 86, "_step": 20, "best_pearson": 0, "_wandb": {"runtime": 87}}

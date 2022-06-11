@@ -134,3 +134,5 @@ lib64/
 pyvenv.cfg
 share/
 lib64
+plots/
+tests/
