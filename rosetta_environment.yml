@@ -1,0 +1,16 @@
+name: rosetta_env
+channels:
+  - conda-forge
+  - https://levinthal:paradox@conda.rosettacommons.org
+  - defaults
+dependencies:
+  - python=3.7.12=hf930737_100_cpython
+  - python-blosc=1.8.3=py37hb3f55d8_0
+  - python-dateutil=2.8.2=pyhd3eb1b0_0
+  - python_abi=3.7=2_cp37m
+  - pip=22.1.2=pyhd8ed1ab_0
+  - pyrosetta=2020.10+release.46415fa=py37_0
+  - pip:
+      - pandas==1.3.5
+      - tqdm==4.62.2
+      - pyyaml==5.4.1
