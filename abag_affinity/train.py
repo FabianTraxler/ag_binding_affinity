@@ -1,8 +1,7 @@
 """This module provides all training utilities for the model streams in table_header_standardization"""
-import math
-
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import torch
 from torch import nn
 from torch_geometric.loader import DataLoader
@@ -13,21 +12,22 @@ import wandb
 import seaborn as sns
 from scipy import stats
 
+from abag_affinity.utils.config import get_data_paths, read_yaml
 from abag_affinity.dataset.data_loader import AffinityDataset, get_pdb_ids, SimpleGraphs, FixedSizeGraphs, DDGBackboneInputs
 from abag_affinity.model.graph_conv_v1 import GraphConv
 from abag_affinity.model.fixed_size_graph_conv import FSGraphConv
-from abag_affinity.model.binding_ddg_backbone_gcn import DDGBackboneGCN
+from abag_affinity.model.binding_ddg_backbone_gcn import DDGBackboneFC
 
 torch.cuda.empty_cache()
 
 use_wandb = False
-name = "Fixed-Size-GCN_v1"
+name = "DDGBackboneFC_v1"
 
 BATCH_SIZE = 1
 EPOCHS = 100
 LEARNING_RATE = 1e-3
 PATIENCE = 20
-MAX_NUM_NODES = 50
+MAX_NUM_NODES = 25
 
 
 def configure():
@@ -59,8 +59,12 @@ def configure():
 
 
 def train_loop(model: nn.Module, train_dataset: AffinityDataset, val_dataset: AffinityDataset):
-
     wandb, config, use_wandb, run, this_run = configure()
+
+    results = {
+        "epoch_loss": [],
+        "epoch_corr": []
+    }
 
     train_dataloader = DataLoader(train_dataset, num_workers=0, batch_size=config.batch_size, shuffle=True)
     val_dataloader = DataLoader(val_dataset, num_workers=0, batch_size=config.batch_size)
@@ -79,11 +83,10 @@ def train_loop(model: nn.Module, train_dataset: AffinityDataset, val_dataset: Af
         total_loss_train = 0.0
 
         for data in tqdm(train_dataloader):
-
             optimizer.zero_grad()
             output = model(data).flatten()
 
-            loss = criterion1(output, data.y)
+            loss = criterion1(output, data.y.to(device))
 
             total_loss_train += loss.item()
 
@@ -99,7 +102,7 @@ def train_loop(model: nn.Module, train_dataset: AffinityDataset, val_dataset: Af
         for data in val_dataloader:
 
             output = model(data).flatten()
-            loss = criterion1(output, data.y)
+            loss = criterion1(output, data.y.to(device))
 
             total_loss_val += loss.item()
 
@@ -109,7 +112,10 @@ def train_loop(model: nn.Module, train_dataset: AffinityDataset, val_dataset: Af
         val_loss = total_loss_val / (len(val_dataset) / BATCH_SIZE)
         pearson_corr = stats.pearsonr(all_labels, all_predictions)
 
-        if val_loss < best_loss and pearson_corr[0] > best_pearson_corr:
+        results["epoch_loss"].append(val_loss)
+        results["epoch_corr"].append(pearson_corr[0])
+
+        if val_loss < best_loss:# and pearson_corr[0] > best_pearson_corr:
             patience = config.patience
             best_loss = val_loss
             best_pearson_corr = pearson_corr[0]
@@ -136,12 +142,18 @@ def train_loop(model: nn.Module, train_dataset: AffinityDataset, val_dataset: Af
         if patience < 0:
             if use_wandb:
                 run.summary["best_pearson"] = best_pearson_corr
+                run.summary["best_loss"] = best_loss
             break
 
         model.train()
 
+    results["best_loss"] = best_loss
+    results["best_correlation"] = best_pearson_corr
 
-def model_train(model_type:str, data_type: str):
+    return results, model
+
+
+def model_train(model_type:str, data_type: str, validation_set: int = 1):
 
     """
     Instantiate model training
@@ -150,11 +162,11 @@ def model_train(model_type:str, data_type: str):
     config_file = "../abag_affinity/config.yaml"
     dataset_name = "Dataset_v1"
 
-    pdb_ids = get_pdb_ids(config_file, dataset_name)
-
-    np.random.seed(112)
-    np.random.shuffle(pdb_ids)
-    train_ids, val_ids = np.split(pdb_ids, [int(.8 * len(pdb_ids))])
+    config = read_yaml(config_file)
+    summary_file, pdb_path = get_data_paths(config, dataset_name)
+    dataset_summary = pd.read_csv(summary_file)
+    val_ids = list(dataset_summary[dataset_summary["validation"] == validation_set]["pdb"].values)
+    train_ids = list(dataset_summary[(dataset_summary["validation"] != validation_set) & (dataset_summary["test"] == False)]["pdb"].values)
 
     if data_type == "SimpleGraphs":
         train_data = SimpleGraphs(config_file, dataset_name, train_ids)
@@ -167,7 +179,7 @@ def model_train(model_type:str, data_type: str):
         val_data = DDGBackboneInputs(config_file, dataset_name, val_ids, MAX_NUM_NODES)
     else:
         return
-    print(len(train_data), len(val_data))
+    print("Val Set:", str(validation_set), " | Train Size:", len(train_data), " | Test Size:", len(val_data))
 
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
@@ -176,12 +188,32 @@ def model_train(model_type:str, data_type: str):
         model = GraphConv(train_data.num_features).to(device)
     elif model_type == "FixedSizeGraphConv":
         model = FSGraphConv(train_data.num_features, MAX_NUM_NODES).to(device)
-    elif model_type == "DDGBackboneGCN":
-        model = DDGBackboneGCN("./binding_ddg_predictor/data/model.pt", device)
+    elif model_type == "DDGBackboneFC":
+        model = DDGBackboneFC("./binding_ddg_predictor/data/model.pt", device)
     else:
+        print("Please specify valid model and dataloader")
         return
-    train_loop(model, train_data, val_data)
+    results, model = train_loop(model, train_data, val_data)
+    return results
+
+
+def cross_validation(model_type: str, data_type: str):
+    losses = []
+    correlations = []
+    for i in range(1, 4):
+        print("Validation on split {} and training with all other splits\n".format(i))
+        results = model_train(model_type, data_type, validation_set=i)
+        losses.append(results["best_loss"])
+        correlations.append(results["best_correlation"])
+        print("\n")
+
+    print("Average Loss: {} ({})".format(np.mean(losses), np.std(losses)))
+    print("Average Pearson Correlation: {} ({})".format(np.mean(correlations), np.std(correlations)))
+
+
+def pretrain_model(model_type: str, data_type: str):
+    pass
 
 
 if __name__ == "__main__":
-    model_train("DDGBackboneGCN", "DDGBackboneInputs")
+    cross_validation("FixedSizeGraphConv", "FixedSizeGraphs")
