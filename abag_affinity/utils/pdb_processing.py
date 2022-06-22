@@ -22,17 +22,13 @@ ID2AA = {i: aa for i, aa in enumerate(AMINO_ACIDS)}
 
 def get_distances_and_info(structure: Structure, header: Dict, chain_id2protein: Dict) -> Tuple[np.ndarray, List[Dict], np.ndarray, Dict, np.ndarray]:
     """ Calculate all distances of the amino acids in this structure
-
     1. Remove duplicate chains
     2. Get position of amino acid C-alpha atoms + Chain Id, AA type, AA number
     3. Calculate pairwise distances
-
-
     Args:
         structure: PDB Structure Object to be used for distance calculation
         header:
         chain_id2protein:
-
     Returns:
         np.ndarray: Matrix of all distances
         List: information about every amino acid (chain_id, aa_type, aa_number on chain)
@@ -113,13 +109,10 @@ def get_distances_and_info(structure: Structure, header: Dict, chain_id2protein:
 
 def remove_redundant_chains(structure: Structure):
     """ Remove redundant chains from a structure (inplace)
-
     Redundant chains have exact amio-acid sequence identity
     Remove second chain found
-
     Args:
         structure: PDB Structure Object to be cleaned
-
     Returns:
         None
     """
@@ -140,16 +133,12 @@ def remove_redundant_chains(structure: Structure):
 
 def load_pdb_infos(pdb_id: str, path: str) -> Tuple[np.ndarray, List[Dict], Dict]:
     """ Generate the distance matrix for a defined pdb structure
-
     1. Load PDB File
     2. Remove redundant chains
     3. calculate distances and features
-
-
     Args:
         pdb_id: String with PDB ID
         path: Path to folder with PDB File
-
     Returns:
         np.ndarray: Matrix of all distances
         List: information about every amino acid (chain_id, aa_type, aa_number on chain)
@@ -163,18 +152,14 @@ def load_pdb_infos(pdb_id: str, path: str) -> Tuple[np.ndarray, List[Dict], Dict
 
 def convert_aa_info(info: Dict, structure_info: Dict, chain_id2protein: Dict):
     """ Convert the information about amino acids to a feature matrix
-
     1. One-Hot Encode the Amino Acid Type
     2. Encode Chain ID as integer
     3. Encode Protein ID as integer
     4. Encode additional information about amio acid (charge, ... )
-
     Args:
         info:
         structure_info:
-
     Returns:
-
     """
     # TODO: Search for amino acid information (charge, ... )
 
@@ -194,11 +179,9 @@ def convert_aa_info(info: Dict, structure_info: Dict, chain_id2protein: Dict):
 
 def get_residue_encodings(residue_infos: List, structure_info: Dict, chain_id2protein: Dict) -> np.ndarray:
     """ Convert the residue infos to encodings in a numpy array
-
     Args:
         residue_infos: List of residue infos
         structure_info: Dict containing information about the structure
-
     Returns:
         np.ndarray: Array with numerical encodings
     """
@@ -210,19 +193,15 @@ def get_residue_encodings(residue_infos: List, structure_info: Dict, chain_id2pr
 
 def get_edge_encodings(distance_matrix: np.ndarray, residue_infos: List, chain_id2protein: Dict, distance_cutoff: int = 10) -> np.ndarray:
     """ Convert the distance matrix and residue information to an adjacency tensor
-
     Information:
         A[0,:,:] = inverse pairwise distances - only below distance cutoff otherwise 0
         A[1,:,:] = neighboring amino acid - 1 if connected by peptide bond
         A[2,:,:] = same protein - 1 if same chain
-
     Args:
         distance_matrix:
         residue_infos:
         distance_cutoff:
-
     Returns:
-
     """
     A = np.zeros((3, len(residue_infos), len(residue_infos)))
 

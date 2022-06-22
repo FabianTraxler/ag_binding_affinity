@@ -1,7 +1,7 @@
 from Bio.PDB.PDBParser import PDBParser
 from Bio.PDB.PDBList import PDBList
 
-parser = PDBParser(PERMISSIVE=0)
+parser = PDBParser(PERMISSIVE=3)
 
 pdb_list = PDBList()
 

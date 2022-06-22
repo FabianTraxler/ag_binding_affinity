@@ -4,7 +4,12 @@ import os
 
 def read_yaml(file_path: str):
     with open(file_path, "r") as f:
-        return yaml.safe_load(f)
+        config = yaml.safe_load(f)
+    folder_path = os.getenv('ABAG_PATH')
+    if folder_path is not None:
+        config["DATA"]["path"] = os.path.join(folder_path, config["DATA"]["path"])
+
+    return config
 
 
 def get_data_paths(config: dict, dataset: str):
