@@ -111,9 +111,9 @@ class DDGBackboneInputs(AffinityDataset, ABC):
         infos = data_file["residue_infos"][closest_nodes]
         coords = data_file["residue_atom_coordinates"][closest_nodes, :]
         node_features = [] # (N, 14 * 3 + 1 + 1 + 1 + 14): (Num_Nodes, Atom Coords * (x,y,z) + aa_index + seq_index, + chain_seq_index + atom_coordinate_mask)
-        for residue_info, residue_coords in zip(data_file["residue_infos"], data_file["residue_atom_coordinates"]):
+        for residue_info, residue_coords in zip(infos, coords):
             node_coordinates = residue_coords.flatten()
-            coordinate_mask = np.all(np.isinf(residue_coords), axis=-1)
+            coordinate_mask = ~np.all(np.isinf(residue_coords), axis=-1)
             indices = np.array([residue_info["residue_pdb_index"],
                                            residue_info["chain_idx"], residue_info["on_chain_residue_idx"]])
             all_features = np.concatenate([node_coordinates, indices, coordinate_mask])
