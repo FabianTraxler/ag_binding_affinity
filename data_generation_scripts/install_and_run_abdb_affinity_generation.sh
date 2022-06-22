@@ -7,7 +7,7 @@ apt update
 conda env update -n base --file rosetta_enviroment.yml
 
 # some configuration
-mkidr logs
+mkdir logs
 export ABAG_PATH=~/ag_binding_affinity
 
 # install package with utilities
