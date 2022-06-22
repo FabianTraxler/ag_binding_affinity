@@ -136,3 +136,4 @@ share/
 lib64
 plots/
 tests/
+wandb/
