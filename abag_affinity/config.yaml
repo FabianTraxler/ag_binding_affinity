@@ -1,5 +1,5 @@
 DATA:
-  path: "/home/fabian/Desktop/Uni/Masterthesis/data"
+  path: "./data"
   Benchmark5.5:
     folder_path: "benchmark5.5"
     pdb_path: "structures"
@@ -18,10 +18,45 @@ DATA:
   AbDb:
     folder_path: "AbDb"
     pdb_path: "NR_LH_Protein_Martin"
-    summary: ""
+    summary: "summary.csv"
+
+  SKEMPI.v2:
+    folder_path: "SKEMPI_v2"
+    pdb_path: "PDBs"
+    summary: "skempi_v2.csv"
+    mutated_pdb_path: "mutated_pdb"
+
+  PDBBind:
+    folder_path: "PDBBind"
+    pdb_path: "PP"
+    info_file: "PP/index/INDEX_general_PP.2020"
+    summary: "cases.csv"
+    dataset_path: "data"
 
   Dataset_v1:
     folder_path: "dataset_v1"
     pdb_path: "../AbDb/NR_LH_Protein_Martin"
     summary: "dataset_v1.csv"
     dataset_path: "data"
+
+TRAIN:
+  standard:
+    datasets:
+      - Dataset_v1
+
+  transfer:
+    datasets:
+      - PDBBind
+      - Dataset_v1
+
+  bucket:
+    dataset:
+      - PDBBind
+      - Dataset_v1
+
+    bucket_config:
+      PDBBind:
+        learning_rate: 0.00001
+
+      Dataset_v1:
+        learning_rate: 0.001
