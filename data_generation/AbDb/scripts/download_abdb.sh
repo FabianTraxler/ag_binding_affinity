@@ -26,5 +26,5 @@ else
 
   wget http://www.abybank.org/abdb/Data/NR_LH_Protein_Martin.tar.bz2
 
-  tar -xvzf NR_LH_Protein_Martin.tar.bz2
+  tar -xvjf NR_LH_Protein_Martin.tar.bz2
 fi

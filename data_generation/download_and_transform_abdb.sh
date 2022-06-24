@@ -10,4 +10,4 @@ cd ~/ag_binding_affinity/data_generation/AbDb
 scripts/download_abdb.sh -p ~/ag_binding_affinity/data/AbDb
 
 # transform the data
-snakemake --cores 32
+snakemake --use-conda --cores 32

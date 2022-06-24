@@ -10,4 +10,4 @@ cd ~/ag_binding_affinity/data_generation/SKEMPI
 scripts/download_skempi.sh -p ~/ag_binding_affinity/data/SKEMPI_v2/PDBs
 
 # transform the data
-snakemake --cores 32
+snakemake --use-conda --cores 32
