@@ -4,7 +4,7 @@ from abag_affinity.utils.config import read_yaml, get_data_paths
 
 config = read_yaml("../../abag_affinity/config.yaml")
 skempi_df_path, pdb_path = get_data_paths(config, "SKEMPI.v2")
-skempi_df = pd.read_csv(skempi_df_path)[5:7]
+skempi_df = pd.read_csv(skempi_df_path, sep=";")
 
 data_path = config["DATA"]["path"]
 skempi_folder_path = os.path.join(data_path, config["DATA"]["SKEMPI.v2"]["folder_path"])
@@ -16,17 +16,7 @@ mutation_codes = skempi_df["Mutation(s)_cleaned"].tolist()
 
 rule final_output:
     input:
-        expand(skempi_folder_path + '/relaxed_mutated/{pdb_id}/{mutation}.pdb', zip, pdb_id=wiltype_pdbs, mutation=mutation_codes),
-        expand(skempi_folder_path + '/rerelaxed_mutated/{pdb_id}/{mutation}.pdb', zip, pdb_id=wiltype_pdbs, mutation=mutation_codes),
-        expand(skempi_folder_path + '/scored_wildtype/{pdb_id}.pdb', pdb_id=wiltype_pdbs)
-
-rule score_wildtype:
-    input:
-        pdb_path + '/{pdb_id}.pdb'
-    output:
-        skempi_folder_path + "/scored_wildtype/{pdb_id}.pdb",
-    conda: "../../envs/rosetta_environment.yml"
-    script: "scripts/score.py"
+        expand(skempi_folder_path + '/mutated_relaxed/{pdb_id}/{mutation}.pdb', zip, pdb_id=wiltype_pdbs, mutation=mutation_codes)
 
 rule relax_wildtype:
     input:
@@ -36,17 +26,9 @@ rule relax_wildtype:
     conda: "../../envs/rosetta_environment.yml"
     script: "scripts/relax.py"
 
-rule mutate_relaxed_wildtype:
-    input:
-        skempi_folder_path + "/relaxed_wildtype/{pdb_id}.pdb"
-    output:
-        skempi_folder_path + "/relaxed_mutated/{pdb_id}/{mutation}.pdb"
-    conda: "../../envs/rosetta_environment.yml"
-    script: "scripts/mutate.py"
-
 rule mutate_wildtype:
     input:
-        pdb_path + '/{pdb_id}.pdb'
+        skempi_folder_path + "/relaxed_wildtype/{pdb_id}.pdb",
     output:
         skempi_folder_path + "/mutated/{pdb_id}/{mutation}.pdb"
     conda: "../../envs/rosetta_environment.yml"
@@ -60,10 +42,3 @@ rule relax_mutated:
     conda: "../../envs/rosetta_environment.yml"
     script: "scripts/relax.py"
 
-rule rerelax_mutated:
-    input:
-        skempi_folder_path +"/relaxed_mutated/{pdb_id}/{mutation}.pdb"
-    output:
-        skempi_folder_path +"/rerelaxed_mutated/{pdb_id}/{mutation}.pdb"
-    conda: "../../envs/rosetta_environment.yml"
-    script: "scripts/relax.py"

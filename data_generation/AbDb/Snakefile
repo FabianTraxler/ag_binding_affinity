@@ -4,7 +4,7 @@ from abag_affinity.utils.config import read_yaml, get_data_paths
 
 config = read_yaml("../../abag_affinity/config.yaml")
 _, pdb_path = get_data_paths(config, "AbDb")
-pdb_files = os.listdir(pdb_path)[:2]
+pdb_files = os.listdir(pdb_path)
 wiltype_pdbs = [ pdb_file.split(".")[0] for pdb_file in pdb_files ]
 
 data_path = config["DATA"]["path"]
@@ -13,8 +13,37 @@ abdb_folder_path = os.path.join(data_path, config["DATA"]["AbDb"]["folder_path"]
 
 rule final_output:
     input:
-        expand(abdb_folder_path + '/unbound_relaxed/{pdb_id}.pdb', zip, pdb_id=wiltype_pdbs)
+        expand(abdb_folder_path + '/unbound_relaxed/{pdb_id}.pdb', zip, pdb_id=wiltype_pdbs),
+        expand(abdb_folder_path + '/relaxed_unbound_relaxed/{pdb_id}.pdb', zip, pdb_id=wiltype_pdbs),
+        expand(abdb_folder_path + '/bound_wildtype/{pdb_id}.pdb', zip, pdb_id=wiltype_pdbs)
 
+# use not relaxed wildtype
+rule score_wildtype:
+    input:
+        pdb_path + '/{pdb_id}.pdb'
+    output:
+        abdb_folder_path + "/bound_wildtype/{pdb_id}.pdb",
+    conda: "../../envs/rosetta_environment.yml"
+    script: "scripts/score.py"
+
+rule unbind_wildtype:
+    input:
+        abdb_folder_path + "/bound_wildtype/{pdb_id}.pdb",
+    output:
+        abdb_folder_path + "/unbound_wildtype/{pdb_id}.pdb"
+    conda: "../../envs/rosetta_environment.yml"
+    script: "scripts/unbind.py"
+
+rule relax_unbound:
+    input:
+        abdb_folder_path +"/unbound_wildtype/{pdb_id}.pdb"
+    output:
+        abdb_folder_path +"/unbound_relaxed/{pdb_id}.pdb"
+    conda: "../../envs/rosetta_environment.yml"
+    script: "scripts/relax.py"
+
+
+# use relaxed wildtype
 rule relax_wildtype:
     input:
         pdb_path + '/{pdb_id}.pdb'
@@ -23,19 +52,18 @@ rule relax_wildtype:
     conda: "../../envs/rosetta_environment.yml"
     script: "scripts/relax.py"
 
-rule unbind:
+rule unbind_relaxed:
     input:
         abdb_folder_path + "/bound_relaxed/{pdb_id}.pdb",
     output:
-        abdb_folder_path + "/unbound/{pdb_id}.pdb"
+        abdb_folder_path + "/relaxed_unbound/{pdb_id}.pdb"
     conda: "../../envs/rosetta_environment.yml"
     script: "scripts/unbind.py"
 
-rule relax_unbound:
+rule rerelax_unbound:
     input:
-        abdb_folder_path +"/unbound/{pdb_id}.pdb"
+        abdb_folder_path +"/relaxed_unbound/{pdb_id}.pdb"
     output:
-        abdb_folder_path +"/unbound_relaxed/{pdb_id}.pdb"
+        abdb_folder_path +"/relaxed_unbound_relaxed/{pdb_id}.pdb"
     conda: "../../envs/rosetta_environment.yml"
     script: "scripts/relax.py"
-
