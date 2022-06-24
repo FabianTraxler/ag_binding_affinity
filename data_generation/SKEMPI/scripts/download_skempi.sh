@@ -24,7 +24,6 @@ else
   echo "Downloading Files"
   mkdir -p $pdb_path
   cd $pdb_path || exit
-  cd ..
 
   wget https://life.bsc.es/pid/skempi2/database/download/skempi_v2.csv
 

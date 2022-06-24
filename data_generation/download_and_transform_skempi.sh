@@ -7,7 +7,7 @@ export ABAG_PATH=~/ag_binding_affinity
 cd ~/ag_binding_affinity/data_generation/SKEMPI
 
 # download data
-scripts/download_skempi.sh -p ~/ag_binding_affinity/data/SKEMPI_v2/PDBs
+scripts/download_skempi.sh -p ~/ag_binding_affinity/data/SKEMPI_v2
 
 # transform the data
 snakemake --use-conda --cores 32

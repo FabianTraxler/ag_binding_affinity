@@ -4,7 +4,7 @@ from abag_affinity.utils.config import read_yaml, get_data_paths
 
 config = read_yaml("../../abag_affinity/config.yaml")
 skempi_df_path, pdb_path = get_data_paths(config, "SKEMPI.v2")
-skempi_df = pd.read_csv(skempi_df_path)
+skempi_df = pd.read_csv(skempi_df_path, ";")
 
 data_path = config["DATA"]["path"]
 skempi_folder_path = os.path.join(data_path, config["DATA"]["SKEMPI.v2"]["folder_path"])
