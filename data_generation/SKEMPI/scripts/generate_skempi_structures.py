@@ -16,7 +16,9 @@ from abag_affinity.utils.config import read_yaml, get_data_paths
 logger = logging.getLogger("Skempi-Structures-Generation")
 logger.setLevel(logging.DEBUG)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-log_file = logging.FileHandler("logs/data_generation_scripts.log")
+
+folder_path = os.getenv('ABAG_PATH')
+log_file = logging.FileHandler(os.path.join(folder_path, "logs/data_generation_scripts.log"))
 log_file.setLevel(logging.INFO)
 log_file.setFormatter(formatter)
 logger.addHandler(log_file)
@@ -89,13 +91,28 @@ def create_relaxed_mutations(config: Dict):
 
     out_path = os.path.join(config["DATA"]["path"], config["DATA"]["SKEMPI.v2"]["folder_path"], config["DATA"]["SKEMPI.v2"]["mutated_pdb_path"])
 
+    relaxed_wt_pose = None
+    relaxed_wt_pose_pdb = None
+    relaxed_wt_pose_score = None
+
+    relax_fn, packer = load_relax_function_and_packer()
+    score_fn = pyrosetta.get_fa_scorefxn()
+
     for idx, row in tqdm(summary_df.iterrows(), total=len(summary_df)):
         try:
             pdb = summary_df.iloc[idx, 0].split("_")[0]
             path = os.path.join(pdb_folder, pdb + ".pdb")
 
-            pose = load_pose(path)
-            relax_fn, packer = load_relax_function_and_packer()
+            if pdb == relaxed_wt_pose_pdb:
+                pose = relaxed_wt_pose.clone()
+                wt_score = relaxed_wt_pose_score
+            else:
+                pose = load_pose(path)
+                relax_fn.apply(pose)
+                relaxed_wt_pose_pdb = pdb
+                relaxed_wt_pose = pose.clone()
+                wt_score = score_fn(pose)
+                relaxed_wt_pose_score = wt_score
 
             mutations = get_mutations(summary_df, idx)
 
@@ -104,6 +121,11 @@ def create_relaxed_mutations(config: Dict):
             # store pdb file
             out_path = os.path.join(out_path, pdb + "_".join(mutation_codes) + ".pdb")
             pose.dump_pdb(out_path)
+
+            mutated_score = score_fn(pose)
+
+            summary_df.loc[idx, 'ddG (REU)'] = wt_score - mutated_score
+            summary_df.to_csv(summary_path, index=False)
 
         except Exception as e:
             logger.error("Error in row {} - Error Message: {}".format(idx, e))
@@ -119,7 +141,8 @@ def realx_with_openfold(pose: Pose):
 
 
 def main():
-    config_path = "abag_affinity/config.yaml"
+    folder_path = os.getenv('ABAG_PATH')
+    config_path = os.path.join(folder_path, "abag_affinity/config.yaml")
     config = read_yaml(config_path)
     create_relaxed_mutations(config)
 

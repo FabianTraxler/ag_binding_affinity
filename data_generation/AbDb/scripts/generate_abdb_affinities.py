@@ -86,11 +86,12 @@ def calculate_affinities(config: Dict):
             unbound_score = scorefxn(pose)
 
             summary_df.loc[idx, 'dG (REU) - no relax'] = original_score - unbound_score
+            summary_df.to_csv(summary_path, index=False)
         except Exception as e:
             logger.error("Error in row {} - Error Message: {}".format(idx, e))
             pass
 
-        summary_df.to_csv(summary_path, index=False)
+
 
 
 def main():

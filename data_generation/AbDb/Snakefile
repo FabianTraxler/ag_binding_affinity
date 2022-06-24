@@ -1,0 +1,41 @@
+import os
+import pandas as pd
+from abag_affinity.utils.config import read_yaml, get_data_paths
+
+config = read_yaml("../../abag_affinity/config.yaml")
+_, pdb_path = get_data_paths(config, "AbDb")
+pdb_files = os.listdir(pdb_path)[:2]
+wiltype_pdbs = [ pdb_file.split(".")[0] for pdb_file in pdb_files ]
+
+data_path = config["DATA"]["path"]
+abdb_folder_path = os.path.join(data_path, config["DATA"]["AbDb"]["folder_path"])
+
+
+rule final_output:
+    input:
+        expand(abdb_folder_path + '/unbound_relaxed/{pdb_id}.pdb', zip, pdb_id=wiltype_pdbs)
+
+rule relax_wildtype:
+    input:
+        pdb_path + '/{pdb_id}.pdb'
+    output:
+        abdb_folder_path + "/bound_relaxed/{pdb_id}.pdb",
+    conda: "../../envs/rosetta_environment.yml"
+    script: "scripts/relax.py"
+
+rule unbind:
+    input:
+        abdb_folder_path + "/bound_relaxed/{pdb_id}.pdb",
+    output:
+        abdb_folder_path + "/unbound/{pdb_id}.pdb"
+    conda: "../../envs/rosetta_environment.yml"
+    script: "scripts/unbind.py"
+
+rule relax_unbound:
+    input:
+        abdb_folder_path +"/unbound/{pdb_id}.pdb"
+    output:
+        abdb_folder_path +"/unbound_relaxed/{pdb_id}.pdb"
+    conda: "../../envs/rosetta_environment.yml"
+    script: "scripts/relax.py"
+

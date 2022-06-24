@@ -1,0 +1,81 @@
+# Inspiration from PyRosetta tutorial notebooks
+# https://nbviewer.org/github/RosettaCommons/PyRosetta.notebooks/blob/master/notebooks/06.08-Point-Mutation-Scan.ipynb
+from pathlib import Path
+import pyrosetta
+from pyrosetta.rosetta.protocols.moves import Mover
+from pyrosetta.rosetta.core.pose import Pose, add_comment, dump_comment_pdb, get_chain_from_chain_id
+from pyrosetta.rosetta.protocols import docking, rigid
+
+if "snakemake" not in globals(): # use fake snakemake object for debugging
+    import os
+    from abag_affinity.utils.config import read_yaml, get_data_paths
+    config = read_yaml("../../../abag_affinity/config.yaml")
+    _, pdb_path = get_data_paths(config, "AbDb")
+    abdb_folder_path = os.path.join(config["DATA"]["path"], config["DATA"]["AbDb"]["folder_path"])
+
+    sample_pdb_id = "1A2Y_1.pdb"
+    snakemake = type('', (), {})()
+    snakemake.input = [os.path.join(abdb_folder_path + "/bound_relaxed/" + sample_pdb_id)]
+    snakemake.output = [os.path.join(abdb_folder_path + "/unbound/" + sample_pdb_id)]
+
+
+pyrosetta.init(extra_options="-mute all")
+
+scorefxn = pyrosetta.get_fa_scorefxn()
+
+packer = pyrosetta.rosetta.protocols.minimization_packing.PackRotamersMover(scorefxn)
+
+
+def load_pose(pdb_path: str) -> pyrosetta.Pose:
+    pose = pyrosetta.pose_from_pdb(pdb_path)
+    testPose = pyrosetta.Pose()
+    testPose.assign(pose)
+    return testPose
+
+
+def add_score(pose: Pose):
+    score = scorefxn(pose)
+    add_comment(pose, "rosetta_energy_score", str(score))
+
+
+def get_partners(pose: Pose):
+    chains = []
+    for i in range(pose.num_chains()):
+        chains.append(get_chain_from_chain_id(i, pose))
+
+    antibody_chains = ""
+    antigen_chains = ""
+
+    if "L" in chains:
+        antibody_chains += "L"
+        chains.remove("L")
+    if "H" in chains:
+        antibody_chains += "H"
+        chains.remove("H")
+
+    for chain in chains:
+        antigen_chains += chain
+
+    partners = antibody_chains + "_" + antigen_chains
+    return partners
+
+
+def unbind(pose, partners):
+    STEP_SIZE = 100
+    JUMP = 2
+    docking.setup_foldtree(pose, partners, pyrosetta.Vector1([-1,-1,-1]))
+    trans_mover = rigid.RigidBodyTransMover(pose,JUMP)
+    trans_mover.step_size(STEP_SIZE)
+    trans_mover.apply(pose)
+
+
+out_path = snakemake.output[0]
+Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+file_path = snakemake.input[0]
+
+pose = load_pose(file_path)
+partners = get_partners(pose)
+unbind(pose, partners)
+add_score(pose)
+
+dump_comment_pdb(out_path, pose)
