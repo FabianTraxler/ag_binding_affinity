@@ -1,3 +1,7 @@
+# cluster parameters
+partition: 'shortq'
+memory: '32G'
+threads: 1
 DATA:
   path: "./data"
   Benchmark5.5:

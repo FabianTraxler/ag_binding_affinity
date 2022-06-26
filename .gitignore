@@ -137,5 +137,11 @@ lib64
 plots/
 tests/
 wandb/
-data/
 .snakemake/
+
+# CeMM-conventions
+data
+metadata
+resources
+results
+logs/

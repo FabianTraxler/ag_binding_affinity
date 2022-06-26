@@ -3,6 +3,7 @@ import pandas as pd
 from abag_affinity.utils.config import read_yaml, get_data_paths
 
 config = read_yaml("../../abag_affinity/config.yaml")
+configfile: "../../abag_affinity/config.yaml"
 _, pdb_path = get_data_paths(config, "AbDb")
 pdb_files = os.listdir(pdb_path)
 wiltype_pdbs = [ pdb_file.split(".")[0] for pdb_file in pdb_files ]
@@ -40,6 +41,8 @@ rule relax_unbound:
     output:
         abdb_folder_path +"/unbound_relaxed/{pdb_id}.pdb"
     conda: "../../envs/rosetta_environment.yml"
+    resources:
+        mem_mb=4000
     script: "scripts/relax.py"
 
 
@@ -50,6 +53,8 @@ rule relax_wildtype:
     output:
         abdb_folder_path + "/bound_relaxed/{pdb_id}.pdb",
     conda: "../../envs/rosetta_environment.yml"
+    resources:
+        mem_mb=4000
     script: "scripts/relax.py"
 
 rule unbind_relaxed:
@@ -66,4 +71,6 @@ rule rerelax_unbound:
     output:
         abdb_folder_path +"/relaxed_unbound_relaxed/{pdb_id}.pdb"
     conda: "../../envs/rosetta_environment.yml"
+    resources:
+        mem_mb=4000
     script: "scripts/relax.py"
