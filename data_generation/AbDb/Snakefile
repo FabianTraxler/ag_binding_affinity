@@ -3,10 +3,12 @@ import pandas as pd
 from abag_affinity.utils.config import read_yaml, get_data_paths
 
 config = read_yaml("../../abag_affinity/config.yaml")
-configfile: "../../abag_affinity/config.yaml"
 _, pdb_path = get_data_paths(config, "AbDb")
 pdb_files = os.listdir(pdb_path)
 wiltype_pdbs = [ pdb_file.split(".")[0] for pdb_file in pdb_files ]
+
+wiltype_pdbs = ["1A2Y_1"]
+
 
 data_path = config["DATA"]["path"]
 abdb_folder_path = os.path.join(data_path, config["DATA"]["AbDb"]["folder_path"])
@@ -14,9 +16,7 @@ abdb_folder_path = os.path.join(data_path, config["DATA"]["AbDb"]["folder_path"]
 
 rule final_output:
     input:
-        expand(abdb_folder_path + '/unbound_relaxed/{pdb_id}.pdb', zip, pdb_id=wiltype_pdbs),
-        expand(abdb_folder_path + '/relaxed_unbound_relaxed/{pdb_id}.pdb', zip, pdb_id=wiltype_pdbs),
-        expand(abdb_folder_path + '/bound_wildtype/{pdb_id}.pdb', zip, pdb_id=wiltype_pdbs)
+        abdb_folder_path + "abdb_summary.csv"
 
 # use not relaxed wildtype
 rule score_wildtype:
@@ -33,8 +33,6 @@ rule unbind_wildtype:
     output:
         abdb_folder_path + "/unbound_wildtype/{pdb_id}.pdb"
     conda: "../../envs/rosetta_environment.yml"
-    resources:
-        mem_mb=1000
     script: "scripts/unbind.py"
 
 rule relax_unbound:
@@ -43,10 +41,7 @@ rule relax_unbound:
     output:
         abdb_folder_path +"/unbound_relaxed/{pdb_id}.pdb"
     conda: "../../envs/rosetta_environment.yml"
-    resources:
-        mem_mb=4000
     script: "scripts/relax.py"
-
 
 # use relaxed wildtype
 rule relax_wildtype:
@@ -55,8 +50,6 @@ rule relax_wildtype:
     output:
         abdb_folder_path + "/bound_relaxed/{pdb_id}.pdb",
     conda: "../../envs/rosetta_environment.yml"
-    resources:
-        mem_mb=4000
     script: "scripts/relax.py"
 
 rule unbind_relaxed:
@@ -65,8 +58,6 @@ rule unbind_relaxed:
     output:
         abdb_folder_path + "/relaxed_unbound/{pdb_id}.pdb"
     conda: "../../envs/rosetta_environment.yml"
-    resources:
-        mem_mb=1000
     script: "scripts/unbind.py"
 
 rule rerelax_unbound:
@@ -75,6 +66,17 @@ rule rerelax_unbound:
     output:
         abdb_folder_path +"/relaxed_unbound_relaxed/{pdb_id}.pdb"
     conda: "../../envs/rosetta_environment.yml"
-    resources:
-        mem_mb=4000
     script: "scripts/relax.py"
+
+rule calculate_binding_affinities:
+    input:
+        expand(abdb_folder_path + '/bound_wildtype/{pdb_id}.pdb', pdb_id=wiltype_pdbs),
+        expand(abdb_folder_path + '/unbound_wildtype/{pdb_id}.pdb', pdb_id=wiltype_pdbs),
+        expand(abdb_folder_path + '/unbound_relaxed/{pdb_id}.pdb', pdb_id=wiltype_pdbs),
+        expand(abdb_folder_path + '/bound_relaxed/{pdb_id}.pdb', pdb_id=wiltype_pdbs),
+        expand(abdb_folder_path + '/relaxed_unbound/{pdb_id}.pdb', pdb_id=wiltype_pdbs),
+        expand(abdb_folder_path + '/relaxed_unbound_relaxed/{pdb_id}.pdb', pdb_id=wiltype_pdbs),
+    output:
+        abdb_folder_path + "abdb_summary.csv"
+    conda: "../../envs/rosetta_environment.yml"
+    script: "scripts/calculate_affinities.py"

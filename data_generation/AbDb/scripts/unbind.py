@@ -7,8 +7,6 @@ from pyrosetta.rosetta.core.pose import Pose, add_comment, dump_comment_pdb, get
 from pyrosetta.rosetta.protocols import docking, rigid
 from Bio.PDB.PDBParser import PDBParser
 
-import time
-time.sleep(4)
 
 if "snakemake" not in globals(): # use fake snakemake object for debugging
     import os
