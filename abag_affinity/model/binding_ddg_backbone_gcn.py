@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 from torch_geometric.nn import global_max_pool
 from torch import device
+from torch_geometric.data import Data
 
-from abag_affinity.binding_ddg_predictor.models.predictor import  DDGPredictor
-
+from abag_affinity.binding_ddg_predictor.models.predictor import DDGPredictor
 
 class DDGBackboneFC(torch.nn.Module):
 
@@ -34,7 +34,7 @@ class DDGBackboneFC(torch.nn.Module):
 
         self.to(device)
 
-    def forward(self, data):
+    def forward(self, data: Data):
         x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
         x = x.to(self.device)
 
