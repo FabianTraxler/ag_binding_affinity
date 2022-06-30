@@ -14,9 +14,12 @@ from scipy import stats
 
 from abag_affinity.utils.config import get_data_paths, read_yaml
 from abag_affinity.dataset.data_loader import AffinityDataset, get_pdb_ids, SimpleGraphs, FixedSizeGraphs, DDGBackboneInputs
+from abag_affinity.dataset.hetero_data_loader import HeteroGraphs
 from abag_affinity.model.graph_conv_v1 import GraphConv
 from abag_affinity.model.fixed_size_graph_conv import FSGraphConv
-from abag_affinity.model.binding_ddg_backbone_gcn import DDGBackboneFC
+#from abag_affinity.model.binding_ddg_backbone_gcn import DDGBackboneFC
+from abag_affinity.model.kp_gnn import KpGNN
+
 
 torch.cuda.empty_cache()
 
@@ -177,6 +180,9 @@ def model_train(model_type:str, data_type: str, validation_set: int = 1):
     elif data_type == "DDGBackboneInputs":
         train_data = DDGBackboneInputs(config_file, dataset_name, train_ids, MAX_NUM_NODES)
         val_data = DDGBackboneInputs(config_file, dataset_name, val_ids, MAX_NUM_NODES)
+    elif data_type == "HeteroGraphs":
+        train_data = HeteroGraphs(config_file, dataset_name, train_ids)
+        val_data = HeteroGraphs(config_file, dataset_name, val_ids)
     else:
         return
     print("Val Set:", str(validation_set), " | Train Size:", len(train_data), " | Test Size:", len(val_data))
@@ -190,6 +196,8 @@ def model_train(model_type:str, data_type: str, validation_set: int = 1):
         model = FSGraphConv(train_data.num_features, MAX_NUM_NODES).to(device)
     elif model_type == "DDGBackboneFC":
         model = DDGBackboneFC("./binding_ddg_predictor/data/model.pt", device)
+    elif model_type == "KpGNN":
+        model = KpGNN(train_data.num_features).to(device)
     else:
         print("Please specify valid model and dataloader")
         return
@@ -216,4 +224,5 @@ def pretrain_model(model_type: str, data_type: str):
 
 
 if __name__ == "__main__":
-    cross_validation("FixedSizeGraphConv", "FixedSizeGraphs")
+    cross_validation("KpGNN", "HeteroGraphs")
+    #cross_validation("GraphConv", "SimpleGraphs")
