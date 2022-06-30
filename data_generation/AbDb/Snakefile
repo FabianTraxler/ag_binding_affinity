@@ -33,6 +33,8 @@ rule unbind_wildtype:
     output:
         abdb_folder_path + "/unbound_wildtype/{pdb_id}.pdb"
     conda: "../../envs/rosetta_environment.yml"
+    resources:
+        mem_mb=1000
     script: "scripts/unbind.py"
 
 rule relax_unbound:
@@ -63,6 +65,8 @@ rule unbind_relaxed:
     output:
         abdb_folder_path + "/relaxed_unbound/{pdb_id}.pdb"
     conda: "../../envs/rosetta_environment.yml"
+    resources:
+        mem_mb=1000
     script: "scripts/unbind.py"
 
 rule rerelax_unbound:

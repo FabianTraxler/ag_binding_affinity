@@ -43,6 +43,8 @@ rule relax_mutated:
     output:
         skempi_folder_path +"/mutated_relaxed/{pdb_id}/{mutation}.pdb"
     conda: "../../envs/rosetta_environment.yml"
+    resources:
+        mem_mb=4000
     script: "scripts/relax.py"
 
 # use relaxed wiltype for mutation
@@ -52,6 +54,8 @@ rule relax_wildtype:
     output:
         skempi_folder_path + "/relaxed_wildtype/{pdb_id}.pdb",
     conda: "../../envs/rosetta_environment.yml"
+    resources:
+        mem_mb=4000
     script: "scripts/relax.py"
 
 rule mutate_relaxed_wildtype:
@@ -68,4 +72,6 @@ rule rerelax_mutated:
     output:
         skempi_folder_path +"/relaxed_mutated_relaxed/{pdb_id}/{mutation}.pdb"
     conda: "../../envs/rosetta_environment.yml"
+    resources:
+        mem_mb=4000
     script: "scripts/relax.py"

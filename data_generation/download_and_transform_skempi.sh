@@ -2,12 +2,12 @@
 
 # We expect the repository to be in the home directory of the user
 # some configuration
-export ABAG_PATH=~/ag_binding_affinity
 
-cd ~/ag_binding_affinity/data_generation/SKEMPI
+cd SKEMPI
 
 # download data
-scripts/download_skempi.sh -p ~/ag_binding_affinity/data/SKEMPI_v2
+# mkdir -p data/SKEMPI_v2
+scripts/download_skempi.sh -p ./
 
 # transform the data
-snakemake --use-conda --cores 32
+snakemake --use-conda --cores 1
