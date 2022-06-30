@@ -5,6 +5,10 @@ import pyrosetta
 from pyrosetta.rosetta.protocols.moves import Mover
 from pyrosetta.rosetta.core.pose import Pose, add_comment, dump_comment_pdb, get_chain_from_chain_id
 from pyrosetta.rosetta.protocols import docking, rigid
+from Bio.PDB.PDBParser import PDBParser
+
+import time
+time.sleep(4)
 
 if "snakemake" not in globals(): # use fake snakemake object for debugging
     import os
@@ -13,9 +17,9 @@ if "snakemake" not in globals(): # use fake snakemake object for debugging
     _, pdb_path = get_data_paths(config, "AbDb")
     abdb_folder_path = os.path.join(config["DATA"]["path"], config["DATA"]["AbDb"]["folder_path"])
 
-    sample_pdb_id = "1A2Y_1.pdb"
+    sample_pdb_id = "2YPV_1.pdb"
     snakemake = type('', (), {})()
-    snakemake.input = [os.path.join(abdb_folder_path + "/bound_relaxed/" + sample_pdb_id)]
+    snakemake.input = [os.path.join(pdb_path, sample_pdb_id)]#[os.path.join(abdb_folder_path + "/bound_relaxed/" + sample_pdb_id)]
     snakemake.output = [os.path.join(abdb_folder_path + "/unbound/" + sample_pdb_id)]
 
 
@@ -38,10 +42,11 @@ def add_score(pose: Pose):
     add_comment(pose, "rosetta_energy_score", str(score))
 
 
-def get_partners(pose: Pose):
-    chains = []
-    for i in range(pose.num_chains()):
-        chains.append(get_chain_from_chain_id(i, pose))
+def get_partners(structure: Pose):
+
+    chains = structure.get_chains()
+
+    chains = [ chain.id for chain in chains]
 
     antibody_chains = ""
     antigen_chains = ""
@@ -68,13 +73,17 @@ def unbind(pose, partners):
     trans_mover.step_size(STEP_SIZE)
     trans_mover.apply(pose)
 
+parser = PDBParser(PERMISSIVE=3)
 
 out_path = snakemake.output[0]
 Path(out_path).parent.mkdir(parents=True, exist_ok=True)
 file_path = snakemake.input[0]
 
 pose = load_pose(file_path)
-partners = get_partners(pose)
+
+structure = parser.get_structure("", file_path)
+partners = get_partners(structure)
+
 unbind(pose, partners)
 add_score(pose)
 
