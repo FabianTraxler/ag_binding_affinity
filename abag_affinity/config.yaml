@@ -4,6 +4,32 @@ memory: '32G'
 threads: 1
 DATA:
   path: "data"
+
+  AbDb:
+    folder_path: "AbDb"
+    pdb_paths:
+      - "bound_wildtype"
+      - "bound_relaxed"
+      - "relaxed_unbound"
+      - "relaxed_unbound_relaxed"
+      - "unbound_relaxed"
+      - "unbound_wildtype"
+    summary: "abdb_summary.csv"
+
+  SKEMPI.v2:
+    folder_path: "SKEMPI_v2"
+    pdb_path: "PDBs"
+    summary: "skempi_v2.csv"
+    mutated_pdb_path: "mutated_pdb"
+
+  Dataset_v1:
+    folder_path: "dataset_v1"
+    pdb_path: "../AbDb/NR_LH_Protein_Martin"
+    summary: "dataset_v1.csv"
+    dataset_path: "data"
+
+RESOURCES:
+  path: "resources"
   Benchmark5.5:
     folder_path: "benchmark5.5"
     pdb_path: "structures"
