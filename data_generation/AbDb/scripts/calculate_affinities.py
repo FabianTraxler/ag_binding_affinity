@@ -2,9 +2,9 @@
 # https://nbviewer.org/github/RosettaCommons/PyRosetta.notebooks/blob/master/notebooks/06.08-Point-Mutation-Scan.ipynb
 from pathlib import Path
 import pyrosetta
-from pyrosetta.rosetta.core.pose import Pose, add_comment, dump_comment_pdb, get_score_line_string, get_all_comments
+from pyrosetta.rosetta.core.pose import Pose
 import pandas as pd
-
+from collections import defaultdict
 
 if "snakemake" not in globals(): # use fake snakemake object for debugging
     import os
@@ -13,12 +13,19 @@ if "snakemake" not in globals(): # use fake snakemake object for debugging
     _, pdb_path = get_data_paths(config, "AbDb")
     abdb_folder_path = os.path.join(config["DATA"]["path"], config["DATA"]["AbDb"]["folder_path"])
 
-    sample_pdb_id = "1A2Y_1.pdb"
+    all_types = ["bound_wildtype", "unbound_wildtype", "unbound_relaxed", "bound_relaxed", "relaxed_unbound", "relaxed_unbound_relaxed"]
+
+    type_files = []
+    for file_type in all_types:
+        files = os.listdir(os.path.join(abdb_folder_path, file_type))
+        type_files.append(set(files))
+    files_available = set.intersection(*type_files)
+
+    all_pdb_ids = list(files_available)
+
     snakemake = type('', (), {})()
-    snakemake.input = [[os.path.join(abdb_folder_path, pdb_type, sample_pdb_id)] for pdb_type in ["bound_wildtype", "unbound_wildtype", "unbound_relaxed", "bound_relaxed", "relaxed_unbound", "relaxed_unbound_relaxed" ]]
-    snakemake.output = ["../summary_df.csv"]
-
-
+    snakemake.input = [os.path.join(abdb_folder_path, pdb_type, pdb_id) for pdb_id in all_pdb_ids for pdb_type in all_types ]
+    snakemake.output = ["../abdb_summary.csv"]
 
 
 pyrosetta.init(extra_options="-mute all")
@@ -52,14 +59,15 @@ def get_energy_score(pdb_path: str):
     except:
         return None
 
-def get_folder2input_files(list_of_input_file_lists):
-    folder2input_files = {}
-    for folder in all_folders:
-        for input_file_list in list_of_input_file_lists:
-            if len(input_file_list) > 0:
-                if "/" + folder + "/" in input_file_list[0]:
-                    folder2input_files[folder] = input_file_list
-                    break
+
+def get_folder2input_files(list_of_input_files):
+    folder2input_files = defaultdict(list)
+    for input_file in list_of_input_files:
+        path_components = input_file.split("/")
+        for folder in all_folders:
+            if path_components[-2] == folder:
+                folder2input_files[folder].append(input_file)
+                break
     return folder2input_files
 
 
@@ -78,7 +86,7 @@ Path(out_path).parent.mkdir(parents=True, exist_ok=True)
 
 folder2input_files = get_folder2input_files(snakemake.input)
 
-pdb_ids = [ file.split(".")[0].split("/")[-1] for file in snakemake.input[0] ]
+pdb_ids = [ file.split(".")[0].split("/")[-1] for file in folder2input_files["bound_wildtype"] ]
 
 summary_df = pd.DataFrame()
 
@@ -98,11 +106,11 @@ for idx, pdb_id in enumerate(pdb_ids):
             pdb_info[comparison[1]] = unbound_score
 
         if pdb_info[comparison[0]] is not None and pdb_info[comparison[1]] is not None:
-            binding_affinity =  pdb_info[comparison[0]] - pdb_info[comparison[1]]
+            binding_affinity = pdb_info[comparison[0]] - pdb_info[comparison[1]]
         else:
             binding_affinity = None
 
         pdb_info[comparison[0] + " vs " + comparison[1]] = binding_affinity
     summary_df = summary_df.append(pdb_info, ignore_index=True)
 
-summary_df.to_csv(out_path)
+summary_df.to_csv(out_path, index=False)

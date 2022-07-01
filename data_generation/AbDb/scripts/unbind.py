@@ -10,12 +10,12 @@ from Bio.PDB.PDBParser import PDBParser
 
 if "snakemake" not in globals(): # use fake snakemake object for debugging
     import os
-    from abag_affinity.utils.config import read_yaml, get_data_paths
+    from abag_affinity.utils.config import read_yaml, get_resources_paths
     config = read_yaml("../../../abag_affinity/config.yaml")
-    _, pdb_path = get_data_paths(config, "AbDb")
+    _, pdb_path = get_resources_paths(config, "AbDb")
     abdb_folder_path = os.path.join(config["DATA"]["path"], config["DATA"]["AbDb"]["folder_path"])
 
-    sample_pdb_id = "2YPV_1.pdb"
+    sample_pdb_id = "6ORQ_1.pdb"
     snakemake = type('', (), {})()
     snakemake.input = [os.path.join(pdb_path, sample_pdb_id)]#[os.path.join(abdb_folder_path + "/bound_relaxed/" + sample_pdb_id)]
     snakemake.output = [os.path.join(abdb_folder_path + "/unbound/" + sample_pdb_id)]
@@ -65,11 +65,12 @@ def get_partners(structure: Pose):
 
 def unbind(pose, partners):
     STEP_SIZE = 100
-    JUMP = 2
+    JUMP = 1
     docking.setup_foldtree(pose, partners, pyrosetta.Vector1([-1,-1,-1]))
-    trans_mover = rigid.RigidBodyTransMover(pose,JUMP)
+    trans_mover = rigid.RigidBodyTransMover(pose, JUMP)
     trans_mover.step_size(STEP_SIZE)
     trans_mover.apply(pose)
+
 
 parser = PDBParser(PERMISSIVE=3)
 
@@ -81,8 +82,8 @@ pose = load_pose(file_path)
 
 structure = parser.get_structure("", file_path)
 partners = get_partners(structure)
-
 unbind(pose, partners)
+
 add_score(pose)
 
 dump_comment_pdb(out_path, pose)

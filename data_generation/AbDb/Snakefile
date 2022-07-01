@@ -1,14 +1,11 @@
 import os
 import pandas as pd
-from abag_affinity.utils.config import read_yaml, get_data_paths
+from abag_affinity.utils.config import read_yaml, get_resources_paths
 
 config = read_yaml("../../abag_affinity/config.yaml")
-_, pdb_path = get_data_paths(config, "AbDb")
+_, pdb_path = get_resources_paths(config, "AbDb")
 pdb_files = os.listdir(pdb_path)
 wiltype_pdbs = [ pdb_file.split(".")[0] for pdb_file in pdb_files ]
-
-wiltype_pdbs = ["1A2Y_1"]
-
 
 data_path = config["DATA"]["path"]
 abdb_folder_path = os.path.join(data_path, config["DATA"]["AbDb"]["folder_path"])
