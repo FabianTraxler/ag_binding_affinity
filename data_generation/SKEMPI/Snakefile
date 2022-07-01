@@ -1,14 +1,13 @@
 import os
 import pandas as pd
-from abag_affinity.utils.config import read_yaml, get_data_paths
+from abag_affinity.utils.config import read_yaml, get_resources_paths
 
 config = read_yaml("../../abag_affinity/config.yaml")
-skempi_df_path, pdb_path = get_data_paths(config, "SKEMPI.v2")
-skempi_df = pd.read_csv(skempi_df_path, ";")
+skempi_df_path, pdb_path = get_resources_paths(config, "SKEMPI.v2")
+skempi_df = pd.read_csv(skempi_df_path, sep=";")
 
 data_path = config["DATA"]["path"]
 skempi_folder_path = os.path.join(data_path, config["DATA"]["SKEMPI.v2"]["folder_path"])
-mutated_output_folder = os.path.join(skempi_folder_path, config["DATA"]["SKEMPI.v2"]["mutated_pdb_path"])
 
 wiltype_pdbs = [ pdb_id.split("_")[0] for pdb_id in skempi_df["#Pdb"].tolist() ]
 mutation_codes = skempi_df["Mutation(s)_cleaned"].tolist()
@@ -16,9 +15,7 @@ mutation_codes = skempi_df["Mutation(s)_cleaned"].tolist()
 
 rule final_output:
     input:
-        expand(skempi_folder_path + '/mutated_relaxed/{pdb_id}/{mutation}.pdb', zip, pdb_id=wiltype_pdbs, mutation=mutation_codes),
-        expand(skempi_folder_path + '/relaxed_mutated_relaxed/{pdb_id}/{mutation}.pdb', zip, pdb_id=wiltype_pdbs, mutation=mutation_codes),
-        expand(skempi_folder_path + '/wildtype/{pdb_id}.pdb', pdb_id=wiltype_pdbs)
+        skempi_folder_path + "skempi_generation_summary.csv"
 
 # use not relaxed wildtye for mutation
 rule score_wildtype:
@@ -41,7 +38,7 @@ rule relax_mutated:
     input:
         skempi_folder_path +"/mutated_wildtype/{pdb_id}/{mutation}.pdb"
     output:
-        skempi_folder_path +"/mutated_relaxed/{pdb_id}/{mutation}.pdb"
+        skempi_folder_path + "/mutated_relaxed/{pdb_id}/{mutation}.pdb"
     conda: "../../envs/rosetta_environment.yml"
     resources:
         mem_mb=4000
@@ -75,3 +72,16 @@ rule rerelax_mutated:
     resources:
         mem_mb=4000
     script: "scripts/relax.py"
+
+rule calculate_change_in_binding_affinity:
+    input:
+        expand(skempi_folder_path + '/wildtype/{pdb_id}.pdb', pdb_id=wiltype_pdbs),
+        expand(skempi_folder_path + "/mutated_wildtype/{pdb_id}/{mutation}.pdb", zip, pdb_id=wiltype_pdbs, mutation=mutation_codes),
+        expand(skempi_folder_path + "/mutated_relaxed/{pdb_id}/{mutation}.pdb", zip, pdb_id=wiltype_pdbs, mutation=mutation_codes),
+        expand(skempi_folder_path + "/relaxed_wildtype/{pdb_id}.pdb",  pdb_id=wiltype_pdbs),
+        expand(skempi_folder_path + "/relaxed_mutated/{pdb_id}/{mutation}.pdb", zip, pdb_id=wiltype_pdbs, mutation=mutation_codes),
+        expand(skempi_folder_path +"/relaxed_mutated_relaxed/{pdb_id}/{mutation}.pdb", zip, pdb_id=wiltype_pdbs, mutation=mutation_codes),
+    output:
+        skempi_folder_path + "skempi_generation_summary.csv"
+    conda: "../../envs/rosetta_environment.yml"
+    script: "scripts/calculate_affinity_changes.py"

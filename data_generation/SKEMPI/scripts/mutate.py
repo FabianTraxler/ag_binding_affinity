@@ -4,8 +4,26 @@ from pathlib import Path
 from typing import Dict, List
 import pyrosetta
 from pyrosetta.toolbox.mutants import mutate_residue
-from pyrosetta.rosetta.protocols.moves import Mover
 from pyrosetta.rosetta.core.pose import Pose, add_comment, dump_comment_pdb
+import os
+
+
+if "snakemake" not in globals(): # use fake snakemake object for debugging
+    from abag_affinity.utils.config import read_yaml, get_data_paths
+    config = read_yaml("../../../abag_affinity/config.yaml")
+    skempi_df_path, pdb_path = get_data_paths(config, "SKEMPI.v2")
+    data_path = config["DATA"]["path"]
+
+    skempi_folder_path = os.path.join(data_path, config["DATA"]["SKEMPI.v2"]["folder_path"])
+
+    sample_pdb_id = "3BN9"
+    mutation_code = "RB51A"
+    snakemake = type('', (), {})()
+    snakemake.input = [os.path.join(skempi_folder_path + "/relaxed_wildtype/" + sample_pdb_id + ".pdb")]
+    snakemake.output = [os.path.join(skempi_folder_path + "/relaxed_mutated/", sample_pdb_id, mutation_code + ".pdb")]
+    snakemake.wildcards = type('', (), {})()
+    snakemake.wildcards.mutation = mutation_code
+
 
 pyrosetta.init(extra_options="-mute all")
 
@@ -13,8 +31,34 @@ scorefxn = pyrosetta.get_fa_scorefxn()
 packer = pyrosetta.rosetta.protocols.minimization_packing.PackRotamersMover(scorefxn)
 
 
+def load_pose_without_header(pdb_path: str):
+    with open(pdb_path) as f:
+        lines = f.readlines()
+
+    i = 0
+    while True:
+        if lines[i][:4] != "ATOM":
+            i += 1
+        else:
+            break
+
+    new_path = pdb_path.split(".")[0] + "_tmp.pdb"
+
+    with open(new_path, "w") as f:
+        f.writelines(lines[i:])
+
+    pose = pyrosetta.pose_from_pdb(new_path)
+
+    os.remove(new_path)
+
+    return pose
+
+
 def load_pose(pdb_path: str) -> pyrosetta.Pose:
-    pose = pyrosetta.pose_from_pdb(pdb_path)
+    try:
+        pose = pyrosetta.pose_from_pdb(pdb_path)
+    except RuntimeError:
+        pose = load_pose_without_header(pdb_path)
     testPose = pyrosetta.Pose()
     testPose.assign(pose)
     return testPose
