@@ -27,7 +27,7 @@ def get_data_paths(config: dict, dataset: str):
 
 
 def get_resources_paths(config: dict, dataset: str):
-    path = os.path.join(config["RESOURCES"]["path"], config["DATA"][dataset]["folder_path"])
+    path = os.path.join(config["RESOURCES"]["path"], config["RESOURCES"][dataset]["folder_path"])
     summary = os.path.join(path, config["RESOURCES"][dataset]["summary"])
     pdb_path = os.path.join(path, config["RESOURCES"][dataset]["pdb_path"])
 

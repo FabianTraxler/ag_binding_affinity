@@ -12,6 +12,8 @@ skempi_folder_path = os.path.join(data_path, config["DATA"]["SKEMPI.v2"]["folder
 wiltype_pdbs = [ pdb_id.split("_")[0] for pdb_id in skempi_df["#Pdb"].tolist() ]
 mutation_codes = skempi_df["Mutation(s)_cleaned"].tolist()
 
+wiltype_pdbs = ["5TAR"]
+mutation_codes = ["WB30A"]
 
 rule final_output:
     input:

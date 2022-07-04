@@ -28,6 +28,10 @@ DATA:
     summary: "dataset_v1.csv"
     dataset_path: "data"
 
+  PDBBind:
+    folder_path: "PDBBind"
+    dataset_path: "data"
+
 RESOURCES:
   path: "resources"
   Benchmark5.5:

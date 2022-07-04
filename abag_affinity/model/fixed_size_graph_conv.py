@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch_geometric.nn import GATv2Conv
+from torch_geometric.data import Data
 
 
 class FSGraphConv(torch.nn.Module):
@@ -19,7 +20,7 @@ class FSGraphConv(torch.nn.Module):
         self.fc_2 = nn.Linear(100, 10)
         self.fc_3 = nn.Linear(10, 1)
 
-    def forward(self, data):
+    def forward(self, data: Data):
         x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
 
         x = self.conv_1(x, edge_index, edge_attr)
