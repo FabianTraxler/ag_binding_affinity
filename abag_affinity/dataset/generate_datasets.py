@@ -22,6 +22,7 @@ def generate_dataset_v1(config_path: str):
     summary_df = pd.read_csv(summary_path)
 
     path = os.path.join(config["DATA"]["path"], config["DATA"]["Dataset_v1"]["folder_path"])
+    resource_path = os.path.join(config["RESOURCES"]["path"], config["RESOURCES"]["Dataset_v1"]["folder_path"])
     output_folder = os.path.join(path, config["DATA"]["Dataset_v1"]["dataset_path"])
 
     summary_df.drop_duplicates('pdb', inplace=True)
@@ -39,14 +40,14 @@ def generate_dataset_v1(config_path: str):
             for letter in alphabet_letters - set(chain_id2protein.keys()):
                 chain_id2protein[letter] = "antigen"
 
-            file_path = os.path.join(path,config["DATA"]["Dataset_v1"]["pdb_path"], row["abdb_file"])
+            file_path = os.path.join(resource_path,config["RESOURCES"]["Dataset_v1"]["pdb_path"], row["abdb_file"])
 
             structure, header = read_file(pdb_id, file_path)
 
             distances, residue_infos, residue_atom_coordinates, structure_info, closest_residues = get_distances_and_info(structure, header, chain_id2protein)
 
             res_features = get_residue_encodings(residue_infos, structure_info, chain_id2protein)
-            adj_tensor = get_edge_encodings(distances, residue_infos, chain_id2protein, distance_cutoff=5)
+            adj_tensor = get_edge_encodings(distances, residue_infos, chain_id2protein, distance_cutoff=10)
 
             delta_g = row["delta_g"]
             assert len(residue_infos) > 0
@@ -72,10 +73,9 @@ def generate_dataset_v1(config_path: str):
 
 
 def generate_pdbbind_dataset_v1(config_path: str):
-    # TODO: Not done: Fix Bugs and fully implement
     config = read_yaml(config_path)
     summary_path, pdb_path = get_resources_paths(config, "PDBBind")
-    summary_df = pd.read_csv(summary_path)
+    summary_df = pd.read_csv(summary_path)[2085:]
 
     data_path = os.path.join(config["DATA"]["path"], config["DATA"]["PDBBind"]["folder_path"])
     resource_path = os.path.join(config["RESOURCES"]["path"], config["RESOURCES"]["PDBBind"]["folder_path"])
@@ -99,7 +99,7 @@ def generate_pdbbind_dataset_v1(config_path: str):
             distances, residue_infos, residue_atom_coordinates, structure_info, closest_residues = get_distances_and_info(structure, header, chain_id2protein)
 
             res_features = get_residue_encodings(residue_infos, structure_info, chain_id2protein)
-            adj_tensor = get_edge_encodings(distances, residue_infos, chain_id2protein, distance_cutoff=15)
+            adj_tensor = get_edge_encodings(distances, residue_infos, chain_id2protein, distance_cutoff=10)
 
             delta_g = row["delta_G"]
             assert len(residue_infos) > 0
@@ -122,7 +122,6 @@ def generate_pdbbind_dataset_v1(config_path: str):
         for error in error_while_loading:
             f.write(error[0] + " - " + str(error[1]))
             f.write("\n")
-
 
 
 if __name__ == "__main__":
