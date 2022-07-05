@@ -60,6 +60,27 @@ def get_energy_score(pdb_path: str):
         return None
 
 
+def get_alt_energy_score(pdb_path: str):
+
+    with open(pdb_path) as f:
+        lines = f.readlines()
+
+    for i in range(len(lines)):
+        if lines[-i][:26] == "#BEGIN_POSE_ENERGIES_TABLE":
+            break
+    else:
+        return None
+
+    i -= 3
+    score = 0
+    for part_score in lines[-i].split(" ")[1:-1]:
+        score += float(part_score.strip())
+    try:
+        return float(score)
+    except:
+        return None
+
+
 def get_folder2input_files(list_of_input_files):
     folder2input_files = defaultdict(list)
     for input_file in list_of_input_files:
