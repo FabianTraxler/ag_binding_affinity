@@ -15,7 +15,10 @@ def read_yaml(file_path: str):
 
 def get_data_paths(config: dict, dataset: str):
     path = os.path.join(config["DATA"]["path"], config["DATA"][dataset]["folder_path"])
-    summary = os.path.join(path, config["DATA"][dataset]["summary"])
+    if "summary" in config["DATA"][dataset]:
+        summary = os.path.join(path, config["DATA"][dataset]["summary"])
+    else:
+        summary = ""
     if "pdb_path" in config["DATA"][dataset]:
         pdb_paths = [os.path.join(path, config["DATA"][dataset]["pdb_path"])]
     elif "pdb_paths" in config["DATA"][dataset]:
