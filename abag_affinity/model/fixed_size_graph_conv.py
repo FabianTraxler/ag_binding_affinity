@@ -14,6 +14,7 @@ class FSGraphConv(torch.nn.Module):
         self.conv_1 = GATv2Conv(input_dim, 3, heads=3, dropout=0.5, edge_dim=3)
         self.conv_2 = GATv2Conv(3*3, 5, heads=4, dropout=0.5, edge_dim=3)
 
+
         self.relu = nn.ReLU()
 
         self.fc_1 = nn.Linear(4*5*num_nodes, 100)

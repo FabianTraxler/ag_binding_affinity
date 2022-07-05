@@ -16,6 +16,7 @@ from abag_affinity.utils.config import get_data_paths, read_yaml
 from abag_affinity.dataset.data_loader import AffinityDataset, get_pdb_ids, SimpleGraphs, FixedSizeGraphs, DDGBackboneInputs
 from abag_affinity.dataset.hetero_data_loader import HeteroGraphs
 from abag_affinity.model.graph_conv_v1 import GraphConv
+from abag_affinity.model.graph_conv_attention import GraphConvAttention
 from abag_affinity.model.fixed_size_graph_conv import FSGraphConv
 #from abag_affinity.model.binding_ddg_backbone_gcn import DDGBackboneFC
 from abag_affinity.model.kp_gnn import KpGNN
@@ -118,10 +119,10 @@ def train_loop(model: nn.Module, train_dataset: AffinityDataset, val_dataset: Af
         results["epoch_loss"].append(val_loss)
         results["epoch_corr"].append(pearson_corr[0])
 
-        if val_loss < best_loss:# and pearson_corr[0] > best_pearson_corr:
+        if val_loss < best_loss or pearson_corr[0] > best_pearson_corr:
             patience = config.patience
-            best_loss = val_loss
-            best_pearson_corr = pearson_corr[0]
+            best_loss = min(val_loss, best_loss)
+            best_pearson_corr = max(pearson_corr[0], best_pearson_corr)
             ax = sns.scatterplot(x=all_labels, y=all_predictions)
             ax.set_title("True vs Predicted")
             ax.set_xlabel("True")
@@ -133,7 +134,7 @@ def train_loop(model: nn.Module, train_dataset: AffinityDataset, val_dataset: Af
 
         print(
             f'Epochs: {i + 1} | Train-Loss: {total_loss_train / (len(train_dataset) / BATCH_SIZE): .3f}'
-            f'  | Val-Loss: {total_loss_val / (len(val_dataset) / BATCH_SIZE): .3f} | Val-r: {pearson_corr[0]: .4f} | p-value r=0: {pearson_corr[1]: .4f} ')
+            f'  | Val-Loss: {total_loss_val / (len(val_dataset) / BATCH_SIZE): .3f} | Val-r: {pearson_corr[0]: .4f} | p-value r=0: {pearson_corr[1]: .4f} | Patience: {patience} ')
 
         wandb_log = {
             "val_loss": total_loss_val / (len(val_dataset) / BATCH_SIZE),
@@ -192,6 +193,8 @@ def model_train(model_type:str, data_type: str, validation_set: int = 1):
 
     if model_type == "GraphConv":
         model = GraphConv(train_data.num_features).to(device)
+    elif model_type == "GraphAttention":
+        model = GraphConvAttention(train_data.num_features).to(device)
     elif model_type == "FixedSizeGraphConv":
         model = FSGraphConv(train_data.num_features, MAX_NUM_NODES).to(device)
     elif model_type == "DDGBackboneFC":
@@ -220,9 +223,70 @@ def cross_validation(model_type: str, data_type: str):
 
 
 def pretrain_model(model_type: str, data_type: str):
-    pass
+    import os
+    import random
 
+    config_file = "../abag_affinity/config.yaml"
+
+    config = read_yaml(config_file)
+    datasets = config["TRAIN"]["transfer"]["datasets"]
+
+    use_cuda = torch.cuda.is_available()
+    device = torch.device("cuda" if use_cuda else "cpu")
+    model = None
+
+    for dataset_name in datasets:
+        if dataset_name == "Dataset_v1":
+            summary_file, pdb_path = get_data_paths(config, dataset_name)
+            dataset_summary = pd.read_csv(summary_file)
+            val_ids = list(dataset_summary[dataset_summary["validation"] == 1]["pdb"].values)
+            train_ids = list(
+                dataset_summary[(dataset_summary["validation"] != 1) & (dataset_summary["test"] == False)][
+                    "pdb"].values)
+        elif dataset_name == "PDBBind":
+            pdb_ids = os.listdir(os.path.join(config["DATA"]["path"],  config["DATA"][dataset_name]["folder_path"], config["DATA"][dataset_name]["dataset_path"]))
+            pdb_ids = [pdb_id.split(".")[0] for pdb_id in pdb_ids]
+            # random split for PDBBind
+            random.shuffle(pdb_ids)
+            split = int(len(pdb_ids) * 0.9)
+            val_ids = pdb_ids[-split:]
+            train_ids = pdb_ids[:split]
+
+        if data_type == "SimpleGraphs":
+            train_data = SimpleGraphs(config_file, dataset_name, train_ids)
+            val_data = SimpleGraphs(config_file, dataset_name, val_ids)
+        elif data_type == "FixedSizeGraphs":
+            train_data = FixedSizeGraphs(config_file, dataset_name, train_ids, MAX_NUM_NODES)
+            val_data = FixedSizeGraphs(config_file, dataset_name, val_ids, MAX_NUM_NODES)
+        elif data_type == "DDGBackboneInputs":
+            train_data = DDGBackboneInputs(config_file, dataset_name, train_ids, MAX_NUM_NODES)
+            val_data = DDGBackboneInputs(config_file, dataset_name, val_ids, MAX_NUM_NODES)
+        elif data_type == "HeteroGraphs":
+            train_data = HeteroGraphs(config_file, dataset_name, train_ids)
+            val_data = HeteroGraphs(config_file, dataset_name, val_ids)
+        else:
+            return
+
+        if model is None:
+            if model_type == "GraphConv":
+                model = GraphConv(train_data.num_features).to(device)
+            elif model_type == "GraphAttention":
+                model = GraphConvAttention(train_data.num_features).to(device)
+            elif model_type == "FixedSizeGraphConv":
+                model = FSGraphConv(train_data.num_features, MAX_NUM_NODES).to(device)
+            elif model_type == "DDGBackboneFC":
+                model = DDGBackboneFC("./binding_ddg_predictor/data/model.pt", device)
+            elif model_type == "KpGNN":
+                model = KpGNN(train_data.num_features).to(device)
+            else:
+                print("Please specify valid model and dataloader")
+                return
+        results, model = train_loop(model, train_data, val_data)
+
+        print("Training with {} completed".format(dataset_name))
+        print(results)
 
 if __name__ == "__main__":
-    cross_validation("KpGNN", "HeteroGraphs")
-    #cross_validation("GraphConv", "SimpleGraphs")
+    pretrain_model("FixedSizeGraphConv", "FixedSizeGraphs")
+    #cross_validation("KpGNN", "HeteroGraphs")
+    #cross_validation("GraphAttention", "SimpleGraphs")
