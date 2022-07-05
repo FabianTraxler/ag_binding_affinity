@@ -14,7 +14,7 @@ if "snakemake" not in globals(): # use fake snakemake object for debugging
     _, pdb_path = get_data_paths(config, "AbDb")
     abdb_folder_path = os.path.join(config["DATA"]["path"], config["DATA"]["AbDb"]["folder_path"])
 
-    sample_pdb_id = "1A2Y_1.pdb"
+    sample_pdb_id = "2YPV_1.pdb"
     snakemake = type('', (), {})()
     snakemake.input = [os.path.join(pdb_path, sample_pdb_id)]
     snakemake.output = [os.path.join(abdb_folder_path + "/bound_relaxed/" + sample_pdb_id)]

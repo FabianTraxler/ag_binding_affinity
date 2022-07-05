@@ -6,6 +6,24 @@ from pyrosetta.rosetta.core.pose import Pose, add_comment, dump_comment_pdb
 import os
 
 
+if "snakemake" not in globals(): # use fake snakemake object for debugging
+    from abag_affinity.utils.config import read_yaml, get_data_paths
+    config = read_yaml("../../../abag_affinity/config.yaml")
+    skempi_df_path, pdb_path = get_data_paths(config, "SKEMPI.v2")
+    data_path = config["DATA"]["path"]
+
+    skempi_folder_path = os.path.join(data_path, config["DATA"]["SKEMPI.v2"]["folder_path"])
+    skempi_resource_folder_path = os.path.join(config["RESOURCES"]["path"], config["DATA"]["SKEMPI.v2"]["folder_path"])
+
+    sample_pdb_id = "5TAR"
+    mutation_code = "WB30A"
+    snakemake = type('', (), {})()
+    snakemake.input = [os.path.join("/home/fabian/Downloads", sample_pdb_id.lower() + ".pdb")] #[os.path.join(skempi_resource_folder_path + "/PDBs/" + sample_pdb_id + ".pdb")]
+    snakemake.output = [os.path.join(skempi_folder_path + "/wildtype/", sample_pdb_id, mutation_code + ".pdb")]
+    snakemake.wildcards = type('', (), {})()
+    snakemake.wildcards.mutation = mutation_code
+
+
 pyrosetta.init(extra_options="-mute all")
 
 scorefxn = pyrosetta.get_fa_scorefxn()

@@ -16,8 +16,8 @@ if "snakemake" not in globals(): # use fake snakemake object for debugging
 
     skempi_folder_path = os.path.join(data_path, config["DATA"]["SKEMPI.v2"]["folder_path"])
 
-    sample_pdb_id = "3BN9"
-    mutation_code = "RB51A"
+    sample_pdb_id = "5TAR"
+    mutation_code = "WB30A"
     snakemake = type('', (), {})()
     snakemake.input = [os.path.join(skempi_folder_path + "/relaxed_wildtype/" + sample_pdb_id + ".pdb")]
     snakemake.output = [os.path.join(skempi_folder_path + "/relaxed_mutated/", sample_pdb_id, mutation_code + ".pdb")]

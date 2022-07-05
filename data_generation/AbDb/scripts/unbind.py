@@ -15,7 +15,8 @@ if "snakemake" not in globals(): # use fake snakemake object for debugging
     _, pdb_path = get_resources_paths(config, "AbDb")
     abdb_folder_path = os.path.join(config["DATA"]["path"], config["DATA"]["AbDb"]["folder_path"])
 
-    sample_pdb_id = "6ORQ_1.pdb"
+    sample_pdb_id = "2YPV_1.pdb"
+
     snakemake = type('', (), {})()
     snakemake.input = [os.path.join(pdb_path, sample_pdb_id)]#[os.path.join(abdb_folder_path + "/bound_relaxed/" + sample_pdb_id)]
     snakemake.output = [os.path.join(abdb_folder_path + "/unbound/" + sample_pdb_id)]
@@ -71,6 +72,7 @@ def unbind(pose, partners):
     trans_mover.step_size(STEP_SIZE)
     trans_mover.apply(pose)
 
+parser = PDBParser(PERMISSIVE=3)
 
 parser = PDBParser(PERMISSIVE=3)
 
@@ -82,6 +84,7 @@ pose = load_pose(file_path)
 
 structure = parser.get_structure("", file_path)
 partners = get_partners(structure)
+
 unbind(pose, partners)
 
 add_score(pose)
