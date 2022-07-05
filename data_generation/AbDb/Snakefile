@@ -38,6 +38,8 @@ rule relax_unbound:
     output:
         abdb_folder_path +"/unbound_relaxed/{pdb_id}.pdb"
     conda: "../../envs/rosetta_environment.yml"
+    resources:
+        mem_mb=4000
     script: "scripts/relax.py"
 
 # use relaxed wildtype
@@ -47,6 +49,8 @@ rule relax_wildtype:
     output:
         abdb_folder_path + "/bound_relaxed/{pdb_id}.pdb",
     conda: "../../envs/rosetta_environment.yml"
+    resources:
+        mem_mb=4000
     script: "scripts/relax.py"
 
 rule unbind_relaxed:
@@ -63,6 +67,8 @@ rule rerelax_unbound:
     output:
         abdb_folder_path +"/relaxed_unbound_relaxed/{pdb_id}.pdb"
     conda: "../../envs/rosetta_environment.yml"
+    resources:
+        mem_mb=4000
     script: "scripts/relax.py"
 
 rule calculate_binding_affinities:

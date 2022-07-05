@@ -1,0 +1,7 @@
+__default__:
+  error: "logs/logs_slurm/{rule}_{wildcards}.err"
+  output: "logs/logs_slurm/{rule}_{wildcards}.out"
+  mem: "4000"
+  partition: "shortq"
+  qos: "shortq"
+  kill-on-invalid-dep: "yes"
