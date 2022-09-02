@@ -1,0 +1,66 @@
+import os
+import pandas as pd
+from abag_affinity.utils.config import read_yaml, get_resources_paths, get_data_paths
+
+config = read_yaml("../../abag_affinity/config.yaml")
+benchmark_df_path, pdb_path = get_resources_paths(config, "AntibodyBenchmark")
+df = pd.read_excel(benchmark_df_path)
+
+pdb_ids = set([ complex_id.split("_")[0] for complex_id in df["Complex PDB"].values ])
+pdb_ids.remove("3EOA") # this file cannot be parsed with pyrosetta
+
+benchmark_data_path = os.path.join(config["DATA"]["path"], config["DATA"]["AntibodyBenchmark"]["folder_path"])
+benchmark_scores_path, relaxed_pdbs = get_data_paths(config, "AntibodyBenchmark")
+
+relaxed_pdbs = relaxed_pdbs[0]
+unrelaxed_pdbs = relaxed_pdbs[1]
+
+rule final_output:
+    input:
+        benchmark_scores_path
+
+rule bind_relax_bound:
+    input:
+        pdb_path + "/{pdb_id}_r_b.pdb",
+        pdb_path + "/{pdb_id}_l_b.pdb"
+    output:
+        relaxed_pdbs + "/{pdb_id}_b.pdb",
+        unrelaxed_pdbs + "/{pdb_id}_b.pdb",
+
+    conda: "../../envs/rosetta_environment.yml"
+    script: "scripts/bind_relax_bound.py"
+
+rule relax_unbound_ligand:
+    input:
+        pdb_path + "/{pdb_id}_l_u.pdb"
+    output:
+        relaxed_pdbs + "/{pdb_id}_l_u.pdb",
+        unrelaxed_pdbs + "/{pdb_id}_l_u.pdb",
+    conda: "../../envs/rosetta_environment.yml"
+    script: "scripts/relax_unbound.py"
+
+rule relax_unbound_receptor:
+    input:
+        pdb_path + "/{pdb_id}_r_u.pdb",
+    output:
+        relaxed_pdbs + "/{pdb_id}_r_u.pdb",
+        unrelaxed_pdbs+ "/{pdb_id}_r_u.pdb",
+    conda: "../../envs/rosetta_environment.yml"
+    script: "scripts/relax_unbound.py"
+
+rule score:
+    input:
+        expand(relaxed_pdbs + "/{pdb_id}_r_u.pdb", pdb_id=pdb_ids),
+        expand(relaxed_pdbs + "/{pdb_id}_l_u.pdb", pdb_id=pdb_ids),
+        expand(relaxed_pdbs + "/{pdb_id}_b.pdb", pdb_id=pdb_ids),
+        expand(unrelaxed_pdbs + "/{pdb_id}_r_u.pdb", pdb_id=pdb_ids),
+        expand(unrelaxed_pdbs + "/{pdb_id}_l_u.pdb", pdb_id=pdb_ids),
+        expand(unrelaxed_pdbs + "/{pdb_id}_b.pdb", pdb_id=pdb_ids),
+    output:
+        benchmark_scores_path
+    params:
+        pdb_ids=pdb_ids,
+        relaxed_pdb_path=relaxed_pdbs,
+        unrelaxed_pdb_path=unrelaxed_pdbs
+    conda: "../../envs/rosetta_environment.yml"
+    script: "scripts/score.py"

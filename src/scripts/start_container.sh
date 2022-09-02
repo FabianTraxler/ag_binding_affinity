@@ -1,0 +1,1 @@
+srun --container-image=nvcr.io#nvidia/pytorch:22.02-py3 -N1 -q a100 --gres=gpu:a100:1 --mem=200GB --pty bash

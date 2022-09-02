@@ -142,6 +142,8 @@ wandb/
 # CeMM-conventions
 data
 metadata
-resources
-results
+resources/
+results/
 logs/
+*.egg-info
+temp_graphs/

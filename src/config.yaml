@@ -1,0 +1,113 @@
+PROJECT_ROOT: /home/fabian/Desktop/Uni/Masterthesis/ag_binding_affinity
+
+DATA:
+  path: "data"
+
+  AbDb:
+    folder_path: "AbDb"
+    pdb_paths:
+      - "bound_wildtype"
+      - "bound_relaxed"
+      - "relaxed_unbound"
+      - "relaxed_unbound_relaxed"
+      - "unbound_relaxed"
+      - "unbound_wildtype"
+    summary: "abdb_summary.csv"
+
+  SKEMPI.v2:
+    folder_path: "SKEMPI_v2"
+    pdb_path: "PDBs"
+    summary: "cleaned_data.csv"
+    mutated_pdb_path: "mutated_wildtype"
+
+  Dataset_v1:
+    folder_path: "dataset_v1"
+    pdb_path: ""
+    summary: "dataset_v1.csv"
+
+  PDBBind:
+    folder_path: "PDBBind"
+    dataset_path: "data"
+    summary: "pdbbind.csv"
+
+  AntibodyBenchmark:
+    folder_path: "antibody_benchmark"
+    pdb_paths:
+      - "relaxed_pdbs"
+      - "unrelaxed_pdbs"
+    summary: "antibody_benchmark_scores.csv"
+
+  DMS:
+    folder_path: "DMS"
+    pdb_path: "pdbs"
+    summary: "dms.csv"
+
+RESOURCES:
+  path: "resources"
+  Benchmark5.5:
+    folder_path: "benchmark5.5"
+    pdb_path: "structures"
+    summary: "Table_BM5.5.xlsx"
+
+  AntibodyBenchmark:
+    folder_path: "antibody_benchmark"
+    pdb_path: "pdbs"
+    summary: "antibody_benchmark_cases.xlsx"
+
+  SAbDab:
+    folder_path: "SAbDab"
+    pdb_path: "pdbs"
+    summary: "summary.tsv"
+
+  AbDb:
+    folder_path: "AbDb"
+    pdb_path: "NR_LH_Protein_Martin"
+    summary: "summary.csv"
+
+  SKEMPI.v2:
+    folder_path: "SKEMPI_v2"
+    pdb_path: "PDBs"
+    summary: "skempi_v2.csv"
+    mutated_pdb_path: "mutated_wildtype"
+
+  PDBBind:
+    folder_path: "PDBBind"
+    pdb_path: "PP"
+    info_file: "PP/index/INDEX_general_PP.2020"
+    summary: "cases.csv"
+    dataset_path: "data"
+
+  Dataset_v1:
+    folder_path: "dataset_v1"
+    pdb_path: "../AbDb/NR_LH_Protein_Martin"
+    summary: "dataset_v1.csv"
+    dataset_path: "data"
+
+  DMS:
+    folder_path: "DMS"
+    pdb_path: "pdbs"
+    summary: "cr9114_processed.csv"
+
+RESULTS:
+  path: "results"
+  plot_path: "plots"
+
+MODELS:
+  binding_dgg_predictor:
+    model_path: "ag_binding_affinity/binding_ddg_predictor/data/model.pt"
+
+TRAIN:
+  standard:
+    dataset: Dataset_v1
+
+  transfer:
+    datasets:
+      - PDBBind
+      - SKEMPI.v2
+      - Dataset_v1
+
+  bucket:
+    datasets:
+      - PDBBind
+      - SKEMPI.v2
+      - Dataset_v1

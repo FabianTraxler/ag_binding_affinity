@@ -1,0 +1,36 @@
+import os
+import pandas as pd
+from abag_affinity.utils.config import read_yaml, get_resources_paths
+
+config = read_yaml("../../abag_affinity/config.yaml")
+_, pdb_path = get_resources_paths(config, "AbDb")
+pdb_files = os.listdir(pdb_path)
+wiltype_pdbs = [ pdb_file.split(".")[0] for pdb_file in pdb_files ]
+
+data_path = config["DATA"]["path"]
+abdb_folder_path = os.path.join(data_path, config["DATA"]["AbDb"]["folder_path"])
+
+out_folder = "/msc/home/ftraxl96/projects/ag_binding_affinity/data/AbDb/FoldX_results"
+
+
+rule all:
+    input: out_folder + "/../foldx_results.csv"
+
+# use not relaxed wildtype
+rule analyze_complex:
+    input:
+        pdb_path + '/{pdb_id}.pdb'
+    output:
+        out_folder + "/Summary_{pdb_id}_AC.fxout"
+    params:
+        abdb_folder_path=pdb_path,
+        out_folder=out_folder,
+        pdb_id=r"{pdb_id}"
+    shell: "FoldX --command=AnalyseComplex --pdb={params.pdb_id}.pdb --pdb-dir={params.abdb_folder_path} --output-dir={params.out_folder}"
+
+rule aggregate_results:
+    input: expand(out_folder + "/Summary_{pdb_id}_AC.fxout", pdb_id=wiltype_pdbs),
+    output:
+        out_folder + "/../foldx_results.csv"
+    conda: "../../envs/rosetta_environment.yml"
+    script: "scripts/aggregate_energy_results.py"
