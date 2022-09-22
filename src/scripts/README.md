@@ -1,12 +1,14 @@
-# Model Training on Cluster
+# Model training on cluster
 
 Example for MUW Cluster:
 
 ## Setup
 
-Only needed for first time
+Only needed for the first time
 
 #### 1. Install Miniconda on login node
+
+Alternatively (maybe better), copy the conda environment from a compute node container (see below; in /opt/conda) to your home.
 
 #### 2. Link paths of login node to paths in container
 
