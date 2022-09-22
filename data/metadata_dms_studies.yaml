@@ -2,7 +2,7 @@ phillips21_bindin:
   dms_target: fv
   fv_type: scfv
   doi: 10.7554/eLife.71393
-  complexes: 
+  complexes:
     - antigen:
         name: h1newcal99
         full_name: A/New Caledonia/20/1999 (H1N1)
@@ -10,7 +10,7 @@ phillips21_bindin:
         name: cr9114
         full_name: CR9114
       pdb:
-        file: phillips21_predictions/processed/cr9114_newcal1999.pdb  # sorry the name is not in accordance with the other names
+        file: data/prepared_pdbs/phillips21/cr9114_newcal1999.pdb  # sorry the name is not in accordance with the other names
         chains:
           antigen:
             - B
@@ -31,7 +31,7 @@ phillips21_bindin:
         name: cr9114
         full_name: CR9114
       pdb:
-        file: phillips21_predictions/processed/cr9114_wiscons2005.pdb  # sorry the name is not in accordance with the other names
+        file: data/prepared_pdbs/phillips21/cr9114_wiscons2005.pdb  # sorry the name is not in accordance with the other names
         chains:
           antigen:
             - B
@@ -47,7 +47,7 @@ phillips21_bindin:
         name: cr9114
         full_name: CR9114
       pdb:
-        file: phillips21_predictions/processed/cr9114_ohio2005.pdb
+        file: data/prepared_pdbs/phillips21/cr9114_ohio2005.pdb
         chains:
           antigen:
             - B
@@ -62,7 +62,7 @@ phillips21_bindin:
         name: cr6261
         full_name: CR6261
       pdb:
-        file: phillips21_predictions/processed/cr6262_newcal1999.pdb
+        file: data/prepared_pdbs/phillips21/cr6262_newcal1999.pdb
         chains:
           antigen:
             - B
@@ -77,7 +77,7 @@ phillips21_bindin:
         full_name: CR6261
         name: cr6261
       pdb:
-        file: phillips21_predictions/processed/cr6261_hongkong1999.pdb
+        file: data/prepared_pdbs/phillips21/cr6261_hongkong1999.pdb
         chains:
           antigen:
             - B
@@ -106,7 +106,7 @@ wu17_in:
         full_name: C05
       # pdb: 4FP8 / 5UMN
       pdb:
-        id: 4fp8 
+        id: 4fp8
         mutations: DA2T;PA3E;GA4L;KA12E;NA15D;NA16S;RA19Q;IA24K;DA25N;HA37Q;VA40G;EA44K;TA45K;FA56Y;IA83N;TA84N;GA86S;TA88N;GA97T;NA99S;KA102I;GA104R;PA105S;GA106K;SA107N;GA108S;KA118H;SA119L;GA120N;SA121F;TA122K;VA125A;DA134E;NA135Q;SA148G;NA150D;QA151K;EA152D;TA154I;SA155F;VA158A;VA164I;RA169K;IA175V;IA176S;WA184R;GA187N;LA188I;SA189P;VA204I;VA206L;NA210T;MA222I;TA224S;DA237G;TA238K;IA240N;KA261R;KA269R;GA272K;HA273Q;HA274N;HA275T;HA276L;HA277K;HA278L
         chains:
           antigen:

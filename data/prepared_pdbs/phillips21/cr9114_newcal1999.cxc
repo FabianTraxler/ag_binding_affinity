@@ -1,0 +1,48 @@
+open  /home/moritz/ag_binding_affinity/data_acquisition/phillips21_predictions/output/cr9114_newcal1999_unrelaxed_rank_1_model_4.pdb
+open 5CJS
+sel #2/A
+sel #2/B
+sel #2/C
+sel #2/D
+sel #2/E
+sel #2/H
+sel #2/L
+sel #2/C
+sel #2/D
+sel #2/E
+del #2/E
+del #2/F
+sel #2/H
+del #2/I
+del #2/J
+sel #2/I
+sel #2/J
+sel #2/F
+sel #2/K
+del #2/K
+mm #2/C to #1
+sel #1/H
+sel #2/H
+sel zone #2/L,H 5 #2/C
+sel zone #2/L,H 5 #2/C,D
+sel zone #2/L,H 5 #2/C,D res t
+sel zone #2/L,H 10 #2/C,D res t
+sel zone #2/L,H 7 #2/C,D res t
+sel zone #2/L,H 7 #2/D res t
+mm #1 to sel
+split #1
+sel #1.1
+sel #1.2
+sel #1.3
+mm #1.3 to #2/H,L
+sel #2/D
+sel zone #2/D 5 #2/H,L
+sel #1.3
+sel zone #2/D 5 #2/H,L
+mm #1.3 to sel
+sel zone #2/D 15 #2/H,L
+sel zone #2/D 10 #2/H,L
+mm #1.3 to sel
+combine #1
+save /home/moritz/ag_binding_affinity/data_acquisition/phillips21_predictions/processed/cr9114_newcal1999.pdb #3
+save /home/moritz/ag_binding_affinity/data_acquisition/phillips21_predictions/processed/cr9114_newcal1999.cif #3

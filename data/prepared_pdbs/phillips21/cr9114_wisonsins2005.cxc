@@ -1,0 +1,21 @@
+open /home/moritz/Projects/ag_binding_affinity/data_acquisition/phillips21_predictions/output/cr9114_wisconsins2005_unrelaxed_rank_1_model_1.pdb
+open 4FQY
+mm #1 to #2
+sel #1/H
+sel #1/H,L
+sel #1/A
+sel #1/B
+sel #1/C
+sel #1/D
+sel #1/E
+sel #1/F
+sel #2/H,L
+sel zone #2/H,L 7 #2/A,B
+sel zone #2/H,L 7 #2/A,B res t
+mm # 1 to sel
+split #1
+sel zone sel 7 #2/H,L
+mm #1.3 to sel
+combine #1
+save /home/moritz/ag_binding_affinity/data_acquisition/phillips21_predictions/processed/cr9114_wiscons2005.pdb #3
+save /home/moritz/ag_binding_affinity/data_acquisition/phillips21_predictions/processed/cr9114_wiscons2005.cif #3
