@@ -2,6 +2,7 @@
 import logging
 import sys
 from argparse import ArgumentParser, Namespace
+from pathlib import Path
 from typing import Dict
 
 from abag_affinity.train import (bucket_train, cross_validation, model_train,
@@ -80,7 +81,7 @@ def parse_args() -> Namespace:
     optional.add_argument("-v", "--validation_set", type=int, help="Which validation set to use", default=1,
                         choices=[1,2,3])
     optional.add_argument("-c", "--config_file", type=str, help="Path to config file for datasets and training strategies",
-                        default="../config.yaml")
+                        default=(Path(__file__).parents[1] / "config.yaml").resolve())
     optional.add_argument("--verbose", type=bool, help="Print verbose logging statements",
                         default=False)
     optional.add_argument("--preprocess_graph", type=bool, help="Compute graphs beforehand to speedup training (especially for DeepRefine",
@@ -91,7 +92,6 @@ def parse_args() -> Namespace:
                         default=False)
     optional.add_argument("--scale_values", type=bool, help="Scale affinity values between 0 and 1",
                         default=False)
-
 
     args = parser.parse_args()
     args.config = read_config(args.config_file)

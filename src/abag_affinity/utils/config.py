@@ -1,9 +1,9 @@
 """Utilities to read config file and extract relevant paths"""
 import os
+from pathlib import Path
 from typing import Dict, List, Tuple
 
 import yaml
-from patlib import Path
 
 
 def read_config(file_path: str) -> Dict:
@@ -19,7 +19,7 @@ def read_config(file_path: str) -> Dict:
         config = yaml.safe_load(f)
 
 
-    folder_path = (Path(__file__) / '../../../').resolve()
+    folder_path = (Path(__file__).parents[3]).resolve()
     config['PROJECT_ROOT'] = folder_path
 
     if folder_path is not None:
