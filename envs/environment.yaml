@@ -3,7 +3,7 @@ channels:
   - pytorch
   - pyg
   - salilab
-  - https://anaconda.org/dglteam/dgl-cuda11.3/0.8.0post1/download
+#  - https://anaconda.org/dglteam/dgl-cuda11.3/0.8.0post1/download
   - conda-forge
   - defaults
 dependencies:
@@ -23,7 +23,7 @@ dependencies:
   - cryptography=37.0.4=py38h2b5fc30_0
   - cudatoolkit=11.3.1=h9edb442_10
   - cycler=0.11.0=pyhd8ed1ab_0
-  - dgl-cuda11.3=0.8.0post1=py38_0
+  # - dgl-cuda11.3=0.8.0post1=py38_0
   - fonttools=4.37.1=py38h0a891b7_0
   - freetype=2.12.1=hca18f0e_0
   - hdf5-1107=1.10.7=0
@@ -119,7 +119,7 @@ dependencies:
     - attrs==22.1.0
     - axial-positional-embedding==0.2.1
     - biopandas==0.4.1
-    - biopython==1.80.dev0
+    - biopython==1.79
     - chardet==4.0.0
     - click==8.1.3
     - deepspeed==0.5.8

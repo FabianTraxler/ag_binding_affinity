@@ -30,6 +30,13 @@ Make sure to install the python package by running
 
 Create a conda environment with the `envs/environment.yaml` file.
 
+`mamba env create -f envs/environment.yaml`
+
+As of now, DGL needs to be installed separately:
+`mamba install -c dglteam dgl`
+
+deep refine is missing too still.. Clone https://github.com/BioinfoMachineLearning/DeepRefine and run `python setup.py install`
+
 # Usage
 
 ### Training
