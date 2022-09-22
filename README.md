@@ -22,6 +22,10 @@ Make sure to link the `resources`, `results` and `data` folders to the correct l
 
 Folder names can be adapted in `src/config`
 
+Make sure to install the python package by running
+
+`python setup.py develop` (or `install`)
+
 ### Requirements
 
 Create a conda environment with the `envs/environment.yaml` file.
@@ -30,15 +34,16 @@ Create a conda environment with the `envs/environment.yaml` file.
 
 ### Training
 
-The python script `src/abag_affinity/main.py` provides an interface for training specified geometric deep learning models 
+The python script `src/abag_affinity/main.py` provides an interface for training specified geometric deep learning models
 with different datasets and training modalities.
 
 Call `python main.py --help` to show available options.
 
 Example:
 
-`python main.py -t bucket_train -m GraphConv -d BoundComplexGraphs -b 5`
+python -m abag_affinity.main
 
+`python main.py -t bucket_train -m GraphConv -d BoundComplexGraphs -b 5`
 
 #### Weights & Biases
 Configure your W&B account and create a project called `abab_binding_affinity`. Then add the `-wdb True` argument to the script to log in to your W&B account.
