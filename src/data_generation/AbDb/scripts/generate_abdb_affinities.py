@@ -1,16 +1,15 @@
 # Inspiration from PyRosetta tutorial notebooks
 # https://nbviewer.org/github/RosettaCommons/PyRosetta.notebooks/blob/master/notebooks/06.08-Point-Mutation-Scan.ipynb
+import ast
 import logging
 import os
-import pandas as pd
 from typing import Dict, List
-from tqdm import tqdm
-import ast
+
+import pandas as pd
 import pyrosetta
+from abag_affinity.utils.config import get_data_paths, read_config
 from pyrosetta.rosetta.protocols import docking, rigid
-
-from abag_affinity.utils.config import read_yaml, get_data_paths
-
+from tqdm import tqdm
 
 # init logger
 logger = logging.getLogger("AbDb-Affinity-Generation")
@@ -96,7 +95,7 @@ def calculate_affinities(config: Dict):
 
 def main():
     config_path = "abag_affinity/config.yaml"
-    config = read_yaml(config_path)
+    config = read_config(config_path)
     calculate_affinities(config)
 
 

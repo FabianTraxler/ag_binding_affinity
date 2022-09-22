@@ -1,15 +1,19 @@
 # Inspiration from PyRosetta tutorial notebooks
 # https://nbviewer.org/github/RosettaCommons/PyRosetta.notebooks/blob/master/notebooks/06.08-Point-Mutation-Scan.ipynb
-from pathlib import Path
-import pyrosetta
-from pyrosetta.rosetta.core.pose import Pose, add_comment, dump_comment_pdb, get_score_line_string, get_all_comments
-import pandas as pd
 from collections import defaultdict
+from pathlib import Path
+
+import pandas as pd
+import pyrosetta
+from pyrosetta.rosetta.core.pose import (Pose, add_comment, dump_comment_pdb,
+                                         get_all_comments,
+                                         get_score_line_string)
 
 if "snakemake" not in globals(): # use fake snakemake object for debugging
     import os
-    from abag_affinity.utils.config import read_yaml, get_data_paths
-    config = read_yaml("../../../abag_affinity/config.yaml")
+
+    from abag_affinity.utils.config import get_data_paths, read_config
+    config = read_config("../../../abag_affinity/config.yaml")
     data_path = config["DATA"]["path"]
     skempi_folder_path = os.path.join(data_path, config["DATA"]["SKEMPI.v2"]["folder_path"])
 

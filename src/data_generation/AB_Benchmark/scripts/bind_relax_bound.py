@@ -1,20 +1,21 @@
 # Inspiration from PyRosetta tutorial notebooks
 # https://nbviewer.org/github/RosettaCommons/PyRosetta.notebooks/blob/master/notebooks/06.08-Point-Mutation-Scan.ipynb
-from pathlib import Path
-import pyrosetta
-from pyrosetta.rosetta.protocols.moves import Mover
-from pyrosetta.rosetta.core.pose import Pose, add_comment, dump_comment_pdb
-from pyrosetta.rosetta.protocols.relax import FastRelax
-from Bio.PDB.PDBParser import PDBParser
-from Bio.PDB import PDBIO
 import os
+from pathlib import Path
 
+import pyrosetta
+from Bio.PDB import PDBIO
+from Bio.PDB.PDBParser import PDBParser
+from pyrosetta.rosetta.core.pose import Pose, add_comment, dump_comment_pdb
+from pyrosetta.rosetta.protocols.moves import Mover
+from pyrosetta.rosetta.protocols.relax import FastRelax
 
 parser = PDBParser(PERMISSIVE=3)
 
 if "snakemake" not in globals(): # use fake snakemake object for debugging
-    from abag_affinity.utils.config import read_yaml, get_resources_paths, get_data_paths
-    config = read_yaml("../../../abag_affinity/config.yaml")
+    from abag_affinity.utils.config import (get_data_paths,
+                                            get_resources_paths, read_config)
+    config = read_config("../../../abag_affinity/config.yaml")
     _, pdb_path = get_resources_paths(config, "AntibodyBenchmark")
     benchmark_folder_path = os.path.join(config["DATA"]["path"], config["DATA"]["AbDb"]["folder_path"])
 

@@ -1,17 +1,17 @@
 # Inspiration from PyRosetta tutorial notebooks
 # https://nbviewer.org/github/RosettaCommons/PyRosetta.notebooks/blob/master/notebooks/06.08-Point-Mutation-Scan.ipynb
 import io
-import os
-import pandas as pd
-from typing import Dict, List
-from tqdm import tqdm
 import logging
-import pyrosetta
-from pyrosetta.toolbox.mutants import mutate_residue
-from pyrosetta.rosetta.protocols.moves import Mover
-from pyrosetta.rosetta.core.pose import Pose
+import os
+from typing import Dict, List
 
-from abag_affinity.utils.config import read_yaml, get_data_paths
+import pandas as pd
+import pyrosetta
+from abag_affinity.utils.config import get_data_paths, read_config
+from pyrosetta.rosetta.core.pose import Pose
+from pyrosetta.rosetta.protocols.moves import Mover
+from pyrosetta.toolbox.mutants import mutate_residue
+from tqdm import tqdm
 
 logger = logging.getLogger("Skempi-Structures-Generation")
 logger.setLevel(logging.DEBUG)
@@ -143,7 +143,7 @@ def realx_with_openfold(pose: Pose):
 def main():
     folder_path = os.getenv('ABAG_PATH')
     config_path = os.path.join(folder_path, "abag_affinity/config.yaml")
-    config = read_yaml(config_path)
+    config = read_config(config_path)
     create_relaxed_mutations(config)
 
 

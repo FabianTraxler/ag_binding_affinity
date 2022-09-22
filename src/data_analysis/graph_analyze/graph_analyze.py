@@ -1,20 +1,24 @@
 import os.path
-from typing import List, Dict
 import warnings
+from typing import Dict, List
+
 warnings.filterwarnings("ignore")
 import numpy as np
-
 from abag_affinity.dataset import BoundComplexGraphs
-from abag_affinity.utils.config import read_yaml, get_resources_paths
-from abag_affinity.utils.pdb_processing import get_residue_infos, get_distances, get_residue_edge_encodings, \
-    get_atom_edge_encodings, get_atom_encodings, get_residue_encodings
+from abag_affinity.utils.config import get_resources_paths, read_config
+from abag_affinity.utils.pdb_processing import (get_atom_edge_encodings,
+                                                get_atom_encodings,
+                                                get_distances,
+                                                get_residue_edge_encodings,
+                                                get_residue_encodings,
+                                                get_residue_infos)
 from abag_affinity.utils.pdb_reader import read_file
 
 
 def write_selection_for_residue_interface_hull(pdb_id: str, interface_cutoff: int = 5, hull_size:int = 7, use_dataloader: bool = False,
                                   pdb_path: str = None, chain_id2protein: Dict = None):
     if use_dataloader:
-        config = read_yaml("../../config.yaml")
+        config = read_config("../../config.yaml")
         dataset = BoundComplexGraphs(config, "Dataset_v1", pdb_ids=[pdb_id],
                                      interface_distance_cutoff=interface_cutoff, node_type="residue", load_from_disc=False,
                                      save_graphs=False, force_recomputation=True)
@@ -67,7 +71,7 @@ def write_selection_for_residue_interface_hull(pdb_id: str, interface_cutoff: in
 def write_selection_for_atom_interface_hull(pdb_id: str, interface_cutoff: int = 5, hull_size:int = 7, use_dataloader: bool = False,
                                   pdb_path: str = None, chain_id2protein: Dict = None):
     if use_dataloader:
-        config = read_yaml("../../config.yaml")
+        config = read_config("../../config.yaml")
         dataset = BoundComplexGraphs(config, "Dataset_v1", pdb_ids=[pdb_id],
                                      interface_distance_cutoff=interface_cutoff, node_type="atom", load_from_disc=False,
                                      save_graphs=False, force_recomputation=True)
@@ -125,7 +129,7 @@ def write_selection_for_interface(pdb_id: str, cutoff: int = None, n_closest: in
                            pdb_path: str = None, chain_id2protein: Dict = None):
 
     if use_dataloader:
-        config = read_yaml("../../config.yaml")
+        config = read_config("../../config.yaml")
         dataset = BoundComplexGraphs(config, "Dataset_v1", pdb_ids=[pdb_id], max_nodes=n_closest,
                                      interface_distance_cutoff=cutoff, node_type="atom", load_from_disc=False,
                                      save_graphs=False, force_recomputation=True)
@@ -183,7 +187,7 @@ def write_selection_for_interface(pdb_id: str, cutoff: int = None, n_closest: in
 def write_connection_lines(pdb_id: str, cutoff: int = 5, graph_dict = None, use_dataloader: bool = False,
                            pdb_path: str = None, chain_id2protein: Dict = None):
     if graph_dict is None and use_dataloader:
-        config = read_yaml("../../config.yaml")
+        config = read_config("../../config.yaml")
         dataset = BoundComplexGraphs(config, "Dataset_v1",  pdb_ids=[pdb_id],
                                      interface_distance_cutoff=cutoff, node_type="residue", load_from_disc=False,
                                      save_graphs=False, force_recomputation=True)
@@ -225,7 +229,7 @@ def write_connection_lines(pdb_id: str, cutoff: int = 5, graph_dict = None, use_
 def write_atom_connection_lines(pdb_id: str, cutoff: int = 5, use_dataloader: bool = False,
                            pdb_path: str = None, chain_id2protein: Dict = None):
     if use_dataloader:
-        config = read_yaml("../../config.yaml")
+        config = read_config("../../config.yaml")
         dataset = BoundComplexGraphs(config, "Dataset_v1",  pdb_ids=[pdb_id],
                                      interface_distance_cutoff=cutoff, node_type="atom", load_from_disc=False,
                                      save_graphs=False, force_recomputation=True)
@@ -275,7 +279,7 @@ def write_atom_connection_lines(pdb_id: str, cutoff: int = 5, use_dataloader: bo
 
 def load_pdb(pdb_id: str, file_path: str = None):
     if file_path is None:
-        config = read_yaml("../../config.yaml")
+        config = read_config("../../config.yaml")
         dataset = BoundComplexGraphs(config, "Dataset_v1", pdb_ids=[pdb_id], load_from_disc=False, save_graphs=False)
         _, pdb_path = get_resources_paths(config, "Dataset_v1")
         file_name = dataset.data_df[dataset.data_df["pdb"] == pdb_id]["abdb_file"].values[0]

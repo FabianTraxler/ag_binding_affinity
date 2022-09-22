@@ -1,14 +1,15 @@
 """Module providing implementations of different training modalities"""
 
 import logging
-import torch
-from argparse import Namespace
-import numpy as np
-from typing import Dict, Tuple
 import random
+from argparse import Namespace
+from typing import Dict, Tuple
 
-from abag_affinity.utils.config import read_yaml
-from abag_affinity.train.utils import load_model, load_datasets, train_loop, finetune_backbone, bucket_learning
+import numpy as np
+import torch
+from abag_affinity.train.utils import (bucket_learning, finetune_backbone,
+                                       load_datasets, load_model, train_loop)
+from abag_affinity.utils.config import read_config
 
 random.seed(123)
 
@@ -33,7 +34,7 @@ def model_train(args:Namespace, validation_set: int = None) -> Tuple[torch.nn.Mo
         Tuple: Trained model and Dict with results and statistics of training
     """
 
-    config = read_yaml(args.config_file)
+    config = read_config(args.config_file)
 
     dataset_name = config["TRAIN"]["standard"]["dataset"]
 
@@ -91,7 +92,7 @@ def pretrain_model(args:Namespace) -> Tuple[torch.nn.Module, Dict]:
     Returns:
         Tuple: Trained model and Dict with results and statistics of training
     """
-    config = read_yaml(args.config_file)
+    config = read_config(args.config_file)
 
     datasets = config["TRAIN"]["transfer"]["datasets"]
 
@@ -136,7 +137,7 @@ def bucket_train(args:Namespace) -> Tuple[torch.nn.Module, Dict]:
     Returns:
         Tuple: Trained model and Dict with results and statistics of training
     """
-    config = read_yaml(args.config_file)
+    config = read_config(args.config_file)
 
     datasets = config["TRAIN"]["bucket"]["datasets"]
 

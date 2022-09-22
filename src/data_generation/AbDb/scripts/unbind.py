@@ -1,17 +1,19 @@
 # Inspiration from PyRosetta tutorial notebooks
 # https://nbviewer.org/github/RosettaCommons/PyRosetta.notebooks/blob/master/notebooks/06.08-Point-Mutation-Scan.ipynb
 from pathlib import Path
-import pyrosetta
-from pyrosetta.rosetta.protocols.moves import Mover
-from pyrosetta.rosetta.core.pose import Pose, add_comment, dump_comment_pdb, get_chain_from_chain_id
-from pyrosetta.rosetta.protocols import docking, rigid
-from Bio.PDB.PDBParser import PDBParser
 
+import pyrosetta
+from Bio.PDB.PDBParser import PDBParser
+from pyrosetta.rosetta.core.pose import (Pose, add_comment, dump_comment_pdb,
+                                         get_chain_from_chain_id)
+from pyrosetta.rosetta.protocols import docking, rigid
+from pyrosetta.rosetta.protocols.moves import Mover
 
 if "snakemake" not in globals(): # use fake snakemake object for debugging
     import os
-    from abag_affinity.utils.config import read_yaml, get_resources_paths
-    config = read_yaml("../../../abag_affinity/config.yaml")
+
+    from abag_affinity.utils.config import get_resources_paths, read_config
+    config = read_config("../../../abag_affinity/config.yaml")
     _, pdb_path = get_resources_paths(config, "AbDb")
     abdb_folder_path = os.path.join(config["DATA"]["path"], config["DATA"]["AbDb"]["folder_path"])
 

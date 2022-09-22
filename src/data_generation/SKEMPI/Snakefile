@@ -1,8 +1,8 @@
 import os
 import pandas as pd
-from abag_affinity.utils.config import read_yaml, get_data_paths, get_resources_paths
+from abag_affinity.utils.config import read_config, get_data_paths, get_resources_paths
 
-config = read_yaml("../../config.yaml")
+config = read_config("../../config.yaml")
 skempi_df_path, _ = get_data_paths(config, "SKEMPI.v2")
 _, pdb_path = get_resources_paths(config, "SKEMPI.v2")
 skempi_df = pd.read_csv(skempi_df_path)

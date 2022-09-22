@@ -1,11 +1,12 @@
 """This module provides all training utilities for the antibody-antigen binding affinity prediction"""
-from argparse import Namespace, ArgumentParser
 import logging
 import sys
+from argparse import ArgumentParser, Namespace
 from typing import Dict
 
-from abag_affinity.train import model_train, cross_validation, pretrain_model, bucket_train
-from abag_affinity.utils.config import read_yaml
+from abag_affinity.train import (bucket_train, cross_validation, model_train,
+                                 pretrain_model)
+from abag_affinity.utils.config import read_config
 
 # different training modalities
 training = {
@@ -93,7 +94,7 @@ def parse_args() -> Namespace:
 
 
     args = parser.parse_args()
-    args.config = read_yaml(args.config_file)
+    args.config = read_config(args.config_file)
 
     if args.wandb_name == "":
         args.wandb_name = f'{args.model_type}' \

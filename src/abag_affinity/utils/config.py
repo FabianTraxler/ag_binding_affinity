@@ -1,10 +1,12 @@
 """Utilities to read config file and extract relevant paths"""
-import yaml
 import os
-from typing import Dict, Tuple, List
+from typing import Dict, List, Tuple
+
+import yaml
+from patlib import Path
 
 
-def read_yaml(file_path: str) -> Dict:
+def read_config(file_path: str) -> Dict:
     """ Read a yaml file, join paths and return content as dict
 
     Args:
@@ -15,7 +17,11 @@ def read_yaml(file_path: str) -> Dict:
     """
     with open(file_path, "r") as f:
         config = yaml.safe_load(f)
-    folder_path = config["PROJECT_ROOT"]
+
+
+    folder_path = (Path(__file__) / '../../../').resolve()
+    config['PROJECT_ROOT'] = folder_path
+
     if folder_path is not None:
         config["RESOURCES"]["path"] = os.path.join(folder_path, config["RESOURCES"]["path"])
         config["DATA"]["path"] = os.path.join(folder_path, config["DATA"]["path"])
