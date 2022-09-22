@@ -7,20 +7,20 @@ from pyrosetta.toolbox.mutants import mutate_residue
 from pyrosetta.rosetta.core.pose import Pose, add_comment, dump_comment_pdb
 import os
 
+three2one_code = {'CYS': 'C', 'ASP': 'D', 'SER': 'S', 'GLN': 'Q', 'LYS': 'K',
+     'ILE': 'I', 'PRO': 'P', 'THR': 'T', 'PHE': 'F', 'ASN': 'N',
+     'GLY': 'G', 'HIS': 'H', 'LEU': 'L', 'ARG': 'R', 'TRP': 'W',
+     'ALA': 'A', 'VAL':'V', 'GLU': 'E', 'TYR': 'Y', 'MET': 'M'}
+
 
 if "snakemake" not in globals(): # use fake snakemake object for debugging
-    from abag_affinity.utils.config import read_yaml, get_data_paths
-    config = read_yaml("../../../abag_affinity/config.yaml")
-    skempi_df_path, pdb_path = get_data_paths(config, "SKEMPI.v2")
-    data_path = config["DATA"]["path"]
+    folder_path = "/resources/dms_phillips21/pdbs"
 
-    skempi_folder_path = os.path.join(data_path, config["DATA"]["SKEMPI.v2"]["folder_path"])
-
-    sample_pdb_id = "5TAR"
-    mutation_code = "WB30A"
+    sample_pdb_id = "cr9114_newcal1999"
+    mutation_code = "FC164S;SC165N;SC166N;IC187S;AC193T;NC194A;KC209I;SC210F;TC211S".replace("C", "D")
     snakemake = type('', (), {})()
-    snakemake.input = [os.path.join(skempi_folder_path + "/relaxed_wildtype/" + sample_pdb_id + ".pdb")]
-    snakemake.output = [os.path.join(skempi_folder_path + "/relaxed_mutated/", sample_pdb_id, mutation_code + ".pdb")]
+    snakemake.input = [os.path.join(folder_path + "/" + sample_pdb_id + ".pdb")]
+    snakemake.output = [os.path.join(folder_path + "/mutated_wildtype/", sample_pdb_id + "_" + mutation_code + ".pdb")]
     snakemake.wildcards = type('', (), {})()
     snakemake.wildcards.mutation = mutation_code
 
@@ -86,6 +86,10 @@ def convert_mutations(mutation_code: str):
 
 def mutate(pose: Pose, mutations: List[Dict]):
     for mutation in mutations:
+        # check if mutation is correct
+        original_residue = pose.pdb_rsd((mutation["chain"], mutation["index"])).name()
+        assert three2one_code[original_residue.upper()] == mutation["original_amino_acid"]
+
         mutate_residue(pose, pose.pdb_info().pdb2pose(mutation["chain"], mutation["index"]), mutation["new_amino_acid"], pack_radius=10, pack_scorefxn=pyrosetta.get_fa_scorefxn())
 
 

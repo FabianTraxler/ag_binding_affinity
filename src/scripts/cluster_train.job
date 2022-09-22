@@ -2,17 +2,13 @@
 
 #SBATCH -N 1      # nodes requested
 #SBATCH -n 1      # tasks requested
-#SBATCH -c 4      # cores requested
-#SBATCH --mem=200GB  # memory in Mb
+#SBATCH -c 30      # cores requested
+#SBATCH --mem=1TB  # memory in Mb
 #SBATCH -o out_train  # send stdout to outfile
 #SBATCH -e error_train  # send stderr to errfile
-#SBATCH -t 01:00:00  # time requested in hour:minute:second
+#SBATCH -t 20:00:00  # max time requested in hour:minute:second
 #SBATCH -q a100
 #SBATCH --gres gpu:a100:1
+#SBATCH --export ALL
 
-conda activate abag_cluster
-cd $HOME/projects/ag_binding_affinity/src/abag_affinity/
-
-srun --container-image=nvcr.io#nvidia/pytorch:22.02-py3 python main.py -t bucket_train -m GraphAttention -d InterfaceGraphs -w 8 -b 5 --verbose True
-
-# srun --container-image=nvcr.io#muwsc/cemsii/ag_binding_affinity:latest /root/projects/ag_binding_affinity/scripts/train_model.sh
+srun --container-image=nvcr.io#nvidia/pytorch:22.02-py3 /root/miniconda3/envs/abag_cluster/bin/python /root/projects/ag_binding_affinity/src/abag_affinity/main.py $*

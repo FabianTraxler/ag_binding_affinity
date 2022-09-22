@@ -1,8 +1,10 @@
+"""Submodule providing a wrapper class for training with relative binding affinities"""
 import torch
 from torch_geometric.data import Data
 
 
 class TwinWrapper(torch.nn.Module):
+    """Wrapper class to get relative binding affinity of two graphs"""
     def __init__(self, backbone_net: torch.nn.Module):
         super(TwinWrapper, self).__init__()
         self.backbone_net = backbone_net

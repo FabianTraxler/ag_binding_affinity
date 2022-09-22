@@ -37,8 +37,8 @@ DATA:
       - "unrelaxed_pdbs"
     summary: "antibody_benchmark_scores.csv"
 
-  DMS:
-    folder_path: "DMS"
+  DMS_phillips21:
+    folder_path: "DMS_phillips21"
     pdb_path: "pdbs"
     summary: "dms.csv"
 
@@ -83,18 +83,24 @@ RESOURCES:
     summary: "dataset_v1.csv"
     dataset_path: "data"
 
-  DMS:
-    folder_path: "DMS"
+  DMS_phillips21:
+    folder_path: "dms_phillips21"
     pdb_path: "pdbs"
-    summary: "cr9114_processed.csv"
+    summaries:
+      - "cr9114_processed.csv"
+      - "cr6261_processed.csv"
 
 RESULTS:
   path: "results"
   plot_path: "plots"
+  processed_graph_path: "processed_graphs"
 
 MODELS:
   binding_dgg_predictor:
     model_path: "ag_binding_affinity/binding_ddg_predictor/data/model.pt"
+
+  deep_refine:
+    model_path: "../other_repos/DeepRefine/project/checkpoints/EGR_All_Atom_Models/LitPSR_EGR_AllAtomModel1_Seed42.ckpt"
 
 TRAIN:
   standard:

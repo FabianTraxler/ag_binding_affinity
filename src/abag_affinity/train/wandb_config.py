@@ -1,11 +1,13 @@
 import wandb
 from argparse import Namespace
+from typing import Tuple
 
-def configure(args: Namespace):
+
+def configure(args: Namespace) -> Tuple:
     """ Configure Weights&Bias with the respective parameters and project
 
     Returns:
-        Tuple of Wandb instances
+        Tuple: Wandb class, wdb config, indicator if wdb is used, offline run, online run
     """
     if args.use_wandb:
         run = wandb.init(project="abab_binding_affinity")
@@ -31,5 +33,6 @@ def configure(args: Namespace):
     config.model_type = args.model_type
     config.train_strategy = args.train_strategy
     config.validation_set = args.validation_set
+    config.scaled_values = args.scale_values
 
     return wandb, config, args.use_wandb, run, this_run

@@ -2,7 +2,7 @@ import os
 import pandas as pd
 from abag_affinity.utils.config import read_yaml, get_resources_paths, get_data_paths
 
-config = read_yaml("../../abag_affinity/config.yaml")
+config = read_yaml("../../config.yaml")
 benchmark_df_path, pdb_path = get_resources_paths(config, "AntibodyBenchmark")
 df = pd.read_excel(benchmark_df_path)
 
