@@ -40,12 +40,12 @@ class ResidueKpGNN(torch.nn.Module):
             i = 0
             j = 0
             for ii, data_graph in enumerate(data.to_data_list()):
-                if data_graph["aa", "interface", "aa"].edge_index.shape[1] == 0:
+                if data_graph["node", "interface", "node"].edge_index.shape[1] == 0:
                     batch = torch.hstack([batch, torch.zeros(1, dtype=torch.int64)])
                     edge_embeddings = torch.vstack([edge_embeddings[:i, :], torch.zeros((1,1)), edge_embeddings[i:, :]])
                     j += 1
                 else:
-                    j += data_graph["aa", "interface", "aa"].edge_index.shape[1]
+                    j += data_graph["node", "interface", "node"].edge_index.shape[1]
                 batch[i:j] = ii
                 i = j
 

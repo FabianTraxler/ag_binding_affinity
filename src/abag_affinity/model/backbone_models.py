@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from torch import device
 from torch_geometric.data import Data
-from torch_geometric.nn import GATv2Conv, global_max_pool
+from torch_geometric.nn import GATv2Conv, global_add_pool
 from typing import Dict, Union, List, Tuple
 
 # DeepRefine modules
@@ -94,7 +94,7 @@ class GraphConvAttentionModelWithBackbone(torch.nn.Module):
         x = self.relu(x)
 
         if self.num_nodes is None:
-            x = global_max_pool(x, data_batch.to(self.device))
+            x = global_add_pool(x, data_batch.to(self.device))
         else:
             x = x.view(num_graphs, self.embedding_size)
 
@@ -137,7 +137,7 @@ class ModelWithBackbone(torch.nn.Module):
         x, data_batch, _, _, num_graphs = backbone_embeddings(data, self.backbone_model)
 
         if self.num_nodes is None:
-            x = global_max_pool(x, data_batch.to(self.device))
+            x = global_add_pool(x, data_batch.to(self.device))
         else:
             x = x.view(num_graphs, self.embedding_size)
 

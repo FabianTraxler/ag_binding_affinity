@@ -84,7 +84,7 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, affinity: float, chain_id2pr
 
 
 def load_graph(row: pd.Series, dataset_name: str, config: Dict, node_type: str = "residue", distance_cutoff: int = 5,
-               interface_hull_size: int = None) -> Dict:
+               interface_hull_size: int = None, force_recomputation: bool = False) -> Dict:
     """ Load and process a data points and generate a graph and meta-information for that data point
 
     1. Get the PDB Path
@@ -123,7 +123,7 @@ def load_graph(row: pd.Series, dataset_name: str, config: Dict, node_type: str =
     cleaned_pdb_folder = os.path.join(config["DATA"]["path"], config["DATA"][dataset_name]["folder_path"],
                                       "cleaned_pdbs")
     cleaned_path = os.path.join(cleaned_pdb_folder, pdb_id + ".clean.pdb")
-    if not os.path.exists(cleaned_path):
+    if not os.path.exists(cleaned_path) or force_recomputation:
         clean_and_tidy_pdb(pdb_id, pdb_file_path, cleaned_path)
 
     return get_graph_dict(pdb_id, cleaned_path, affinity, chain_id2protein, distance_cutoff=distance_cutoff,

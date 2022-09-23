@@ -133,11 +133,12 @@ class AffinityDataset(Dataset, ABC):
         else:
             compute_graph = True
 
-        if compute_graph:  # graph not loaded from disc
+        if compute_graph or self.force_recomputation:  # graph not loaded from disc
             row = self.data_df.loc[df_idx]
             graph_dict = load_graph(row, self.dataset_name, self.config, node_type=self.node_type,
                                     distance_cutoff=self.interface_distance_cutoff,
-                                    interface_hull_size=self.interface_hull_size)
+                                    interface_hull_size=self.interface_hull_size,
+                                    force_recomputation=self.force_recomputation)
 
             if self.save_graphs and not os.path.exists(file_path):
                 graph_dict.pop("atom_names", None)  # remove unnecessary information that takes lot of storage

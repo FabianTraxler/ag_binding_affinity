@@ -337,9 +337,9 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: str, cleaned_file_path:str) -
     shutil.copyfile(pdb_file_path, tmp_pdb_filepath)
     # Clean temporary PDB file and then save its cleaned version as the original PDB file
     args = ['pdb_tidy', tmp_pdb_filepath]
-    p1 = subprocess.Popen(args=args, stdout=subprocess.PIPE)
+    p1 = subprocess.Popen(args=args, stdout=subprocess.PIPE, shell=True)
     with open(cleaned_file_path, 'w') as outfile:
-        _ = subprocess.run(args=['pdb_tidy'], stdin=p1.stdout, stdout=outfile)
+        _ = subprocess.run(args=['pdb_tidy'], stdin=p1.stdout, stdout=outfile, shell=True)
 
     # remove additional models - only keep first model
     structure = read_file(pdb_id, cleaned_file_path)
