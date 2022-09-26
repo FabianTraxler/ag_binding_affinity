@@ -13,8 +13,7 @@ from abag_affinity.utils.config import read_config
 
 random.seed(123)
 
-torch.multiprocessing.set_sharing_strategy('file_system') # cluster mulitple dataloader
-
+torch.multiprocessing.set_sharing_strategy('file_system') # cluster multiple dataloader
 logger = logging.getLogger(__name__) # setup module logger
 
 
@@ -58,7 +57,7 @@ def model_train(args:Namespace, validation_set: int = None) -> Tuple[torch.nn.Mo
 
 
 def cross_validation(args:Namespace) -> Tuple[None, Dict]:
-    """ Perform a Cross Validation based on predefined splits of the datas
+    """ Perform a Cross Validation based on predefined splits of the data
 
     Args:
         args: CLI arguments
