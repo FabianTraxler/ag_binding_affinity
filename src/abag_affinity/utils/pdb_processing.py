@@ -338,14 +338,13 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_fil
     # Clean temporary PDB file and then save its cleaned version as the original PDB file
     command = f'pdb_sort {tmp_pdb_filepath} | pdb_tidy | pdb_fixinsert  > {cleaned_file_path}'
     subprocess.run(command, shell=True)
-    print(command)
 
     # remove additional models - only keep first model
-    structure, _ = read_file(pdb_id, cleaned_file_path)
-    model = structure  # [0]
-    io = PDBIO()
-    io.set_structure(model)
-    io.save(str(cleaned_file_path))
+    # structure, _ = read_file(pdb_id, cleaned_file_path)
+    # model = structure[0]
+    # io = PDBIO()
+    # io.set_structure(model)
+    # io.save(str(cleaned_file_path))
 
     cleaned_pdb = PandasPdb().read_pdb(str(cleaned_file_path))
     input_atom_df = cleaned_pdb.df['ATOM']
