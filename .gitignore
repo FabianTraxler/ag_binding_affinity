@@ -147,3 +147,5 @@ results/
 logs/
 *.egg-info
 temp_graphs/
+
+data_acquisition/
