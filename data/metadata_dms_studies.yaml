@@ -243,6 +243,7 @@ wu20_differ_ha_h3_h1:
       pdb:
         id: 3ZTJ
         mutations: NF12G;EF15T;IF18V;FF24Y;RF25H;SF29E;EF30Q;TF32S;QF34Y;LF38Q;AF43N;DF46N;QF47G;NF49T;GF50N;LF52V;RF54S;TF59M;EF61T;KF62Q;HF64T;QF65A;IF66V;EF67G;SF71N;EF72K;VF73L;GF75R;IF77M;QF78E;DF79N;EF81N;YF83K;EF85D;TF87G;KF88F;LF91I;SF93T;AF101L;QF105E;HF106R;IF108L;LF110F;TF111H;EF114N;MF115V;NF116K;KF117N;FF119Y;TF122V;RF123K;RF124S;RF127K;EF128N;EF131K;MF133I;KF139E;IF140F;DF145N;NF146D;AF147E;IF149M;IF152V;RF153K;HF159Y;DF160P;VF161K;RF163S;DF164E;AF166S;LF167K;NF168L;FF171E;QF172K;KF174D
+        chains:
           antigen:
             - F
             # - E # only include this and C if we properly mutate it, which is difficult (too many mutations)
@@ -624,7 +625,7 @@ doolan15_confor_depen_epitop_recog_prion:
 
 kowalsky15_rapid_fine_confor_epitop_mappin:
   dms_target: antigen
-  fv_type: ?
+  fv_type: "?"
   doi: 10.1074/jbc.M115.676635
   comment: "Only focus on the one with PDB probably, as we don't have structures for the other two"
   complexes:
