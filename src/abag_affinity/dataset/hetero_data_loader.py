@@ -83,7 +83,7 @@ class HeteroGraphs(AffinityHeteroDataset, ABC):
         if node_type == "residue":
             self.edge_types = ["distance", "peptide_bond", "same_protein"]
         elif node_type == "atom":
-            self.edge_types = ["distance", "same_residue", "residue_peptide_bond", "same_protein"]
+            self.edge_types = ["distance", "same_residue", "same_protein"]
 
         self.interface_distance_cutoff = interface_distance_cutoff
 

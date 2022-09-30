@@ -19,7 +19,7 @@ import logging
 
 from abag_affinity.dataset import AffinityDataset, BoundComplexGraphs, DDGBackboneInputs, HeteroGraphs, DeepRefineBackboneInputs
 from abag_affinity.model import GraphConv, GraphConvAttention, FSGraphConv, DDGBackbone, \
-    GraphConvAttentionModelWithBackbone, ResidueKpGNN, TwinWrapper, ModelWithBackbone, DeepRefineBackbone
+    GraphConvAttentionModelWithBackbone, ResidueKpGNN, TwinWrapper, ModelWithBackbone, DeepRefineBackbone, EdgePredictionModelWithEncoder
 from abag_affinity.utils.config import get_data_paths
 from abag_affinity.train.wandb_config import configure
 from abag_affinity.utils.visualize import plot_correlation
@@ -48,6 +48,9 @@ def forward_step(model: nn.Module, data: Union[List, Data, HeteroData, Dict], de
         if isinstance(data[0], dict):  # DeepRefine Dataloader
             data[0]["graph"] = data[0]["graph"].to(device)
             data[1]["graph"] = data[1]["graph"].to(device)
+            data[0]["hetero_graph"] = data[0]["hetero_graph"].to(device)
+            data[1]["hetero_graph"] = data[1]["hetero_graph"].to(device)
+
             output = twin_model(data[0], data[1]).flatten()
             label = torch.from_numpy(data[0]["affinity"] - data[1]["affinity"])
         else:
@@ -56,6 +59,7 @@ def forward_step(model: nn.Module, data: Union[List, Data, HeteroData, Dict], de
     elif isinstance(data, dict):  # DeepRefine Dataloader
         label = torch.from_numpy(data["affinity"])
         data["graph"] = data["graph"].to(device)
+        data["hetero_graph"] = data["hetero_graph"].to(device)
         output = model(data)
     elif isinstance(data, (Data, HeteroData)):
         output = model(data.to(device)).flatten()
@@ -364,11 +368,11 @@ def load_datasets(config: Dict, dataset_name: str, data_type: str, validation_se
         val_data = HeteroGraphs(config, dataset_name, val_ids, node_type=args.node_type, relative_data=relative_data,
                                 save_graphs=args.save_graphs, scale_values=args.scale_values, force_recomputation=args.force_recomputation)
     elif data_type == "DeepRefineInputs":
-        train_data = DeepRefineBackboneInputs(config, dataset_name, train_ids, relative_data=relative_data,
+        train_data = DeepRefineBackboneInputs(config, dataset_name, train_ids, relative_data=relative_data, use_heterographs=True,
                                               num_threads=args.num_workers, preprocess_data=args.preprocess_graph,
                                               save_graphs=args.save_graphs, interface_hull_size=args.interface_hull_size
-                                              , force_recomputation=args.force_recomputation)
-        val_data = DeepRefineBackboneInputs(config, dataset_name, val_ids, relative_data=relative_data,
+                                              ,force_recomputation=args.force_recomputation)
+        val_data = DeepRefineBackboneInputs(config, dataset_name, val_ids, relative_data=relative_data, use_heterographs=True,
                                             num_threads=args.num_workers, preprocess_data=args.preprocess_graph,
                                             save_graphs=args.save_graphs, interface_hull_size=args.interface_hull_size
                                             , force_recomputation=args.force_recomputation)
@@ -596,6 +600,8 @@ def finetune_backbone(model: ModelWithBackbone, train_dataset: AffinityDataset, 
 
     # make backbone model trainable
     model.backbone_model.requires_grad = True
+    if hasattr(model.backbone_model, 'deep_refine'):
+        model.backbone_model.deep_refine.unfreeze()
 
     results, model = train_loop(model, train_dataset, val_dataset, args)
 

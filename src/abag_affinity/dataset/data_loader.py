@@ -37,9 +37,8 @@ class AffinityDataset(Dataset, ABC):
         self.interface_distance_cutoff = 5
 
         # create path for processed graphs
-        results_dir = os.path.join(config["PROJECT_ROOT"], config["RESULTS"]["path"],
-                                   config["RESULTS"]["processed_graph_path"])
-        self.temp_dir = os.path.join(results_dir, node_type, dataset_name)
+        self.results_dir = os.path.join(config["PROJECT_ROOT"], config["RESULTS"]["path"])
+        self.temp_dir = os.path.join(self.results_dir, config["RESULTS"]["processed_graph_path"], node_type, dataset_name)
         if os.path.exists(self.temp_dir) and force_recomputation:
             shutil.rmtree(self.temp_dir, ignore_errors=True)
         if save_graphs:

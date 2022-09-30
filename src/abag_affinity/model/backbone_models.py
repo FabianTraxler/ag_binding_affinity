@@ -12,6 +12,7 @@ from typing import Dict, Union, List, Tuple
 from project.modules.deeprefine_lit_modules import LitPSR
 # Binding_dgg modules
 from abag_affinity.binding_ddg_predictor.models.predictor import DDGPredictor
+from .kp_gnn import AtomEdgeModel
 
 
 def backbone_embeddings(data: Union[Data, List, Dict], backbone_model: nn.Module) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, int]:
@@ -53,6 +54,34 @@ def backbone_embeddings(data: Union[Data, List, Dict], backbone_model: nn.Module
         data_batch = data_batch.long()
 
     return x, data_batch, edge_index, edge_attr, num_graphs
+
+
+class EdgePredictionModelWithEncoder(torch.nn.Module):
+    def __init__(self, backbone_model: torch.nn.Module,  num_nodes: int = None, device: device = torch.device("cpu")):
+        super(EdgePredictionModelWithEncoder, self).__init__()
+        self.num_nodes = num_nodes
+
+        self.encoder = backbone_model
+        self.encoder.requires_grad_(False)
+
+        self.prediction_head = AtomEdgeModel(backbone_model.embedding_size, backbone_model.edge_embedding_size, device)
+
+        self.device = device
+
+        self.relu = nn.LeakyReLU()
+        self.to(device)
+
+    def forward(self, data: Union[Data, List, Dict]):
+        x, data_batch, edge_index, edge_attr, num_graphs = backbone_embeddings(data, self.encoder)
+
+        hetero_graph = data["hetero_graph"]
+        hetero_graph["node"].x = x
+        hetero_graph[("node", "feat", "node")].edge_index = edge_index
+        hetero_graph[("node", "feat", "node")].edge_attr = edge_attr
+
+        affinity = self.prediction_head(hetero_graph)
+
+        return affinity
 
 
 class GraphConvAttentionModelWithBackbone(torch.nn.Module):
@@ -208,7 +237,7 @@ class DeepRefineBackbone(torch.nn.Module):
                                             use_ext_tool_only=False,
                                             experiment_name="DeepRefineBackbone",
                                             strict=False)
-        self.deep_refine.freeze()
+        #self.deep_refine.freeze()
         self.embedding_size = 64
         self.edge_embedding_size = 15
 

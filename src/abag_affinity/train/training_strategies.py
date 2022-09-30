@@ -1,18 +1,18 @@
 """Module providing implementations of different training modalities"""
 
 import logging
-import random
-from argparse import Namespace
-from typing import Dict, Tuple
-
-import numpy as np
 import torch
-from abag_affinity.train.utils import (bucket_learning, finetune_backbone,
-                                       load_datasets, load_model, train_loop)
+from argparse import Namespace
+import numpy as np
+from typing import Dict, Tuple
+import random
+
 from abag_affinity.utils.config import read_config
+from abag_affinity.train.utils import load_model, load_datasets, train_loop, finetune_backbone, bucket_learning
 
 random.seed(123)
 
+torch.cuda.empty_cache()
 torch.multiprocessing.set_sharing_strategy('file_system') # cluster mulitple dataloader
 
 logger = logging.getLogger(__name__) # setup module logger
@@ -52,7 +52,7 @@ def model_train(args:Namespace, validation_set: int = None) -> Tuple[torch.nn.Mo
 
     results, model = train_loop(model, train_data, val_data, args)
 
-    if args.model_type == "DDGBackboneFC":
+    if args.model_type in ["DDGBackboneFC", "DeepRefineBackbone"]:
         results, model = finetune_backbone(model, train_data, val_data)
     return model, results
 
@@ -112,6 +112,7 @@ def pretrain_model(args:Namespace) -> Tuple[torch.nn.Module, Dict]:
         if model is None: # only load model for first dataset
             logger.debug(f"Loading  {args.model_type}")
             model = load_model(args.model_type, train_data.num_features, train_data.num_edge_features, args, device)
+            logger.debug(f"Model Memory usage: {torch.cuda.max_memory_allocated()}")
         logger.debug(f"Training with  {dataset_name}")
         logger.debug(f"Training done on GPU: {next(model.parameters()).is_cuda}")
         results, model = train_loop(model, train_data, val_data, args)
@@ -122,7 +123,7 @@ def pretrain_model(args:Namespace) -> Tuple[torch.nn.Module, Dict]:
 
     if args.model_type == "DDGBackboneFC" and datasets[-1] == "Dataset_v1":
         train_data, val_data = load_datasets(config, datasets[-1], args.data_type, args.validation_set, args)
-        model, results = finetune_backbone(model, train_data, val_data)
+        model, results = finetune_backbone(model, train_data, val_data, args)
         all_results["finetuning"] = results
 
     return model, all_results

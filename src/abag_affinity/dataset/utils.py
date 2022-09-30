@@ -61,11 +61,13 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, affinity: float, chain_id2pr
             interface_nodes = np.unique(interface_nodes)
             interface_hull = np.where(adj_tensor[3, interface_nodes, :] < interface_hull_size)
             interface_hull_nodes = np.unique(interface_hull[1])
+            interface_hull_residue_expanded = np.where(adj_tensor[1, interface_hull_nodes, :] == 1)
+            interface_hull_residue_expanded_nodes = np.unique(interface_hull_residue_expanded[1])
 
-            adj_tensor = adj_tensor[:, interface_hull_nodes, :][:,:,interface_hull_nodes]
-            node_features = node_features[interface_hull_nodes]
+            adj_tensor = adj_tensor[:, interface_hull_residue_expanded_nodes, :][:,:,interface_hull_residue_expanded_nodes]
+            node_features = node_features[interface_hull_residue_expanded_nodes]
 
-            closest_nodes = np.where(closest_nodes[:, None] == interface_hull_nodes[None, :])[1]
+            closest_nodes = np.where(closest_nodes[:, None] == interface_hull_residue_expanded_nodes[None, :])[1]
     else:
         raise ValueError("Invalid graph_type: Either 'residue' or 'atom'")
 
