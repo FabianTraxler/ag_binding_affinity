@@ -1,14 +1,15 @@
 import glob
-import torch
-from torch import nn
-from torch_geometric.data import DataLoader, Data, HeteroData
-from torch.utils.data import DataLoader as DL_torch
-from torch.utils.data import Subset, ConcatDataset
-from torch.optim import Adam
-from tqdm import tqdm
-from typing import Dict, Tuple, List, Union
+import logging
+import os
+import random
+from argparse import Namespace
+from copy import deepcopy
+from pathlib import Path
+from typing import Dict, List, Tuple, Union
+
 import numpy as np
 import pandas as pd
+<<<<<<< HEAD
 import random
 import os
 from copy import deepcopy
@@ -16,14 +17,26 @@ from scipy import stats
 from argparse import Namespace
 from pathlib import Path
 import logging
+import torch
+from scipy import stats
+from torch import nn
+from torch.optim import Adam
+from torch.utils.data import ConcatDataset
+from torch.utils.data import DataLoader as DL_torch
+from torch.utils.data import Subset
+from torch_geometric.data import Data, DataLoader, HeteroData
+from tqdm import tqdm
 
-from abag_affinity.dataset import AffinityDataset, BoundComplexGraphs, DDGBackboneInputs, HeteroGraphs, DeepRefineBackboneInputs
-from abag_affinity.model import GraphConv, GraphConvAttention, FSGraphConv, DDGBackbone, \
-    GraphConvAttentionModelWithBackbone, ResidueKpGNN, TwinWrapper, ModelWithBackbone, DeepRefineBackbone, EdgePredictionModelWithEncoder
-from abag_affinity.utils.config import get_data_paths
+from abag_affinity.dataset import (AffinityDataset, BoundComplexGraphs,
+                                   DDGBackboneInputs, DeepRefineBackboneInputs,
+                                   HeteroGraphs)
+from abag_affinity.model import (DDGBackbone, DeepRefineBackbone, FSGraphConv,
+                                 GraphConv, GraphConvAttention,
+                                 GraphConvAttentionModelWithBackbone,
+                                 ModelWithBackbone, ResidueKpGNN, TwinWrapper)
 from abag_affinity.train.wandb_config import configure
+from abag_affinity.utils.config import get_data_paths
 from abag_affinity.utils.visualize import plot_correlation
-
 
 logger = logging.getLogger(__name__) # setup module logger
 
@@ -247,7 +260,7 @@ def load_model(model_type: str, num_node_features: int, num_edge_features: int, 
         model = GraphConvAttentionModelWithBackbone(encoder, device=device)
 
     else:
-        raise ValueError("Please specify valid model (GraphConv, GraphAttention, FixedSizeGraphConv, DDGBackboneFC, KpGNN)")
+        raise ValueError("model_type not in {GraphConv, GraphAttention, FixedSizeGraphConv, DDGBackboneFC, KpGNN}")
 
     return model
 
@@ -279,7 +292,7 @@ def get_dataloader(args: Namespace, train_dataset: AffinityDataset, val_dataset:
 
 
 def train_val_split(config: Dict, dataset_name: str, validation_set: int) -> Tuple[List, List]:
-    """ Split data in a train a validation subset
+    """ Split data in a train and a validation subset
 
     For Dataset_v1 use the predefined split given in the csv, otherwise use random split
 
@@ -328,7 +341,7 @@ def load_datasets(config: Dict, dataset_name: str, data_type: str, validation_se
     """ Get train and validation datasets for a specific dataset and data type
 
     1. Get train and validation splits
-    2. Load the dataset in the specifies data type class
+    2. Load the dataset in the specified data type class
 
     Args:
         config: training configuration as dict

@@ -1,13 +1,13 @@
 """Visualization tools to plot training results"""
 import matplotlib.pyplot as plt
+import numpy as np
 import seaborn as sns
 from scipy import stats
-import numpy as np
 from sklearn.metrics import mean_absolute_error as mae
 
 
 def plot_correlation(x: np.ndarray, y: np.ndarray, path: str, show_corr: bool = True, show_mae: bool = True ):
-    """ Plot a correlation plot and show the regreeion line
+    """ Plot a correlation plot and show the regression line
 
     Optional show the pearson correlation with p-value
     Optional show the Mean Absolute Error
