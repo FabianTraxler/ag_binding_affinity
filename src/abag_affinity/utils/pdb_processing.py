@@ -302,7 +302,7 @@ def get_atom_edge_encodings(distance_matrix: np.ndarray, atom_encodings: np.ndar
     """ Convert the distance matrix and atom information to an adjacency tensor
     Information:
         A[0,:,:] = inverse pairwise distances - only if distance is below cutoff otherwise 0
-        A[1,:,:] = neighboring amino acid - 1 if connected by peptide bond
+        A[1,:,:] = same residue - 1 if belonging to same residue
         A[2,:,:] = same protein - 1 if same chain
         A[3,:,:] = distances
 
@@ -337,16 +337,8 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: str, cleaned_file_path:str) -
     shutil.copyfile(pdb_file_path, tmp_pdb_filepath)
     # Clean temporary PDB file and then save its cleaned version as the original PDB file
     args = ['pdb_tidy', tmp_pdb_filepath]
-    p1 = subprocess.Popen(args=args, stdout=subprocess.PIPE, shell=True)
     with open(cleaned_file_path, 'w') as outfile:
-        _ = subprocess.run(args=['pdb_tidy'], stdin=p1.stdout, stdout=outfile, shell=True)
-
-    # remove additional models - only keep first model
-    structure = read_file(pdb_id, cleaned_file_path)
-    model = structure[0]
-    io = PDBIO()
-    io.set_structure(model)
-    io.save(cleaned_file_path)
+        p1 = subprocess.run(args=args, stdout=outfile)
 
     cleaned_pdb = PandasPdb().read_pdb(cleaned_file_path)
     input_atom_df = cleaned_pdb.df['ATOM']
@@ -357,6 +349,11 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: str, cleaned_file_path:str) -
     # remove all residues that do not have at least N, CA, C atoms
     filtered_df = filtered_df.groupby(["chain_id", "residue_number", "residue_name"]).filter(
         lambda x: x["atom_name"].values[:3].tolist() == ["N", "CA", "C"])
+
+    # drop H atoms
+    filtered_df = filtered_df[filtered_df['element_symbol'] != 'H']
+
+
     cleaned_pdb.df['ATOM'] = filtered_df.reset_index(drop=True)
     cleaned_pdb.to_pdb(path=cleaned_file_path,
                        records=["ATOM"],
