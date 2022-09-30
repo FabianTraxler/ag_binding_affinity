@@ -1,16 +1,22 @@
-from typing import Dict
 import os
-import pandas as pd
 import string
-from ast import literal_eval
-import numpy as np
 import warnings
+from ast import literal_eval
+from typing import Dict
+
+import numpy as np
+import pandas as pd
+
 warnings.filterwarnings("ignore")
 
-from abag_affinity.utils.pdb_processing import get_residue_encodings, \
-    get_residue_edge_encodings, get_atom_edge_encodings, get_atom_encodings, get_residue_infos, get_distances, clean_and_tidy_pdb
+from abag_affinity.utils.pdb_processing import (clean_and_tidy_pdb,
+                                                get_atom_edge_encodings,
+                                                get_atom_encodings,
+                                                get_distances,
+                                                get_residue_edge_encodings,
+                                                get_residue_encodings,
+                                                get_residue_infos)
 from abag_affinity.utils.pdb_reader import read_file
-
 
 alphabet_letters = set(string.ascii_lowercase)
 
@@ -18,7 +24,7 @@ alphabet_letters = set(string.ascii_lowercase)
 def get_graph_dict(pdb_id: str, pdb_file_path: str, affinity: float, chain_id2protein: Dict,
                    node_type: str, distance_cutoff: int = 5, interface_hull_size: int = 10,
                    ca_alpha_contact: bool = False) -> Dict:
-    """ Generate a dictionary with node, edge and meta-information for a PDB File
+    """ Generate a dictionary with node, edge and meta-information for a given PDB File
 
     1. Get residue information
     2. Get distances between nodes (residue or atoms)
@@ -87,7 +93,7 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, affinity: float, chain_id2pr
 
 def load_graph(row: pd.Series, dataset_name: str, config: Dict, node_type: str = "residue", distance_cutoff: int = 5,
                interface_hull_size: int = None, force_recomputation: bool = False) -> Dict:
-    """ Load and process a data points and generate a graph and meta-information for that data point
+    """ Load and process a data point and generate a graph and meta-information for it
 
     1. Get the PDB Path
     2. Get the affinity

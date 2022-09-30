@@ -1,22 +1,21 @@
 """Process PDB file to get residue and atom encodings, node distances and edge encodings"""
-import numpy as np
-import scipy.spatial as sp
-from Bio.SeqUtils import seq1
-from Bio.PDB.Structure import Structure
-from Bio.PDB.PDBIO import PDBIO
-from typing import Tuple, List, Dict
-from collections import defaultdict
 import os
-from pathlib import Path
 import shutil
 import subprocess
-from biopandas.pdb import PandasPdb
+from collections import defaultdict
+from pathlib import Path
+from typing import Dict, List, Tuple, Union
 
+import numpy as np
+import scipy.spatial as sp
+from abag_affinity.binding_ddg_predictor.utils.protein import (
+    ATOM_CA, NON_STANDARD_SUBSTITUTIONS, RESIDUE_SIDECHAIN_POSTFIXES,
+    augmented_three_to_index, augmented_three_to_one, get_residue_pos14)
 from abag_affinity.utils.pdb_reader import read_file
-
-from abag_affinity.binding_ddg_predictor.utils.protein import get_residue_pos14, ATOM_CA, augmented_three_to_index, \
-    RESIDUE_SIDECHAIN_POSTFIXES, augmented_three_to_one, NON_STANDARD_SUBSTITUTIONS
-
+from Bio.PDB.PDBIO import PDBIO
+from Bio.PDB.Structure import Structure
+from Bio.SeqUtils import seq1
+from biopandas.pdb import PandasPdb
 
 # Definition of standard amino acids and objects to quickly access them
 AMINO_ACIDS = ["ala","cys","asp","glu","phe","gly","his","ile","lys","leu","met","asn","pro","gln","arg","ser","thr","val","trp","tyr"]
@@ -330,17 +329,24 @@ def get_atom_edge_encodings(distance_matrix: np.ndarray, atom_encodings: np.ndar
     return A
 
 
-def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: str, cleaned_file_path:str) -> str:
+def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_file_path: Union[str, Path]):
     Path(cleaned_file_path).parent.mkdir(exist_ok=True, parents=True)
 
     tmp_pdb_filepath = f'{pdb_file_path}.tmp'
     shutil.copyfile(pdb_file_path, tmp_pdb_filepath)
-    # Clean temporary PDB file and then save its cleaned version as the original PDB file
-    args = ['pdb_tidy', tmp_pdb_filepath]
-    with open(cleaned_file_path, 'w') as outfile:
-        p1 = subprocess.run(args=args, stdout=outfile)
 
-    cleaned_pdb = PandasPdb().read_pdb(cleaned_file_path)
+    # Clean temporary PDB file and then save its cleaned version as the original PDB file
+    command = f'pdb_sort {tmp_pdb_filepath} | pdb_tidy | pdb_fixinsert  > {cleaned_file_path}'
+    subprocess.run(command, shell=True)
+
+    # remove additional models - only keep first model
+    # structure, _ = read_file(pdb_id, cleaned_file_path)
+    # model = structure[0]
+    # io = PDBIO()
+    # io.set_structure(model)
+    # io.save(str(cleaned_file_path))
+
+    cleaned_pdb = PandasPdb().read_pdb(str(cleaned_file_path))
     input_atom_df = cleaned_pdb.df['ATOM']
 
     # remove all duplicate (alternate location residues)
@@ -355,7 +361,8 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: str, cleaned_file_path:str) -
 
 
     cleaned_pdb.df['ATOM'] = filtered_df.reset_index(drop=True)
-    cleaned_pdb.to_pdb(path=cleaned_file_path,
+
+    cleaned_pdb.to_pdb(path=str(cleaned_file_path),
                        records=["ATOM"],
                        gz=False,
                        append_newline=True)
