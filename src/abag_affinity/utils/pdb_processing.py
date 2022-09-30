@@ -335,16 +335,18 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_fil
     tmp_pdb_filepath = f'{pdb_file_path}.tmp'
     shutil.copyfile(pdb_file_path, tmp_pdb_filepath)
 
+    # remove additional models - only keep first model
+    structure, _ = read_file(pdb_id, tmp_pdb_filepath)
+    model = structure[0]
+    io = PDBIO()
+    io.set_structure(model)
+    io.save(str(tmp_pdb_filepath))
+
     # Clean temporary PDB file and then save its cleaned version as the original PDB file
     command = f'pdb_sort {tmp_pdb_filepath} | pdb_tidy | pdb_fixinsert  > {cleaned_file_path}'
     subprocess.run(command, shell=True)
 
-    # remove additional models - only keep first model
-    # structure, _ = read_file(pdb_id, cleaned_file_path)
-    # model = structure[0]
-    # io = PDBIO()
-    # io.set_structure(model)
-    # io.save(str(cleaned_file_path))
+
 
     cleaned_pdb = PandasPdb().read_pdb(str(cleaned_file_path))
     input_atom_df = cleaned_pdb.df['ATOM']
@@ -359,6 +361,7 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_fil
     # drop H atoms
     filtered_df = filtered_df[filtered_df['element_symbol'] != 'H']
 
+    assert len(filtered_df) > 0, f"No atoms in pdb file after cleaning: {pdb_file_path}"
 
     cleaned_pdb.df['ATOM'] = filtered_df.reset_index(drop=True)
 
