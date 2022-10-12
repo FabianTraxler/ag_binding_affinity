@@ -343,7 +343,7 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_fil
     io.save(str(tmp_pdb_filepath))
 
     # Clean temporary PDB file and then save its cleaned version as the original PDB file
-    command = f'pdb_sort {tmp_pdb_filepath} | pdb_tidy | pdb_fixinsert  > {cleaned_file_path}'
+    command = f'pdb_sort {tmp_pdb_filepath} | pdb_tidy | pdb_fixinsert | pdb_delhetatm  > {cleaned_file_path}'
     subprocess.run(command, shell=True)
 
 
