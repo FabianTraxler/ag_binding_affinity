@@ -53,4 +53,4 @@ python -m abag_affinity.main
 `python main.py -t bucket_train -m GraphConv -d BoundComplexGraphs -b 5`
 
 #### Weights & Biases
-Configure your W&B account and create a project called `abab_binding_affinity`. Then add the `-wdb True` argument to the script to log in to your W&B account.
+Configure your W&B account and create a project called `abag_binding_affinity`. Then add the `-wdb True` argument to the script to log in to your W&B account.
