@@ -1,0 +1,54 @@
+import os.path
+import yaml
+import pandas as pd
+from pathlib import Path
+
+
+project_root = Path(workflow.basedir).parents[2] # two directories above - absolute paths not working
+out_folder = os.path.join(project_root, "data/DMS/")
+
+metadata_file = os.path.join(project_root, "data/metadata_dms_studies.yaml")
+
+dms_info_file = os.path.join(project_root, "data/DMS/dms_curated.csv")
+info_df = pd.read_csv(dms_info_file)
+
+# filter mason21 data
+info_df = info_df[info_df["publication"].str[:7] != "mason21"]
+
+complexes = info_df.groupby(["publication", "antibody", "antigen"]).groups.keys()
+publications, antibodies, antigens = list(zip(*complexes))
+
+rule all:
+    input:
+        expand(out_folder + "mutated/{publication}/{antibody}_{antigen}.logs", zip,
+            publication=publications,
+            antibody=antibodies,
+            antigen=antigens
+        )
+
+rule get_complex:
+    output:
+        out_folder + "prepared_pdbs/{publication}/{antibody}_{antigen}.pdb"
+    params:
+        metadata_file=metadata_file,
+        project_root=project_root
+    conda: "../../../envs/rosetta_environment.yml"
+    script: "scripts/get_complex.py"
+
+rule mutate_complex:
+    input:
+        out_folder + "prepared_pdbs/{publication}/{antibody}_{antigen}.pdb"
+    output:
+        out_folder + "mutated/{publication}/{antibody}_{antigen}.logs"
+        #out_folder + "mutated/{publication}/{antibody}_{antigen}/{mutation_code}.pdb"
+    conda: "../../../envs/rosetta_environment.yml"
+    threads: 50
+    resources:
+        mem_mb=50000
+    params:
+        info_df=info_df,
+        mutation_out_folder = out_folder + "mutated"
+    script: "scripts/mutate.py"
+
+
+
