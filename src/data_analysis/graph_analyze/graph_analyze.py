@@ -75,10 +75,10 @@ def write_selection_for_atom_interface_hull(pdb_id: str, interface_cutoff: int =
         graph_dict = dataset.get_graph_dict(pdb_id)
 
         adjacency_matrix = graph_dict["adjacency_tensor"]
-        interface_nodes = np.where(adjacency_matrix[0, :, :] - adjacency_matrix[2, :, :] > 0.001)[0]
+        interface_nodes = np.where((adjacency_matrix[3, :, :] < 5) & (adjacency_matrix[2, :, :] == 0))[0]
         interface_nodes = np.unique(interface_nodes)
 
-        interface_hull = np.where(adjacency_matrix[3, interface_nodes, :] < hull_size)
+        interface_hull = np.where(adjacency_matrix[3, interface_nodes, :] <= hull_size)
         interface_hull_nodes = np.unique(interface_hull[1])
 
         node_infos = graph_dict["residue_infos"]
@@ -245,15 +245,37 @@ def write_atom_connection_lines(pdb_id: str, cutoff: int = 5, use_dataloader: bo
         A = get_atom_edge_encodings(distances, node_features, cutoff)
     else:
         return ""
-    interface = A[0, :, :] - A[2, :, :]
-    interface_atoms = np.where(interface > 0.001)
 
-    interface_distances = interface[interface_atoms[0], interface_atoms[1]]
-    closest_residues = np.argsort(interface_distances )[::-1]
+    interface_edges = np.where((A[2, :, :] != 1) & (A[0, :, :] > 0.001))
+
+    if True:
+        interface_edges = np.array(interface_edges)
+
+        interface_edges = interface_edges[:, node_features[interface_edges[0], 20] == 1]
+
+    distance = A[0, interface_edges[0], interface_edges[1]]
+
+    max_interface_edges = 300
+    if max_interface_edges is not None:
+        interface_edges = np.array(interface_edges)
+        sorted_edge_idx = np.argsort(-distance)[:max_interface_edges] # use negtive values to sort descending
+        interface_atoms = interface_edges[:, sorted_edge_idx]
+        interface_distances = A[0, interface_atoms[0], interface_atoms[1]]
+        closest_residues = np.arange(0, len(interface_distances))
+    else:
+        interface = A[0, :, :] - A[2, :, :]
+        interface_atoms = np.where(interface > 0.001)
+
+        interface_distances = interface[interface_atoms[0], interface_atoms[1]]
+        interface_atoms = np.array(interface_atoms)
+        closest_residues = np.argsort(interface_distances )[::-1]
     selection_string = ""
+    edges = []
     for i, closest in enumerate(closest_residues):
-        atom1 = interface_atoms[0][closest]
-        atom2 = interface_atoms[1][closest]
+        atom1 = interface_atoms[0, closest]
+        atom2 = interface_atoms[1, closest]
+
+        edges.append((atom1, atom2))
 
         #atom1_type = ID2ATOM[int(np.where(graph_dict["node_features"][atom1][23:-1] == 1)[0])]
         atom1_type = atom_names[atom1]
@@ -300,7 +322,7 @@ def start_pymol(pymol_path: str):
 def get_deeprefine_edges(pdb_id: str):
     config = read_config("../../config.yaml")
     dataset = DeepRefineBackboneInputs(config, "Dataset_v1", pdb_ids=[pdb_id], interface_hull_size= 7,
-                                 save_graphs=False, force_recomputation=True )
+                                 save_graphs=False, force_recomputation=True, use_heterographs=True)
 
     datapoint = dataset.load_data_point(pdb_id)
 
@@ -381,19 +403,26 @@ def main():
 
 def pdb_analysis():
     pdb_id = "5dd0" # "3sdy"
-    file_path = '/home/fabian/Desktop/Uni/Masterthesis/ag_binding_affinity/results/cleaned_pdb/Dataset_v1/deeprefine/5DD0_1.pdb'
+    file_path = '/home/fabian/Desktop/Uni/Masterthesis/ag_binding_affinity/resources/dataset_v1/../AbDb/NR_LH_Protein_Martin/5DD0_1.pdb'
     load_command = load_pdb(pdb_id, file_path)
     chain2protein = {"p": 1, "h": 0, "l": 0}
-    selection, graph_dict = write_selection_for_interface(pdb_id, cutoff=5, pdb_path=file_path, chain_id2protein=chain2protein)
 
-    interface_graph_connections = write_atom_connection_lines(pdb_id, 5, pdb_path=file_path, chain_id2protein=chain2protein)
+    use_dataloader = True
+
+    selection, graph_dict = write_selection_for_interface(pdb_id, cutoff=5, pdb_path=file_path,
+                                                          chain_id2protein=chain2protein, use_dataloader=use_dataloader)
+
+    interface_graph_connections = write_atom_connection_lines(pdb_id, 5, pdb_path=file_path, chain_id2protein=chain2protein,
+                                                              use_dataloader=use_dataloader)
 
     #mutations = [('D', '187'), ('D', '241'), ('D', '166'), ('D', '230')]
     #mutation_select = select_residues(pdb_id, mutations, "Mutations")
 
     deep_refine_edges = get_deeprefine_edges(pdb_id)
 
-    res_hull,_ = write_selection_for_atom_interface_hull(pdb_id, interface_cutoff = 5, hull_size = 7, pdb_path=file_path, chain_id2protein=chain2protein)
+    res_hull,_ = write_selection_for_atom_interface_hull(pdb_id, interface_cutoff=5, hull_size=0, pdb_path=file_path,
+                                                         #chain_id2protein=chain2protein,
+                                                         use_dataloader=use_dataloader)
     expanded_interface_5 = "select expanded_5"  + selection[selection.find("_interface"):] + " expand 5"
     expaned_interface_7 = "select expanded_10"  + selection[selection.find("_interface"):] + " expand 7"
 
@@ -406,8 +435,8 @@ def pdb_analysis():
         pm(edge)
     pm("hide label")
 
-    for edge in deep_refine_edges.split("\n"):
-        pm(edge)
+    #for edge in deep_refine_edges.split("\n"):
+    #    pm(edge)
 
     return
 
