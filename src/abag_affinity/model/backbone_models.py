@@ -56,15 +56,15 @@ def backbone_embeddings(data: Union[Data, List, Dict], backbone_model: nn.Module
     return x, data_batch, edge_index, edge_attr, num_graphs
 
 
-class EdgePredictionModelWithEncoder(torch.nn.Module):
+class EdgePredictionModelWithBackbone(torch.nn.Module):
     def __init__(self, backbone_model: torch.nn.Module,  num_nodes: int = None, device: device = torch.device("cpu")):
-        super(EdgePredictionModelWithEncoder, self).__init__()
+        super(EdgePredictionModelWithBackbone, self).__init__()
         self.num_nodes = num_nodes
 
-        self.encoder = backbone_model
-        self.encoder.requires_grad_(False)
+        self.backbone_model = backbone_model
+        self.backbone_model.requires_grad_(False)
 
-        self.prediction_head = AtomEdgeModel(backbone_model.embedding_size, backbone_model.edge_embedding_size, device)
+        self.prediction_head = AtomEdgeModel(backbone_model.embedding_size, device)
 
         self.device = device
 
@@ -72,7 +72,9 @@ class EdgePredictionModelWithEncoder(torch.nn.Module):
         self.to(device)
 
     def forward(self, data: Union[Data, List, Dict]):
-        x, data_batch, edge_index, edge_attr, num_graphs = backbone_embeddings(data, self.encoder)
+        x, data_batch, edge_index, edge_attr, num_graphs = backbone_embeddings(data, self.backbone_model)
+
+        assert len(x) == len(data["hetero_graph"]["node"].x)
 
         hetero_graph = data["hetero_graph"]
         hetero_graph["node"].x = x
@@ -197,7 +199,7 @@ class DDGBackbone(torch.nn.Module):
         self.embedding_size = config.model.node_feat_dim
         self.edge_embedding_size = 3
 
-        self.gat_encoder = model.encoder
+        self.backbone_model = model.encoder
         self.device = device
         self.to(device)
 
@@ -211,7 +213,7 @@ class DDGBackbone(torch.nn.Module):
         chain_seq = x[:, 44].reshape(1, -1).long()
         atom_pos_mask = x[:, 45:].reshape(1, -1, 14).bool()
 
-        x = self.gat_encoder(atom_pos, aa, seq, chain_seq, atom_pos_mask)
+        x = self.backbone_model(atom_pos, aa, seq, chain_seq, atom_pos_mask)
 
         return x
 

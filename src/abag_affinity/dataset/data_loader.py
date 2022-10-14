@@ -1,5 +1,6 @@
 """Module providing a basic superclass for all datasets as well as specific datasets for PyTorch geometric data"""
 import os
+import random
 from abc import ABC
 import pandas as pd
 from pathlib import Path
@@ -8,7 +9,7 @@ import torch
 from typing import Tuple, Dict, List, Union
 from torch_geometric.data import Data
 from torch_geometric.data import Dataset
-import shutil
+from parallel import submit_jobs
 import itertools
 import logging
 
@@ -24,8 +25,8 @@ class AffinityDataset(Dataset, ABC):
     """
 
     def __init__(self, config: Dict, dataset_name: str, pdb_ids: List, node_type: str = "residue",
-                 relative_data: bool = False, save_graphs: bool = False,
-                 force_recomputation: bool = False, scale_values: bool = True):
+                 relative_data: bool = False, save_graphs: bool = False, num_threads: int = 1,
+                 force_recomputation: bool = False, scale_values: bool = True, preprocess_data: bool = False):
         super(AffinityDataset, self).__init__()
         self.dataset_name = dataset_name
         self.config = config
@@ -38,14 +39,17 @@ class AffinityDataset(Dataset, ABC):
 
         # create path for processed graphs
         self.results_dir = os.path.join(config["PROJECT_ROOT"], config["RESULTS"]["path"])
-        self.temp_dir = os.path.join(self.results_dir, config["RESULTS"]["processed_graph_path"], node_type, dataset_name)
-        if os.path.exists(self.temp_dir) and force_recomputation:
-            shutil.rmtree(self.temp_dir, ignore_errors=True)
-        if save_graphs:
-            Path(self.temp_dir).mkdir(exist_ok=True, parents=True)
+        self.temp_dir = os.path.join(config["RESULTS"]["processed_graph_path"], node_type, dataset_name)
+        Path(self.temp_dir).mkdir(exist_ok=True, parents=True)
+
+        # create path for clean pdbs
+        self.pdb_clean_dir = os.path.join(config["cleaned_pdbs"], dataset_name)
+        logger.debug(f"Saving cleaned pdbs in {self.pdb_clean_dir}")
+        Path(self.pdb_clean_dir).mkdir(exist_ok=True, parents=True)
 
         self.force_recomputation = force_recomputation
         self.scale_values = scale_values
+        self.preprocess_data = preprocess_data
 
         # load dataframe with metainfo
         self.data_df = self._load_df(pdb_ids)
@@ -55,9 +59,14 @@ class AffinityDataset(Dataset, ABC):
         if relative_data:
             self.get = self.get_relative
             self.data_points = self.get_all_pairs()
+
+            self.preprocess_data = True # necessary to preprocess graphs in order to avoid race conditions in workers
         else:
             self.get = self.get_absolute
             self.data_points = pdb_ids
+
+        self.num_threads = num_threads
+
 
     def get_all_pairs(self) -> List:
         """ Get all mutation pairs available for a complex that do not have the exact same affinity
@@ -75,11 +84,59 @@ class AffinityDataset(Dataset, ABC):
                 lambda e: self.data_df.loc[e[0], "-log(Kd)"] != self.data_df.loc[e[1], "-log(Kd)"], all_combinations)
             all_data_points.extend(all_combinations)
 
+        #TODO: Remove sampler and use all values
+        all_data_points = random.sample(all_data_points, min(5000, len(all_data_points)))
+
         return all_data_points
 
     def len(self) -> int:
         """Returns the length of the dataset"""
         return len(self.data_points)
+
+    def preprocess(self):
+        """ Preprocess graphs for faster dataloader and avoiding file conflicts during parallel dataloading
+
+        Use given threads to preprocess data and store them on disc
+
+        Returns:
+            None
+        """
+
+        pdb_info = []
+
+        Path(self.temp_dir).mkdir(exist_ok=True, parents=True)
+
+        for df_idx, row in self.data_df.iterrows():
+
+            file_path = os.path.join(self.temp_dir, str(df_idx) + ".npz")
+
+            if not os.path.exists(file_path) or self.force_recomputation:
+                pdb_info.append((row, file_path))
+
+        logger.debug(f"Preprocessing {len(pdb_info)} graphs with {self.num_threads} threads")
+
+        submit_jobs(self.preload_graphs, pdb_info, self.num_threads)
+
+    def preload_graphs(self, row: pd.Series, out_path: str):
+        """ Function to get graph dict and store to disc
+
+        Used by preprocess functionality
+
+        Args:
+            row: Dataframe row corresponding to data point
+            out_path: path to store the resulting dict
+
+        Returns:
+            None
+        """
+
+        graph_dict = load_graph(row, self.dataset_name, self.config, self.pdb_clean_dir,
+                                node_type=self.node_type,
+                                distance_cutoff=self.interface_distance_cutoff,
+                                interface_hull_size=self.interface_hull_size,
+                                force_recomputation=self.force_recomputation)
+
+        np.savez_compressed(out_path, **graph_dict)
 
     def _load_df(self, pdb_ids: List):
         """ Load all the dataset information (csv) into a pandas dataframe
@@ -122,7 +179,7 @@ class AffinityDataset(Dataset, ABC):
         file_path = os.path.join(self.temp_dir, df_idx + ".npz")
         graph_dict = {}
 
-        if os.path.exists(file_path):
+        if os.path.exists(file_path) and (not self.force_recomputation or self.preprocess_data):
             try:
                 graph_dict = dict(np.load(file_path, allow_pickle=True))
                 compute_graph = False
@@ -132,9 +189,10 @@ class AffinityDataset(Dataset, ABC):
         else:
             compute_graph = True
 
-        if compute_graph or self.force_recomputation:  # graph not loaded from disc
+        if compute_graph:  # graph not loaded from disc
             row = self.data_df.loc[df_idx]
-            graph_dict = load_graph(row, self.dataset_name, self.config, node_type=self.node_type,
+            graph_dict = load_graph(row, self.dataset_name, self.config, self.pdb_clean_dir,
+                                    node_type=self.node_type,
                                     distance_cutoff=self.interface_distance_cutoff,
                                     interface_hull_size=self.interface_hull_size,
                                     force_recomputation=self.force_recomputation)
@@ -219,7 +277,7 @@ class AffinityDataset(Dataset, ABC):
 
     @property
     def num_edge_features(self) -> int:
-        """Returns the number of features per node in the dataset."""
+        """Returns the number of features per edge in the dataset."""
         data = self[0]
         data = data[0] if isinstance(data, List) else data
         if hasattr(data, 'num_edge_features'):
@@ -233,26 +291,29 @@ class BoundComplexGraphs(AffinityDataset, ABC):
     Either only the interface hull, n-closest nodes or all residues in the PDB"""
 
     def __init__(self, config: Dict, dataset_name: str, pdb_ids: List, interface_hull_size: int = None,
-                 max_nodes: int = None, interface_distance_cutoff: float = 5.0,
+                 max_nodes: int = None, interface_distance_cutoff: float = 5.0, num_threads: int = 1,
                  node_type: str = "residue", relative_data: bool = False, save_graphs: bool = False,
-                 force_recomputation: bool = False, scale_values: bool = False):
+                 force_recomputation: bool = False, scale_values: bool = False,
+                 preprocess_data: bool = False):
         super(BoundComplexGraphs, self).__init__(config, dataset_name, pdb_ids, node_type=node_type,
                                                  relative_data=relative_data, save_graphs=save_graphs,
-                                                 force_recomputation=force_recomputation,
-                                                 scale_values=scale_values)
+                                                 force_recomputation=force_recomputation, num_threads=num_threads,
+                                                 scale_values=scale_values, preprocess_data=preprocess_data)
         self.interface_hull_size = interface_hull_size
         self.interface_distance_cutoff = interface_distance_cutoff
         self.max_nodes = max_nodes
 
         # path for storing preloaded graphs
         self.temp_dir = os.path.join(self.temp_dir, f"complex-nodes_{max_nodes}-hull_{interface_distance_cutoff}.{interface_hull_size}")
-        if os.path.exists(self.temp_dir) and self.force_recomputation:
-            logger.debug(f"Deleting processed graphs in {self.temp_dir}")
-            shutil.rmtree(self.temp_dir, ignore_errors=True)
+
         if self.save_graphs:
             logger.debug(f"Saving processed graphs in {self.temp_dir}")
             Path(self.temp_dir).mkdir(exist_ok=True, parents=True)
 
+        if self.preprocess_data:
+            logger.debug(f"Preprocessing graphs for {self.dataset_name}")
+            Path(self.temp_dir).mkdir(exist_ok=True, parents=True)
+            self.preprocess()
 
     def _get_edges(self, data_file: Dict) -> Tuple[np.ndarray, np.ndarray]:
         if self.max_nodes:

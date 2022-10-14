@@ -2,8 +2,8 @@ import os
 import string
 import warnings
 from ast import literal_eval
-from typing import Dict
-
+from typing import Dict, List, Tuple
+import torch
 import numpy as np
 import pandas as pd
 
@@ -46,6 +46,7 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, affinity: float, chain_id2pr
             adjacency_tensor, affinity, closest_residues, atom_names)
     """
     structure, _ = read_file(pdb_id, pdb_file_path)
+
     structure_info, residue_infos, residue_atom_coordinates = get_residue_infos(structure, chain_id2protein)
 
     if node_type == "residue":
@@ -65,7 +66,7 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, affinity: float, chain_id2pr
             # limit graph to interface + hull
             interface_nodes = np.where(adj_tensor[0, :, :] - adj_tensor[2, :, :] > 0.001)[0]
             interface_nodes = np.unique(interface_nodes)
-            interface_hull = np.where(adj_tensor[3, interface_nodes, :] < interface_hull_size)
+            interface_hull = np.where(adj_tensor[3, interface_nodes, :] <= interface_hull_size)
             interface_hull_nodes = np.unique(interface_hull[1])
             interface_hull_residue_expanded = np.where(adj_tensor[1, interface_hull_nodes, :] == 1)
             interface_hull_residue_expanded_nodes = np.unique(interface_hull_residue_expanded[1])
@@ -91,7 +92,7 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, affinity: float, chain_id2pr
     }
 
 
-def load_graph(row: pd.Series, dataset_name: str, config: Dict, node_type: str = "residue", distance_cutoff: int = 5,
+def load_graph(row: pd.Series, dataset_name: str, config: Dict, cleaned_pdb_folder: str, node_type: str = "residue", distance_cutoff: int = 5,
                interface_hull_size: int = None, force_recomputation: bool = False) -> Dict:
     """ Load and process a data point and generate a graph and meta-information for it
 
@@ -111,14 +112,16 @@ def load_graph(row: pd.Series, dataset_name: str, config: Dict, node_type: str =
     Returns:
         Dict: Graph and meta-information for that data point
     """
-    pdb_id = row["pdb"]
 
     data_location = row["data_location"]
     if "mutation_code" in row and row["mutation_code"] != "":
+        pdb_id = row["pdb"] + "_" + row["mutation_code"]
+
         pdb_file_path = os.path.join(config[data_location]["path"],
                                      config[data_location][dataset_name]["folder_path"],
                                      config[data_location][dataset_name]["mutated_pdb_path"])
     else:
+        pdb_id = row["pdb"]
         pdb_file_path = os.path.join(config[data_location]["path"],
                                      config[data_location][dataset_name]["folder_path"],
                                      config[data_location][dataset_name]["pdb_path"])
@@ -127,10 +130,7 @@ def load_graph(row: pd.Series, dataset_name: str, config: Dict, node_type: str =
     affinity = row["-log(Kd)"]
     chain_id2protein = literal_eval(row["chain_infos"])
 
-    # clean pdb
-    cleaned_pdb_folder = os.path.join(config["DATA"]["path"], config["DATA"][dataset_name]["folder_path"],
-                                      "cleaned_pdbs")
-    cleaned_path = os.path.join(cleaned_pdb_folder, pdb_id + ".clean.pdb")
+    cleaned_path = os.path.join(cleaned_pdb_folder,pdb_id + ".pdb")
     if not os.path.exists(cleaned_path) or force_recomputation:
         clean_and_tidy_pdb(pdb_id, pdb_file_path, cleaned_path)
 
@@ -152,3 +152,63 @@ def scale_affinity(affinity: float, min: float = 0, max: float = 16) -> float:
     assert min < affinity < max, "Affinity value out of scaling range"
 
     return (affinity - min) / (max - min)
+
+
+def get_hetero_edges(graph_dict: Dict, edge_names: List[str], max_interface_edges: int = None,
+                     only_one_edge: bool = False) -> Tuple[Dict, Dict]:
+    """ Convert graph dict to multiple edge types used for HeteroData object
+
+    Iterate over the edge names and add them to the dictionaries
+
+    Add interface edges
+
+    Args:
+        graph_dict:
+        edge_names:
+
+    Returns:
+
+    """
+
+    adjacency_matrix = graph_dict["adjacency_tensor"]
+    all_edges = {}
+    edge_attributes = {}
+
+    proximity_idx = edge_names.index("proximity")
+    same_protein_idx = edge_names.index("same_protein")
+
+    for idx, edge_name in enumerate(edge_names):
+        # TODO: add extraction for atom graphs
+        edge_type = ("node", edge_name, "node")
+        if edge_name == "distance":
+            edges = np.where(adjacency_matrix[idx, :, :] > 0.001)
+        elif edge_name == "same_protein":
+            edges = np.where((adjacency_matrix[idx, :, :] == 1) & (adjacency_matrix[proximity_idx, :, :] > 0.001))
+        else:
+            edges = np.where(adjacency_matrix[idx, :, :] == 1)
+
+        all_edges[edge_type] = torch.tensor(edges).long()
+
+        distance = adjacency_matrix[proximity_idx, edges[0], edges[1]]
+        edge_attributes[edge_type] = torch.tensor(distance).double()
+
+    interface_edges = np.where((adjacency_matrix[same_protein_idx, :, :] != 1) & (adjacency_matrix[proximity_idx, :, :] > 0.001))
+
+    if only_one_edge:
+        interface_edges = np.array(interface_edges)
+
+        node_features = graph_dict["node_features"]
+        interface_edges = interface_edges[:, node_features[interface_edges[0], 20] == 1]
+
+    distance = adjacency_matrix[proximity_idx, interface_edges[0], interface_edges[1]]
+
+    if max_interface_edges is not None:
+        interface_edges = np.array(interface_edges)
+        sorted_edge_idx = np.argsort(-distance)[:max_interface_edges] # use negtive values to sort descending
+        interface_edges = interface_edges[:, sorted_edge_idx]
+        distance = adjacency_matrix[proximity_idx, interface_edges[0], interface_edges[1]]
+
+    all_edges[("node", "interface", "node")] = torch.tensor(interface_edges).long()
+    edge_attributes[("node", "interface", "node")] = torch.tensor(distance).double()
+
+    return all_edges, edge_attributes

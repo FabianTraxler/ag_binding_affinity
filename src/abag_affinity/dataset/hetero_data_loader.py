@@ -5,11 +5,13 @@ import torch
 from typing import Tuple, Dict, List
 from torch_geometric.data import HeteroData
 import os
-import shutil
+import logging
 from pathlib import Path
 
 from .data_loader import AffinityDataset
-from .utils import scale_affinity
+from .utils import scale_affinity, get_hetero_edges
+
+logger = logging.getLogger(__name__)
 
 
 class AffinityHeteroDataset(AffinityDataset, ABC):
@@ -20,23 +22,32 @@ class AffinityHeteroDataset(AffinityDataset, ABC):
 
     def __init__(self, config: Dict, dataset_name: str, pdb_ids: List, node_type: str = "residue",
                  scale_values: bool = False, relative_data: bool = False, save_graphs: bool = False,
-                 force_recomputation: bool = False):
+                 force_recomputation: bool = False, preprocess_data: bool = False, num_threads: int = 1):
         super(AffinityHeteroDataset, self).__init__(config, dataset_name, pdb_ids,
                                                     node_type=node_type,
+                                                    num_threads=num_threads,
                                                     scale_values=scale_values,
                                                     relative_data=relative_data,
                                                     save_graphs=save_graphs,
-                                                    force_recomputation=force_recomputation)
+                                                    force_recomputation=force_recomputation,
+                                                    preprocess_data=preprocess_data)
 
     @property
     def num_node_features(self) -> int:
         r"""Returns the number of features per node in the dataset."""
         data = self[0]
         data = data[0] if isinstance(data, List) else data
-        if hasattr(data["aa"], 'num_node_features'):
-            return data["aa"].num_node_features
+        if hasattr(data["node"], 'num_node_features'):
+            return data["node"].num_node_features
         raise AttributeError(f"'{data.__class__.__name__}' object has no "
                              f"attribute 'num_node_features'")
+
+    @property
+    def num_edge_features(self) -> int:
+        r"""Returns the number of features per edge in the dataset."""
+        return 1 # only one feature (distance) per edge
+
+
 
     def load_data_point(self, df_idx: str) -> HeteroData:
         """ Load a data point either from disc or compute it anew
@@ -74,25 +85,31 @@ class HeteroGraphs(AffinityHeteroDataset, ABC):
     """
     def __init__(self, config: Dict, dataset_name: str, pdb_ids: List, node_type: str = "residue",
                  max_nodes: int = None, scale_values: bool = True, relative_data: bool = False,
-                 save_graphs: bool = False, force_recomputation: bool = False, interface_distance_cutoff: float = 5.0):
+                 save_graphs: bool = False, force_recomputation: bool = False, interface_distance_cutoff: float = 5.0,
+                 preprocess_data: bool = False,  num_threads: int = 1):
         super(HeteroGraphs, self).__init__(config, dataset_name, pdb_ids, node_type, relative_data=relative_data,
-                                                  scale_values=scale_values, save_graphs=save_graphs,
-                                                  force_recomputation=force_recomputation)
+                                           scale_values=scale_values, save_graphs=save_graphs,
+                                           force_recomputation=force_recomputation,
+                                           preprocess_data=preprocess_data,
+                                           num_threads=num_threads)
         self.max_nodes = max_nodes
 
         if node_type == "residue":
-            self.edge_types = ["distance", "peptide_bond", "same_protein"]
+            self.edge_types = ["proximity", "peptide_bond", "same_protein"]
         elif node_type == "atom":
-            self.edge_types = ["distance", "same_residue", "same_protein"]
+            self.edge_types = ["proximity", "same_residue", "same_protein"]
 
         self.interface_distance_cutoff = interface_distance_cutoff
 
         # path for storing preloaded graphs
         self.temp_dir = os.path.join(self.temp_dir, f"{node_type}_hetero_graphs")
-        if os.path.exists(self.temp_dir) and self.force_recomputation:
-            shutil.rmtree(self.temp_dir, ignore_errors=True)
+
         if self.save_graphs:
             Path(self.temp_dir).mkdir(exist_ok=True, parents=True)
+
+        if self.preprocess_data:
+            logger.debug(f"Preprocessing graphs for {self.dataset_name}")
+            self.preprocess()
 
 
     def _get_edges(self, data_file: Dict) -> Tuple[Dict, Dict]:
@@ -116,28 +133,7 @@ class HeteroGraphs(AffinityHeteroDataset, ABC):
         Returns:
             Tuple: Edge Dict with indices, edge dict with attributes
         """
-        adjacency_matrix = data_file["adjacency_tensor"]
-        all_edges = {}
-        edge_attributes = {}
-        distance_idx = self.edge_types.index("distance")
-        for i in range(len(self.edge_types)):
-            # TODO: add extraction for atom graphs
-            edge_type = ("node", self.edge_types[i], "node")
-            if self.edge_types[i] == "distance":
-                edges = np.where(adjacency_matrix[i, :, :] > 0.001)
-            elif self.edge_types[i] == "same_protein":
-                edges = np.where((adjacency_matrix[i, :, :] == 1) & (adjacency_matrix[distance_idx, :, :] > 0.001))
-            else:
-                edges = np.where(adjacency_matrix[i, :, :] == 1)
-            all_edges[edge_type] = torch.tensor(np.array(edges)).long()
-
-            distance = adjacency_matrix[distance_idx, edges[0], edges[1]]
-            edge_attributes[edge_type] = torch.tensor(distance).double()
-
-        interface_edges = np.where((adjacency_matrix[2, :, :] != 1) & (adjacency_matrix[distance_idx, :, :] > 0.001))
-        all_edges[("node", "interface", "node")] = torch.tensor(interface_edges).long()
-        distance = adjacency_matrix[distance_idx, interface_edges[0], interface_edges[1]]
-        edge_attributes[("node", "interface", "node")] = torch.tensor(distance).double()
+        all_edges, edge_attributes = get_hetero_edges(data_file, self.edge_types)
 
         return all_edges, edge_attributes
 

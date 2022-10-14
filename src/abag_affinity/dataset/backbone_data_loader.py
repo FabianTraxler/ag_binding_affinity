@@ -19,7 +19,7 @@ import dgl
 from torch_geometric.data import HeteroData, Batch
 
 
-from .utils import scale_affinity, load_graph
+from .utils import scale_affinity, load_graph, get_hetero_edges
 from .data_loader import AffinityDataset
 
 from abag_affinity.utils.pdb_processing import clean_and_tidy_pdb
@@ -38,13 +38,26 @@ class DDGBackboneInputs(AffinityDataset, ABC):
     Paper: https://www.pnas.org/doi/10.1073/pnas.2122954119
     """
     def __init__(self, config: Dict, dataset_name: str, pdb_ids: List, max_nodes: int = None, scale_values: bool = False,
-                 relative_data: bool = False, save_graphs: bool = False, force_recomputation: bool = False):
+                 relative_data: bool = False, save_graphs: bool = False, force_recomputation: bool = False, node_type: str = "residue",
+                 preprocess_data: bool = False, num_threads: int = 1,):
         super(DDGBackboneInputs, self).__init__(config=config, dataset_name=dataset_name, pdb_ids=pdb_ids,
-                                                       node_type="atom", scale_values=scale_values,
-                                                       relative_data=relative_data, save_graphs=save_graphs,
-                                                       force_recomputation=force_recomputation)
+                                                node_type=node_type, scale_values=scale_values,
+                                                relative_data=relative_data, save_graphs=save_graphs,
+                                                force_recomputation=force_recomputation,
+                                                preprocess_data=preprocess_data, num_threads=num_threads)
 
         self.max_nodes = max_nodes
+
+        self.temp_dir = os.path.join(self.temp_dir, f"ddg-nodes_{max_nodes}")
+
+        if self.save_graphs:
+            logger.debug(f"Saving processed graphs in {self.temp_dir}")
+            Path(self.temp_dir).mkdir(exist_ok=True, parents=True)
+
+
+        if self.preprocess_data:
+            logger.debug(f"Preprocessing graphs for {self.dataset_name}")
+            self.preprocess()
 
     def _get_edges(self, data: Dict) -> Tuple[np.ndarray, np.ndarray]:
         """ Converts the graph dictionary to edges and edge embedding
@@ -82,14 +95,14 @@ class DDGBackboneInputs(AffinityDataset, ABC):
             np.array: Node encodings, shape: (N, 14 * 3 + 1 + 1 + 1 + 14)
         """
         if self.max_nodes is not None:
-            closest_nodes = data["closest_residues"][:self.max_nodes]
+            closest_nodes = data["closest_residues"][:self.max_nodes].astype(int)
         else:
-            closest_nodes = data["closest_residues"]
+            closest_nodes = data["closest_residues"].astype(int)
 
-        infos = data["residue_infos"][closest_nodes]
-        coords = data["residue_atom_coordinates"][closest_nodes, :]
         node_features = []
-        for residue_info, residue_coords in zip(infos, coords):
+        for idx in closest_nodes:
+            residue_info = data["residue_infos"][idx]
+            residue_coords = data["residue_atom_coordinates"][idx, :]
             node_coordinates = residue_coords.flatten()
             coordinate_mask = ~np.all(np.isinf(residue_coords), axis=-1)
             indices = np.array([residue_info["residue_pdb_index"],
@@ -97,7 +110,13 @@ class DDGBackboneInputs(AffinityDataset, ABC):
             all_features = np.concatenate([node_coordinates, indices, coordinate_mask])
             node_features.append(all_features)
 
-        return np.array(node_features)
+        node_features = np.array(node_features)
+
+        if len(closest_nodes) < self.max_nodes:
+            diff = self.max_nodes - len(closest_nodes)
+            node_features = np.vstack(node_features, np.zeros((diff, node_features[0].shape)))
+
+        return node_features
 
 
 class DeepRefineBackboneInputs(AffinityDataset, ABC):
@@ -108,6 +127,7 @@ class DeepRefineBackboneInputs(AffinityDataset, ABC):
     """
     def __init__(self, config: Dict, dataset_name: str, pdb_ids: List,
                  max_nodes: int = None,
+                 max_interface_edges: int = None,
                  scale_values: bool = False,
                  preprocess_data: bool = False,
                  relative_data: bool = False,
@@ -119,13 +139,13 @@ class DeepRefineBackboneInputs(AffinityDataset, ABC):
         super(DeepRefineBackboneInputs, self).__init__(config=config, dataset_name=dataset_name, pdb_ids=pdb_ids,
                                                        node_type="atom", scale_values=scale_values,
                                                        relative_data=relative_data, save_graphs=save_graphs,
-                                                       force_recomputation=force_recomputation)
+                                                       force_recomputation=force_recomputation,
+                                                       preprocess_data=preprocess_data, num_threads=num_threads)
         # threads to use for preloading
-        self.num_threads = num_threads
         self.pdb_parser = PDBParser(PERMISSIVE=3)
 
         self.max_nodes = max_nodes
-
+        self.max_interface_edges = max_interface_edges
         # interface definition
         self.interface_size = 5
         self.interface_hull_size = interface_hull_size
@@ -134,15 +154,19 @@ class DeepRefineBackboneInputs(AffinityDataset, ABC):
         self.use_heterographs = use_heterographs
 
         # path for storing preloaded graphs
-        self.pdb_clean_dir = os.path.join(self.results_dir, "cleaned_pdb", dataset_name, "deeprefine")
-
         self.temp_dir = os.path.join(self.temp_dir, "deeprefine")
-        if os.path.exists(self.temp_dir) and self.force_recomputation:
-            shutil.rmtree(self.temp_dir, ignore_errors=True)
-        if self.save_graphs:
-            Path(self.temp_dir).mkdir(exist_ok=True, parents=True)
 
-        if preprocess_data:
+        if self.interface_hull_size is not None:
+            folder_name = f"hull_{self.interface_hull_size}_graph"
+        else:
+            folder_name = "complete_graph"
+
+        self.graph_dir = os.path.join(self.temp_dir, folder_name)
+
+        if self.save_graphs:
+            Path(self.graph_dir).mkdir(exist_ok=True, parents=True)
+
+        if self.preprocess_data:
             logger.debug(f"Preprocessing graphs for {self.dataset_name}")
             self.preprocess()
 
@@ -155,29 +179,22 @@ class DeepRefineBackboneInputs(AffinityDataset, ABC):
             None
         """
 
-        if self.interface_hull_size is not None:
-            folder_name = f"hull_{self.interface_hull_size}_graph"
-        else:
-            folder_name = "complete_graph"
 
-        graph_dir = os.path.join(self.temp_dir, folder_name)
-
-        Path(graph_dir).mkdir(exist_ok=True, parents=True)
         pdb_info = []
 
         for idx, row in self.data_df.iterrows():
             pdb_path, _ = self.get_path_and_affinity(row)
 
-            graph_filepath = os.path.join(graph_dir, idx  + ".pickle")
+            graph_filepath = os.path.join(self.graph_dir, idx  + ".pickle")
 
-            if not os.path.exists(graph_filepath):
-                pdb_info.append((pdb_path, literal_eval(row["chain_infos"]), graph_filepath))
+            if not os.path.exists(graph_filepath) or self.force_recomputation:
+                pdb_info.append((idx, pdb_path, row, graph_filepath))
 
         logger.debug(f"Preprocessing {len(pdb_info)} graphs with {self.num_threads} threads")
 
         submit_jobs(self.preload_graphs, pdb_info, self.num_threads)
 
-    def preload_graphs(self, pdb_filepath: str, chain_infos: Dict, out_path: str):
+    def preload_graphs(self, filename: str, pdb_filepath: str, row: pd.Series, out_path: str):
         """ Function to get graph dict and store to disc
 
         Used by preprocess functionality
@@ -190,7 +207,12 @@ class DeepRefineBackboneInputs(AffinityDataset, ABC):
         Returns:
             None
         """
-        graph_dict = self.get_prot_dict(pdb_filepath, chain_infos)
+
+        chain_infos = literal_eval(row["chain_infos"])
+        graph_dict = self.get_prot_dict(filename, pdb_filepath, chain_infos)
+
+        if self.use_heterographs:
+            graph_dict["hetero_graph"] = self.get_hetero_graph(row, graph_dict["graph"].ndata["f"])
 
         with open(out_path, 'wb') as f:
             pickle.dump(graph_dict, f)
@@ -222,7 +244,7 @@ class DeepRefineBackboneInputs(AffinityDataset, ABC):
             affinity = row["-log(Kd)"]
         return pdb_file_path, affinity
 
-    def tidy_up_pdb_file(self, pdb_filepath: str) -> str:
+    def tidy_up_pdb_file(self, file_name: str, pdb_filepath: str) -> str:
         """ Clean and remove artefacts in pdb files that lead to errors in DeepRefine
 
         1. Tidy PDB with pdb-tools
@@ -231,6 +253,7 @@ class DeepRefineBackboneInputs(AffinityDataset, ABC):
         4. Only keep residues that have C, Ca and N atoms (required by DeepRefine)
 
         Args:
+            file_name: Name of the file
             pdb_filepath: Path of the original PDB file
 
         Returns:
@@ -238,8 +261,7 @@ class DeepRefineBackboneInputs(AffinityDataset, ABC):
         """
         """Run 'pdb-tools' to tidy-up and and create a new cleaned file"""
         # Make a copy of the original PDB filepath to circumvent race conditions with 'pdb-tools'
-        head, tail = os.path.split(pdb_filepath)
-        cleaned_path = os.path.join(self.pdb_clean_dir, tail)
+        cleaned_path = os.path.join(self.pdb_clean_dir, file_name + ".pdb")
         Path(cleaned_path).parent.mkdir(exist_ok=True, parents=True)
         if os.path.exists(cleaned_path) and not self.force_recomputation:
             return cleaned_path
@@ -247,7 +269,7 @@ class DeepRefineBackboneInputs(AffinityDataset, ABC):
             clean_and_tidy_pdb("_", pdb_filepath, cleaned_path)
             return cleaned_path
 
-    def reduce2interface_hull(self, pdb_filepath: str, chain_infos: Dict) -> str:
+    def reduce2interface_hull(self, file_name: str, pdb_filepath: str, chain_infos: Dict) -> str:
         """ Reduce PDB file to only contain residues in interface-hull
 
         Interface hull defines as class variable
@@ -258,6 +280,7 @@ class DeepRefineBackboneInputs(AffinityDataset, ABC):
         4. expand to all resiudes that have at least 1 atom in interface hull
 
         Args:
+            file_name: Name of the file
             pdb_filepath: Path of the original pdb file
             chain_infos: Dict with information which chain belongs to which protein (necessary for interface detection)
 
@@ -265,7 +288,7 @@ class DeepRefineBackboneInputs(AffinityDataset, ABC):
             str: path to interface pdb file
         """
         head, tail = os.path.split(pdb_filepath)
-        interface_path = os.path.join(head, "interface_hull_only", tail)
+        interface_path = os.path.join(head, "interface_hull_only", file_name + ".pdb")
         Path(interface_path).parent.mkdir(exist_ok=True, parents=True)
         if os.path.exists(interface_path) and not self.force_recomputation:
             return interface_path
@@ -317,7 +340,7 @@ class DeepRefineBackboneInputs(AffinityDataset, ABC):
 
         return interface_path
 
-    def get_prot_dict(self, input_filepath: str, chain_infos: Dict) -> Dict:
+    def get_prot_dict(self, file_name: str, input_filepath: str, chain_infos: Dict) -> Dict:
         """ Convert PDB file to a graph with node and edge encodings
 
         Utilize DeepRefine functionality to get graphs
@@ -330,9 +353,9 @@ class DeepRefineBackboneInputs(AffinityDataset, ABC):
             Dict: Information about graph, protein and filepath of pdb
         """
         # Process the unprocessed protein
-        cleaned_path = self.tidy_up_pdb_file(input_filepath)
+        cleaned_path = self.tidy_up_pdb_file(file_name, input_filepath)
         if self.interface_hull_size is not None:
-            cleaned_path = self.reduce2interface_hull(cleaned_path, chain_infos)
+            cleaned_path = self.reduce2interface_hull(file_name, cleaned_path, chain_infos)
 
         # get graph info with DeepRefine utility
         graph = process_pdb_into_graph(cleaned_path, "all_atom", 20, 8.0)
@@ -368,35 +391,16 @@ class DeepRefineBackboneInputs(AffinityDataset, ABC):
         Returns:
 
         """
+        graph_dict = load_graph(row, self.dataset_name, self.config, self.pdb_clean_dir,
+                                    node_type=self.node_type,
+                                    distance_cutoff=self.interface_distance_cutoff,
+                                    interface_hull_size=self.interface_hull_size,
+                                    force_recomputation=False) # file already cleaned when generating deep refine graph
 
-        graph_dict = load_graph(row, self.dataset_name, self.config, node_type=self.node_type,
-                                distance_cutoff=self.interface_distance_cutoff,
-                                interface_hull_size=self.interface_hull_size,
-                                force_recomputation=self.force_recomputation)
-
-        adjacency_matrix = graph_dict["adjacency_tensor"]
-
-        all_edges = {}
-        edge_attributes = {}
-        closeness_idx = 0
-
-        edges = np.where(adjacency_matrix[1, :, :] == 1)
-        distance = adjacency_matrix[closeness_idx, edges[0], edges[1]]
-        all_edges[("node", "same_residue", "node")] = torch.tensor(np.array(edges)).long()
-        edge_attributes[("node", "same_residue", "node")] = torch.tensor(distance).double()
-
-        edges = np.where(adjacency_matrix[2, :, :] == 1)
-        distance = adjacency_matrix[closeness_idx, edges[0], edges[1]]
-        all_edges[("node", "same_protein", "node")] = torch.tensor(np.array(edges)).long()
-        edge_attributes[("node", "same_protein", "node")] = torch.tensor(distance).double()
-
-        interface_edges = np.where((adjacency_matrix[2, :, :] != 1) & (adjacency_matrix[closeness_idx, :, :] > 0.001))
-        all_edges[("node", "interface", "node")] = torch.tensor(interface_edges).long()
-        distance = adjacency_matrix[closeness_idx, interface_edges[0], interface_edges[1]]
-        edge_attributes[("node", "interface", "node")] = torch.tensor(distance).double()
+        all_edges, edge_attributes = get_hetero_edges(graph_dict, ["proximity", "same_residue", "same_protein"], self.max_interface_edges)
 
         data = HeteroData()
-        data["node"].x =node_features
+        data["node"].x = node_features
 
         for edge_type, edges in all_edges.items():
             data[edge_type].edge_index = edges
@@ -417,23 +421,41 @@ class DeepRefineBackboneInputs(AffinityDataset, ABC):
         chain_infos = literal_eval(row["chain_infos"])
         input_filepath, affinity = self.get_path_and_affinity(row)
 
+        process_graph = True
+
         # Define graph metadata for the entire forward-pass pipeline
-        graph_filepath = os.path.join(self.temp_dir, df_idx  + ".pickle")
-        if not self.force_recomputation and os.path.exists(graph_filepath):
-            with open(graph_filepath, 'rb') as f:
-                graph_dict: Dict = pickle.load(f)
-        else:
-            graph_dict = self.get_prot_dict(input_filepath, chain_infos)
+        graph_filepath = os.path.join(self.graph_dir, df_idx  + ".pickle")
+        if (not self.force_recomputation or self.preprocess_data) and os.path.exists(graph_filepath):
+            try:
+                with open(graph_filepath, 'rb') as f:
+                    graph_dict: Dict = pickle.load(f)
+                    process_graph = False
+            except:
+                process_graph = True
+
+        if process_graph:
+            graph_dict = self.get_prot_dict(df_idx, input_filepath, chain_infos)
+            if self.use_heterographs:
+                graph_dict["hetero_graph"] = self.get_hetero_graph(row, graph_dict["graph"].ndata["f"])
+
             if self.save_graphs:
                 with open(graph_filepath, 'wb') as f:
                     pickle.dump(graph_dict, f)
 
         graph_dict["affinity"] = affinity
 
-        if self.use_heterographs:
+        if self.use_heterographs and "hetero_graph" not in graph_dict:
             graph_dict["hetero_graph"] = self.get_hetero_graph(row, graph_dict["graph"].ndata["f"])
-        else:
+        elif not self.use_heterographs:
             graph_dict["hetero_graph"] = HeteroData()
+
+        if self.use_heterographs:
+            assert torch.max(graph_dict["hetero_graph"][('node', 'same_residue', 'node')].edge_index[0]) < len(
+                graph_dict["hetero_graph"]['node'][
+                    "x"]), f"1. Edge Index ({torch.max(graph_dict['hetero_graph'][('node', 'same_residue', 'node')].edge_index[0])}) not matching number of nodes({len(graph_dict['hetero_graph']['node']['x'])} for {df_idx} in dataset {self.dataset_name} using as relativ: {self.relative_data}"
+            assert torch.max(graph_dict["hetero_graph"][('node', 'same_residue', 'node')].edge_index[1]) < len(
+                graph_dict["hetero_graph"]['node'][
+                    "x"]), f"2. Edge Index not matching number of nodes for {df_idx} in dataset {self.dataset_name} using as relativ: {self.relative_data}"
 
         return graph_dict
 

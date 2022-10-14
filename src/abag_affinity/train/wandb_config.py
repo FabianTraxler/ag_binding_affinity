@@ -10,29 +10,22 @@ def configure(args: Namespace) -> Tuple:
         Tuple: Wandb class, wdb config, indicator if wdb is used, offline run, online run
     """
     if args.use_wandb:
-        run = wandb.init(project="abab_binding_affinity")
-        wandb.run.name = args.wandb_name
-        run_id = "fabian22/abab_binding_affinity/{}".format(run.id)
-        api = wandb.Api()
+        run = wandb.init(project="abag_binding_affinity", mode=args.wandb_mode)
+        if args.wandb_mode == "online":
+            wandb.run.name = args.wandb_name
+            run_id = "fabian22/abag_binding_affinity/{}".format(run.id)
+            api = wandb.Api()
+            api.run(run_id)
 
-        this_run = api.run(run_id)
+    elif args.sweep_id is not None:
+        run = wandb.init()
     else:
         run = wandb.init(project="abag_binding_affinity", mode="disabled")
-        this_run = None
 
 
     config = wandb.config
-    config.batch_size = args.batch_size
-    config.max_epochs = args.max_epochs
-    config.learning_rate = args.learning_rate
-    config.patience = args.patience
-    config.max_num_nodes = args.max_num_nodes
-    config.node_type = args.node_type
-    config.num_workers = args.num_workers
-    config.dataset_type = args.data_type
-    config.model_type = args.model_type
-    config.train_strategy = args.train_strategy
-    config.validation_set = args.validation_set
-    config.scaled_values = args.scale_values
+    for parameter in ["batch_size", "max_epochs", "learning_rate", "patience", "max_num_nodes", "node_type", "num_workers", "validation_set"]:
+        if parameter not in config:
+            config[parameter] = args.__dict__[parameter]
 
-    return wandb, config, args.use_wandb, run, this_run
+    return wandb, config, args.use_wandb, run

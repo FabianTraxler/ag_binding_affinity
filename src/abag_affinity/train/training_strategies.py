@@ -6,6 +6,7 @@ from argparse import Namespace
 import numpy as np
 from typing import Dict, Tuple
 import random
+from collections import Counter
 
 from abag_affinity.utils.config import read_config
 from abag_affinity.train.utils import load_model, load_datasets, train_loop, finetune_backbone, bucket_learning
@@ -53,7 +54,7 @@ def model_train(args:Namespace, validation_set: int = None) -> Tuple[torch.nn.Mo
     results, model = train_loop(model, train_data, val_data, args)
 
     if args.model_type in ["DDGBackboneFC", "DeepRefineBackbone"]:
-        results, model = finetune_backbone(model, train_data, val_data)
+        results, model = finetune_backbone(model, train_data, val_data, args)
     return model, results
 
 
@@ -121,10 +122,11 @@ def pretrain_model(args:Namespace) -> Tuple[torch.nn.Module, Dict]:
         logger.debug(results)
         all_results[dataset_name] = results
 
-    if args.model_type == "DDGBackboneFC" and datasets[-1] == "Dataset_v1":
+    if args.model_type in ["DDGBackboneFC", "DeepRefineBackbone"]:
         train_data, val_data = load_datasets(config, datasets[-1], args.data_type, args.validation_set, args)
-        model, results = finetune_backbone(model, train_data, val_data, args)
+        results, model = finetune_backbone(model, train_data, val_data, args)
         all_results["finetuning"] = results
+
 
     return model, all_results
 
@@ -148,8 +150,21 @@ def bucket_train(args:Namespace) -> Tuple[torch.nn.Module, Dict]:
     train_datasets = []
     val_datasets = []
 
-    for dataset_name in datasets:
-        train_data, val_data = load_datasets(config, dataset_name, args.data_type, args.validation_set, args)
+    double_dataset = set() # check if dataset occours in multiple datalaoders (eg. relative and absolute)
+    dataset_counter = Counter([dataset_name.split(":")[0] for dataset_name in datasets])
+    for name, count in dataset_counter.items():
+        if count > 1:
+            double_dataset.add(name)
+
+    for dataset_type in datasets:
+        train_data, val_data = load_datasets(config, dataset_type, args.data_type, args.validation_set, args)
+
+        data_name, data_type = dataset_type.split(":")
+        if data_type == "absolute" and data_name in double_dataset:
+            # set the force_recomputation to False for absolute dataset because relative loader already preprocesses graphs
+            train_data.force_recomputation = False
+            val_data.force_recomputation = False
+
         train_datasets.append(train_data)
         val_datasets.append(val_data)
 
@@ -159,6 +174,9 @@ def bucket_train(args:Namespace) -> Tuple[torch.nn.Module, Dict]:
     logger.info("Training with {} starting ...".format(datasets))
     results, model = bucket_learning(model, train_datasets, val_datasets, args)
     logger.info("Training with {} completed".format(datasets))
+
+    if args.model_type in ["DDGBackboneFC", "DeepRefineBackbone"]:
+        results, model = finetune_backbone(model, train_datasets, val_datasets, args)
 
     logger.debug(results)
     return model, results

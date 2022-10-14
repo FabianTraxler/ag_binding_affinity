@@ -1,18 +1,10 @@
 import glob
-import logging
-import os
-import random
-from argparse import Namespace
-from copy import deepcopy
-from pathlib import Path
 from typing import Dict, List, Tuple, Union
-
 import numpy as np
 import pandas as pd
 import random
 import os
 from copy import deepcopy
-from scipy import stats
 from argparse import Namespace
 from pathlib import Path
 import logging
@@ -30,8 +22,8 @@ from abag_affinity.dataset import (AffinityDataset, BoundComplexGraphs,
                                    DDGBackboneInputs, DeepRefineBackboneInputs,
                                    HeteroGraphs)
 from abag_affinity.model import (DDGBackbone, DeepRefineBackbone, FSGraphConv,
-                                 GraphConv, GraphConvAttention,
-                                 GraphConvAttentionModelWithBackbone,
+                                 GraphConv, GraphConvAttention, AtomEdgeModel,
+                                 GraphConvAttentionModelWithBackbone, EdgePredictionModelWithBackbone,
                                  ModelWithBackbone, ResidueKpGNN, TwinWrapper)
 from abag_affinity.train.wandb_config import configure
 from abag_affinity.utils.config import get_data_paths
@@ -162,7 +154,7 @@ def train_loop(model: nn.Module, train_dataset: AffinityDataset, val_dataset: Af
     plot_path = os.path.join(args.config["plot_path"], f"{args.node_type}/sequential_learning/val_set_{args.validation_set}")
     Path(plot_path).mkdir(exist_ok=True, parents=True)
 
-    wandb, wdb_config, use_wandb, run, this_run = configure(args)
+    wandb, wdb_config, use_wandb, run = configure(args)
 
     results = {
         "epoch_loss": [],
@@ -170,12 +162,16 @@ def train_loop(model: nn.Module, train_dataset: AffinityDataset, val_dataset: Af
     }
 
     train_dataloader, val_dataloader = get_dataloader(args, train_dataset, val_dataset, wdb_config)
-
+    if val_dataset.relative_data:
+        data_type = "relative"
+    else:
+        data_type = "absolute"
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
 
-    criterion1 = nn.L1Loss().to(device) #nn.MSELoss().to(device)
-    optimizer = Adam(model.parameters(), lr= wdb_config.learning_rate)
+    criterion = get_loss_function(args, device)
+
+    optimizer = Adam(model.parameters(), lr=wdb_config.learning_rate)
 
     best_loss = np.inf
     best_pearson_corr = -np.inf
@@ -184,7 +180,7 @@ def train_loop(model: nn.Module, train_dataset: AffinityDataset, val_dataset: Af
     best_model = deepcopy(model)
 
     for i in range(wdb_config.max_epochs):
-        model, epoch_results = train_epoch(model, train_dataloader, val_dataloader, criterion1, optimizer, device)
+        model, epoch_results = train_epoch(model, train_dataloader, val_dataloader, criterion, optimizer, device)
 
         results["epoch_loss"].append(epoch_results["val_loss"])
         results["epoch_corr"].append(epoch_results["pearson_correlation"])
@@ -194,7 +190,7 @@ def train_loop(model: nn.Module, train_dataset: AffinityDataset, val_dataset: Af
             best_loss = min(epoch_results["val_loss"], best_loss)
             best_pearson_corr = max(epoch_results["pearson_correlation"], best_pearson_corr)
             plot_correlation(x=epoch_results["all_labels"], y=epoch_results["all_predictions"],
-                             path=os.path.join(plot_path, f"{train_dataset.dataset_name}.png"))
+                             path=os.path.join(plot_path, f"{train_dataset.dataset_name}-{data_type}.png"))
             best_model = deepcopy(model)
         else:
             patience -= 1
@@ -203,15 +199,24 @@ def train_loop(model: nn.Module, train_dataset: AffinityDataset, val_dataset: Af
             f'Epochs: {i + 1} | Train-Loss: {epoch_results["total_train_loss"] / len(train_dataloader) : .3f}'
             f'  | Val-Loss: {epoch_results["total_val_loss"] / len(val_dataloader) : .3f} | Val-r: {epoch_results["pearson_correlation"]: .4f} | p-value r=0: {epoch_results["pearson_correlation_p"]: .4f} | Patience: {patience} ')
 
+        if np.isnan(epoch_results["pearson_correlation"]):
+            preds_nan = any(np.isnan(epoch_results["all_predictions"]))
+            preds_same = np.all(epoch_results["all_predictions"] == epoch_results["all_predictions"][0])
+            labels_nan = any(np.isnan(epoch_results["all_labels"]))
+            labels_same = np.all(epoch_results["all_labels"] == epoch_results["all_labels"][0])
+
+            logger.error(f"Pearon correlation is NaN. Preds NaN:{preds_nan}. Preds Same {preds_same}. Labels NaN: {labels_nan}. Labels Same {labels_same}")
+            return results, best_model
+
         wandb_log = {
             "val_loss": epoch_results["total_val_loss"] / (len(val_dataset) / wdb_config.batch_size),
             "train_loss":epoch_results["total_train_loss"] / (len(train_dataset) / wdb_config.batch_size),
             "pearson_correlation": epoch_results["pearson_correlation"],
-            f"{val_dataset.dataset_name}_val_loss": epoch_results["total_val_loss"] / (len(val_dataset) / wdb_config.batch_size),
-            f"{val_dataset.dataset_name}_val_corr": epoch_results["pearson_correlation"]
+            f"{val_dataset.dataset_name}:{data_type}_val_loss": epoch_results["total_val_loss"] / (len(val_dataset) / wdb_config.batch_size),
+            f"{val_dataset.dataset_name}:{data_type}_val_corr": epoch_results["pearson_correlation"]
         }
 
-        wandb.log(wandb_log)
+        wandb.log(wandb_log, commit=True)
 
         if patience < 0:
             if use_wandb:
@@ -221,10 +226,25 @@ def train_loop(model: nn.Module, train_dataset: AffinityDataset, val_dataset: Af
 
         model.train()
 
+        # only force recomputation in first epoch and then use precomputed graphs
+        if args.save_graphs:
+            train_dataset.force_recomputation = False
+            val_dataset.force_recomputation = False
+
     results["best_loss"] = best_loss
     results["best_correlation"] = best_pearson_corr
 
     return results, best_model
+
+
+def get_loss_function(args: Namespace, device: str):
+    if args.loss_function == "L1":
+        loss_fn = nn.L1Loss().to(device)
+    elif args.loss_function == "L2":
+        loss_fn = nn.MSELoss().to(device)
+    else:
+        raise ValueError("Loss_Function must either be 'L1' or 'L2'")
+    return loss_fn
 
 
 def load_model(model_type: str, num_node_features: int, num_edge_features: int, args: Namespace, device: torch.device = torch.device("cpu")) -> nn.Module:
@@ -246,17 +266,18 @@ def load_model(model_type: str, num_node_features: int, num_edge_features: int, 
     elif model_type == "FixedSizeGraphConv":
         model = FSGraphConv(num_node_features, num_edge_features, args.max_num_nodes).to(device)
     elif model_type == "DDGBackboneFC":
-        encoder = DDGBackbone("./binding_ddg_predictor/data/model.pt", device)
+        model_path = os.path.join(args.config["PROJECT_ROOT"], "src", "abag_affinity", "binding_ddg_predictor", "data", "model.pt")
+        encoder = DDGBackbone(model_path, device)
         model = GraphConvAttentionModelWithBackbone(encoder, num_nodes=args.max_num_nodes, device=device)
     elif model_type == "KpGNN":
         if args.node_type == "residue":
             model = ResidueKpGNN(num_node_features, device)
         elif args.node_type == "atom":
-            # TODO: Implement Model
+            model = AtomEdgeModel(num_node_features, device=device)
             pass
     elif model_type == "DeepRefineBackbone":
         encoder = DeepRefineBackbone(args)
-        model = GraphConvAttentionModelWithBackbone(encoder, device=device)
+        model = EdgePredictionModelWithBackbone(encoder, device=device)
 
     else:
         raise ValueError("model_type not in {GraphConv, GraphAttention, FixedSizeGraphConv, DDGBackboneFC, KpGNN}")
@@ -284,7 +305,7 @@ def get_dataloader(args: Namespace, train_dataset: AffinityDataset, val_dataset:
         val_dataloader = DL_torch(val_dataset, num_workers=wdb_config.num_workers, batch_size=wdb_config.batch_size,
                                   collate_fn=DeepRefineBackboneInputs.collate)
     else:
-        train_dataloader = DataLoader(train_dataset, num_workers=wdb_config.num_workers, batch_size=wdb_config.batch_size, shuffle=True)
+        train_dataloader = DataLoader(train_dataset, num_workers=wdb_config.num_workers, batch_size=wdb_config.batch_size, shuffle=not args.no_shuffle)
         val_dataloader = DataLoader(val_dataset, num_workers=wdb_config.num_workers, batch_size=wdb_config.batch_size)
 
     return train_dataloader, val_dataloader
@@ -316,9 +337,8 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int) -> Tup
 
         # random split
         random.shuffle(pdb_ids)
-        split = int(len(pdb_ids) * 0.8)
-        val_pdbs = pdb_ids[split:]
-        train_pdbs = pdb_ids[:split]
+        val_pdbs = summary_df.loc[summary_df["validation"] == 1, "pdb"]
+        train_pdbs = summary_df.loc[summary_df["validation"] != 1, "pdb"]
 
         if "mutated_pdb_path" in config["DATA"][dataset_name]: # only use files that were generated
             data_path =  os.path.join(config["DATA"]["path"],
@@ -336,7 +356,7 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int) -> Tup
     return train_ids, val_ids
 
 
-def load_datasets(config: Dict, dataset_name: str, data_type: str, validation_set: int, args: Namespace) -> Tuple[AffinityDataset, AffinityDataset]:
+def load_datasets(config: Dict, dataset: str, data_type: str, validation_set: int, args: Namespace) -> Tuple[AffinityDataset, AffinityDataset]:
     """ Get train and validation datasets for a specific dataset and data type
 
     1. Get train and validation splits
@@ -344,7 +364,7 @@ def load_datasets(config: Dict, dataset_name: str, data_type: str, validation_se
 
     Args:
         config: training configuration as dict
-        dataset_name: Name of the dataset
+        dataset: Name of the dataset:Usage of data (absolute, relative) - eg. SKEMPI.v2:relative
         data_type: Type of the dataset
         validation_set: Integer identifier of the validation split (1,2,3)
         args: CLI arguments
@@ -353,41 +373,48 @@ def load_datasets(config: Dict, dataset_name: str, data_type: str, validation_se
         Tuple: Train and validation dataset
     """
 
-    train_ids, val_ids = train_val_split(config, dataset_name, validation_set)
-
-    if dataset_name in ["SKEMPI.v2"]:
+    dataset_name, data_usage = dataset.split(":")
+    if data_usage == "relative":
         relative_data = True
     else:
         relative_data = False
 
-    logger.debug(f"Get {data_type} dataLoader for {dataset_name}")
+    train_ids, val_ids = train_val_split(config, dataset_name, validation_set)
+
+    logger.debug(f"Get {data_type} dataLoader for {dataset_name}:{data_usage}")
 
     if data_type == "BoundComplexGraphs":
         train_data = BoundComplexGraphs(config, dataset_name, train_ids, max_nodes=args.max_num_nodes,node_type=args.node_type,
-                                  relative_data=relative_data, interface_hull_size=args.interface_hull_size,
-                                  scale_values=args.scale_values, save_graphs=args.save_graphs, force_recomputation=args.force_recomputation)
+                                        relative_data=relative_data, interface_hull_size=args.interface_hull_size,
+                                        scale_values=args.scale_values, save_graphs=args.save_graphs,num_threads=args.num_workers,
+                                        force_recomputation=args.force_recomputation, preprocess_data=args.preprocess_graph)
         val_data = BoundComplexGraphs(config, dataset_name, val_ids, max_nodes=args.max_num_nodes,node_type=args.node_type,
-                                  relative_data=relative_data, interface_hull_size=args.interface_hull_size,
-                                  scale_values=args.scale_values, save_graphs=args.save_graphs, force_recomputation=args.force_recomputation)
+                                      relative_data=relative_data, interface_hull_size=args.interface_hull_size,
+                                      scale_values=args.scale_values, save_graphs=args.save_graphs,num_threads=args.num_workers,
+                                      force_recomputation=args.force_recomputation, preprocess_data=args.preprocess_graph)
     elif data_type == "DDGBackboneInputs":
         train_data = DDGBackboneInputs(config, dataset_name, train_ids,  args.max_num_nodes, relative_data=relative_data,
-                                       scale_values=args.scale_values, save_graphs=args.save_graphs, force_recomputation=args.force_recomputation)
+                                       scale_values=args.scale_values, save_graphs=args.save_graphs,num_threads=args.num_workers,
+                                       force_recomputation=args.force_recomputation, preprocess_data=args.preprocess_graph)
         val_data = DDGBackboneInputs(config, dataset_name, val_ids,  args.max_num_nodes, relative_data=relative_data,
-                                     scale_values=args.scale_values, save_graphs=args.save_graphs, force_recomputation=args.force_recomputation)
+                                     scale_values=args.scale_values, save_graphs=args.save_graphs,num_threads=args.num_workers,
+                                     force_recomputation=args.force_recomputation, preprocess_data=args.preprocess_graph)
     elif data_type == "HeteroGraphs":
         train_data = HeteroGraphs(config, dataset_name, train_ids, node_type=args.node_type, relative_data=relative_data,
-                                  save_graphs=args.save_graphs, scale_values=args.scale_values, force_recomputation=args.force_recomputation)
+                                  save_graphs=args.save_graphs, scale_values=args.scale_values,num_threads=args.num_workers,
+                                  force_recomputation=args.force_recomputation,preprocess_data=args.preprocess_graph)
         val_data = HeteroGraphs(config, dataset_name, val_ids, node_type=args.node_type, relative_data=relative_data,
-                                save_graphs=args.save_graphs, scale_values=args.scale_values, force_recomputation=args.force_recomputation)
+                                save_graphs=args.save_graphs, scale_values=args.scale_values,num_threads=args.num_workers,
+                                force_recomputation=args.force_recomputation, preprocess_data=args.preprocess_graph)
     elif data_type == "DeepRefineInputs":
         train_data = DeepRefineBackboneInputs(config, dataset_name, train_ids, relative_data=relative_data, use_heterographs=True,
                                               num_threads=args.num_workers, preprocess_data=args.preprocess_graph,
-                                              save_graphs=args.save_graphs, interface_hull_size=args.interface_hull_size
-                                              ,force_recomputation=args.force_recomputation)
+                                              save_graphs=args.save_graphs, interface_hull_size=args.interface_hull_size,
+                                              force_recomputation=args.force_recomputation)
         val_data = DeepRefineBackboneInputs(config, dataset_name, val_ids, relative_data=relative_data, use_heterographs=True,
                                             num_threads=args.num_workers, preprocess_data=args.preprocess_graph,
-                                            save_graphs=args.save_graphs, interface_hull_size=args.interface_hull_size
-                                            , force_recomputation=args.force_recomputation)
+                                            save_graphs=args.save_graphs, interface_hull_size=args.interface_hull_size,
+                                            force_recomputation=args.force_recomputation)
     else:
         raise ValueError("Please specify dataset type (SimpleGraphs, FixedSizeGraphs, DDGBackboneInputs, HeteroGraphs, DeepRefineInputs)")
 
@@ -421,9 +448,14 @@ def get_bucket_dataloader(args: Namespace, train_datasets: List[AffinityDataset]
             absolute_data_indices.extend(list(range(i, i + len(indices))))
         i += len(indices)
 
+    # shorten relative data for validation
+    for dataset in val_datasets:
+        if dataset.relative_data:
+            dataset.data_points = dataset.data_points[:100]
+
     train_dataset = ConcatDataset(train_buckets)
     batch_sampler = generate_bucket_batch_sampler([absolute_data_indices, relative_data_indices], args.batch_size,
-                                                  shuffle=True)
+                                                  shuffle=not args.no_shuffle)
 
     if args.data_type == "DeepRefineInputs":
         train_dataloader = DL_torch(train_dataset, num_workers=config.num_workers,
@@ -491,12 +523,14 @@ def bucket_learning(model: torch.nn.Module, train_datasets: List[AffinityDataset
     plot_path = os.path.join(args.config["plot_path"], f"{args.node_type}/bucket_learning/val_set_{args.validation_set}")
     Path(plot_path).mkdir(exist_ok=True, parents=True)
 
-    wandb, config, use_wandb, run, this_run = configure(args)
+    dataset2optimize = "Dataset_v1:absolute"
+
+    wandb, config, use_wandb, run = configure(args)
 
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
 
-    criterion = nn.L1Loss().to(device) #nn.MSELoss().to(device)
+    criterion = get_loss_function(args, device)
     optimizer = Adam(model.parameters(), lr= args.learning_rate)
 
     # initialize training values
@@ -534,35 +568,50 @@ def bucket_learning(model: torch.nn.Module, train_datasets: List[AffinityDataset
             labels = epoch_results["all_labels"][i:i+len(val_dataset)]
             val_loss = criterion(torch.from_numpy(preds).to(device), torch.from_numpy(labels).to(device)) #mean_squared_error(labels, preds) / len(labels)
             pearson_corr = stats.pearsonr(labels, preds)
+            if val_dataset.relative_data:
+                data_type = "relative"
+            else:
+                data_type = "absolute"
             logger.info(
-                f'Epochs: {epoch + 1}  | Dataset: {val_dataset.dataset_name} | Val-Loss: {val_loss: .3f} '
+                f'Epochs: {epoch + 1}  | Dataset: {val_dataset.dataset_name}:{data_type} | Val-Loss: {val_loss: .3f} '
                 f'  | Val-r: {pearson_corr[0]: .4f} | p-value r=0: {pearson_corr[1]: .4f} ')
-            dataset_results[val_dataset.dataset_name] = {
+
+            if np.isnan(pearson_corr[0]):
+                preds_nan = any(np.isnan(preds))
+                labels_nan = any(np.isnan(labels))
+                logger.error(f"Pearson correlation is NaN. Preds NaN:{preds_nan}. Labels NaN: {labels_nan}")
+                return results, best_model
+            dataset_results[val_dataset.dataset_name + ":" + data_type] = {
                 "val_loss": val_loss,
                 "pearson_correlation": pearson_corr[0],
                 "pearson_correlation_p": pearson_corr[1],
                 "all_labels": labels,
                 "all_predictions": preds
             }
-            wandb_log[f"{val_dataset.dataset_name}_val_loss"] = val_loss
-            wandb_log[f"{val_dataset.dataset_name}_val_corr"] = pearson_corr[0]
+            wandb_log[f"{val_dataset.dataset_name}:{data_type}_val_loss"] = val_loss
+            wandb_log[f"{val_dataset.dataset_name}:{data_type}_val_corr"] = pearson_corr[0]
             i += len(val_dataset)
 
         results["epoch_loss"].append(epoch_results["val_loss"])
         results["epoch_corr"].append(epoch_results["pearson_correlation"])
 
-        if "Dataset_v1" in dataset_results:
-            results["abag_epoch_loss"].append(dataset_results["Dataset_v1"]["val_loss"])
-            results["abag_epoch_corr"].append(dataset_results["Dataset_v1"]["pearson_correlation"])
+        if dataset2optimize in dataset_results:
+            results["abag_epoch_loss"].append(dataset_results[dataset2optimize]["val_loss"])
+            results["abag_epoch_corr"].append(dataset_results[dataset2optimize]["pearson_correlation"])
 
-        if dataset_results["Dataset_v1"]["val_loss"] < best_loss or dataset_results["Dataset_v1"]["pearson_correlation"] > best_pearson_corr:
+        if dataset_results[dataset2optimize]["val_loss"] < best_loss or dataset_results[dataset2optimize]["pearson_correlation"] > best_pearson_corr:
             patience = config.patience
-            best_loss = min(dataset_results["Dataset_v1"]["val_loss"], best_loss)
-            best_pearson_corr = max(dataset_results["Dataset_v1"]["pearson_correlation"], best_pearson_corr)
+            best_loss = min(dataset_results[dataset2optimize]["val_loss"], best_loss)
+            best_pearson_corr = max(dataset_results[dataset2optimize]["pearson_correlation"], best_pearson_corr)
             for val_dataset in val_datasets: # correlation plot for each dataset
-                dataset_name = val_dataset.dataset_name
+                if val_dataset.relative_data:
+                    data_type = "relative"
+                else:
+                    data_type = "absolute"
+                dataset_name = val_dataset.dataset_name + ":" + data_type
+
                 plot_correlation(x=dataset_results[dataset_name]["all_labels"], y=dataset_results[dataset_name]["all_predictions"],
-                                 path=os.path.join(plot_path, f"{dataset_name}.png"))
+                                 path=os.path.join(plot_path, f"{val_dataset.dataset_name}-{data_type}.png"))
 
             plot_correlation(x=epoch_results["all_labels"], y=epoch_results["all_predictions"],
                              path=os.path.join(plot_path, "all_bucket_predictions.png"))
@@ -576,7 +625,7 @@ def bucket_learning(model: torch.nn.Module, train_datasets: List[AffinityDataset
             f'  | Val-Loss: {epoch_results["total_val_loss"] / len(val_dataloader) : .3f} | Val-r: {epoch_results["pearson_correlation"]: .4f} | p-value r=0: {epoch_results["pearson_correlation_p"]: .4f} | Patience: {patience} ')
 
 
-        wandb.log(wandb_log)
+        wandb.log(wandb_log, commit=True)
 
         if patience < 0:
             if use_wandb:
@@ -586,6 +635,13 @@ def bucket_learning(model: torch.nn.Module, train_datasets: List[AffinityDataset
 
         model.train()
 
+        # only force recomputation in first epoch and then use precomputed graphs
+        if args.save_graphs:
+            for train_dataset in train_datasets:
+                train_dataset.force_recomputation = False
+            for val_dataset_ in val_datasets:
+                val_dataset_.force_recomputation = False
+
     results["best_loss"] = best_loss
     results["best_correlation"] = best_pearson_corr
 
@@ -593,7 +649,7 @@ def bucket_learning(model: torch.nn.Module, train_datasets: List[AffinityDataset
 
 
 def finetune_backbone(model: ModelWithBackbone, train_dataset: AffinityDataset, val_dataset: AffinityDataset,
-                      args: Namespace, lr_reduction: float = 1e-02) -> Tuple[nn.Module, Dict]:
+                      args: Namespace,  lr_reduction: float = 1e-02) -> Tuple[nn.Module, Dict]:
     """ Utility to finetune the backbone model using a lowered learning rate
 
     Args:
@@ -610,15 +666,21 @@ def finetune_backbone(model: ModelWithBackbone, train_dataset: AffinityDataset, 
     # lower learning rate for backbone finetuning
     args.learning_rate = args.learning_rate * lr_reduction
 
+    logger.info(f"Fintuning Backbone with lr={args.learning_rate}")
+
+
     # make backbone model trainable
     model.backbone_model.requires_grad = True
     if hasattr(model.backbone_model, 'deep_refine'):
         model.backbone_model.deep_refine.unfreeze()
 
-    results, model = train_loop(model, train_dataset, val_dataset, args)
+    if args.train_strategy == "bucket_train":
+        results, model = bucket_learning(model, train_dataset, val_dataset, args)
+    else:
+        results, model = train_loop(model, train_dataset, val_dataset, args)
 
     logger.info("Fintuning Backbone completed")
     logger.debug(results)
 
-    return model, results
+    return results, model
 

@@ -101,7 +101,7 @@ class AtomEdgeModel(torch.nn.Module):
     4. Sum over all those edges to get binding affinity
     """
 
-    def __init__(self, input_dim: int, edge_dim: int, device: torch.device):
+    def __init__(self, input_dim: int, device: torch.device):
         super(AtomEdgeModel, self).__init__()
         # embed amino acids based on peptide bonded neighbors
         self.residue_conv_1 = GATv2Conv(input_dim, 50, heads=2, dropout=0.5, edge_dim=1)
@@ -163,8 +163,6 @@ class AtomEdgeModel(torch.nn.Module):
         # get interface edges
         interface_edges = data["node", "interface", "node"].edge_index
         interface_distances = data["node", "interface", "node"].edge_attr.unsqueeze(1)
-
-        print(len(interface_edges[0]))
 
         # get interface edge embedding
         edge_embeddings = torch.hstack([x[interface_edges[0]], x[interface_edges[1]], interface_distances])
