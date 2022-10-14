@@ -1,0 +1,3 @@
+#!/bin/bash
+
+sbatch ~/projects/ag_binding_affinity/src/scripts/cluster_train.job "$@"
