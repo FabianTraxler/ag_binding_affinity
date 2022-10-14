@@ -14,7 +14,6 @@ DATA:
 
   SKEMPI.v2:
     folder_path: "SKEMPI_v2"
-    pdb_path: "PDBs"
     summary: "cleaned_data.csv"
     mutated_pdb_path: "mutated_wildtype"
 
@@ -35,10 +34,10 @@ DATA:
       - "unrelaxed_pdbs"
     summary: "antibody_benchmark_scores.csv"
 
-  DMS_phillips21:
-    folder_path: "DMS_phillips21"
-    pdb_path: "pdbs"
-    summary: "dms.csv"
+  DMS:
+    folder_path: "DMS"
+    summary: "dms_curated.csv"
+    mutated_pdb_path: "mutated"
 
 RESOURCES:
   path: "resources"
@@ -78,20 +77,13 @@ RESOURCES:
   Dataset_v1:
     folder_path: "dataset_v1"
     pdb_path: "../AbDb/NR_LH_Protein_Martin"
-    summary: "dataset_v1.csv"
-    dataset_path: "data"
 
-  DMS_phillips21:
-    folder_path: "dms_phillips21"
-    pdb_path: "pdbs"
-    summaries:
-      - "cr9114_processed.csv"
-      - "cr6261_processed.csv"
 
 RESULTS:
   path: "results"
   plot_path: "plots"
   processed_graph_path: "processed_graphs"
+  cleaned_pdbs: "cleaned_pdb"
 
 MODELS:
   binding_dgg_predictor:
@@ -102,16 +94,78 @@ MODELS:
 
 TRAIN:
   standard:
-    dataset: Dataset_v1
+    dataset: Dataset_v1:absolute
 
   transfer:
     datasets:
-      - PDBBind
-      - SKEMPI.v2
-      - Dataset_v1
+      - PDBBind:absolute
+      - SKEMPI.v2:absolute
+      - SKEMPI.v2:relative
+      - Dataset_v1:absolute
 
   bucket:
     datasets:
-      - PDBBind
-      - SKEMPI.v2
-      - Dataset_v1
+      - PDBBind:absolute
+      - SKEMPI.v2:absolute
+      - SKEMPI.v2:relative
+      - Dataset_v1:absolute
+
+
+HYPERPARAMETER_SEARCH:
+  method: 'random'
+  controller:
+    type: "local"
+  metric:
+    goal: 'maximize'
+    name: 'Dataset_v1:absolute_val_corr'
+  parameters:
+    model_type:
+      values:
+        - "GraphConv"
+        - "GraphAttention"
+        - "FixedSizeGraphConv"
+        - "DDGBackboneFC"
+        - "KpGNN"
+        - "DeepRefineBackbone"
+    train_strategy:
+      values:
+        - "bucket_train"
+        - "pretrain_model"
+        - "model_train"
+    batch_size:
+      values:
+        - 1
+        - 5
+        - 10
+    learning_rate:
+      max: 0.001
+      min: 0.0000001
+    patience:
+      min: 5
+      max: 30
+    node_type:
+      values:
+        - "atom"
+        - "residue"
+    loss_function:
+      values:
+        - "L1"
+        - "L2"
+    max_num_nodes:
+      values:
+        - 10
+        - 30
+        - 50
+        - 80
+    scale_values:
+      values:
+        - True
+        - False
+    interface_hull_size:
+      values:
+        - 5
+        - 7
+        - 10
+    max_epochs:
+      values:
+        - 200
