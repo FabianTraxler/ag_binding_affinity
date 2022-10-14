@@ -62,7 +62,7 @@ phillips21_bindin:
         name: cr6261
         full_name: CR6261
       pdb:
-        file: data/prepared_pdbs/phillips21/cr6262_newcal1999.pdb
+        file: data/prepared_pdbs/phillips21/cr6261_newcal1999.pdb
         chains:
           antigen:
             - B
