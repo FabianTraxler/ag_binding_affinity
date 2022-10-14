@@ -113,8 +113,6 @@ TRAIN:
 
 HYPERPARAMETER_SEARCH:
   method: 'random'
-  controller:
-    type: "local"
   metric:
     goal: 'maximize'
     name: 'Dataset_v1:absolute_val_corr'
