@@ -130,6 +130,11 @@ def get_residue_infos(structure: Structure, chain_id2protein: Dict) -> Tuple[Dic
             # extract names of atoms (for atom encodings)
             atom_names = [atom.get_name() for atom in residue.get_atoms()]
 
+            try:
+                chain_id2protein[chain.id.lower()]
+            except Exception as e:
+                raise RuntimeError(f"Error getting chains for {structure.id}: {e}")
+
             residue_info = {
                 "chain_id": chain.id,
                 "residue_type": residue_type.lower(),
@@ -190,14 +195,14 @@ def get_distances(residue_info: List[Dict], residue_distance: bool = True, ca_di
     if ca_distance or not residue_distance:
         distances = sp.distance_matrix(coordinates, coordinates)
     else:
-        all_distances = []
-        for i in range(coordinates.shape[1]):
-            for j in range(coordinates.shape[1]):
-                all_distances.append(
-                    sp.distance_matrix(coordinates[:, i, :], coordinates[:, j, :]))
+        atom_per_residue = coordinates.shape[1]
+        coordinates_flattend = coordinates.reshape((len(coordinates) * atom_per_residue, 3))
 
-        all_distances = np.array(all_distances)
-        distances = np.nanmin(all_distances, axis=0)
+        distances = sp.distance_matrix(coordinates_flattend, coordinates_flattend)
+
+        new_shape = (len(coordinates), atom_per_residue, len(coordinates), atom_per_residue)
+        distances = distances.reshape(new_shape)
+        distances = np.nanmin(distances, axis=(1, 3))
 
     # select antibody-antigen distances (or protein1-protein2)
     abag_distance = distances[antibody_idx, :][:, antigen_idx]
@@ -346,8 +351,6 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_fil
     command = f'pdb_sort {tmp_pdb_filepath} | pdb_tidy | pdb_fixinsert  > {cleaned_file_path}'
     subprocess.run(command, shell=True)
 
-
-
     cleaned_pdb = PandasPdb().read_pdb(str(cleaned_file_path))
     input_atom_df = cleaned_pdb.df['ATOM']
 
@@ -371,4 +374,5 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_fil
                        append_newline=True)
 
     # Clean up from using temporary PDB file for tidying
-    os.remove(tmp_pdb_filepath)
+    if os.path.exists(tmp_pdb_filepath):
+        os.remove(tmp_pdb_filepath)

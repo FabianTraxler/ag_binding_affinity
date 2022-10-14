@@ -27,6 +27,8 @@ def read_config(file_path: str) -> Dict:
         config["DATA"]["path"] = os.path.join(folder_path, config["DATA"]["path"])
 
     config["plot_path"] = os.path.join(folder_path, config["RESULTS"]["path"], config["RESULTS"]["plot_path"])
+    config["processed_graph_path"] = os.path.join(folder_path, config["RESULTS"]["path"], config["RESULTS"]["processed_graph_path"])
+    config["cleaned_pdbs"] = os.path.join(folder_path, config["RESULTS"]["path"], config["RESULTS"]["cleaned_pdbs"])
 
     return config
 
