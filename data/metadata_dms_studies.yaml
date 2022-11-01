@@ -151,8 +151,8 @@ starr21_prosp_covid:
         full_name: SARS_COV2_RBD
       antibody:
         name: lycov016
-        full_name: LY-CoV016
-      comment: 'this dataset *sketchy*; when you look at 7C01, you see that the CDRs/the the epitope might interact with additional proteins, therefore skewing the binding affinity alternative antibody names: CB6, JS016'
+        full_name: LY-CoV016/CB6/JS016/Etesevimab
+      comment: 'when you look at 7C01, you see that the CDRs/the the epitope might interact with additional proteins, therefore skewing the binding affinity. alternative antibody names: CB6, JS016'
       pdb:
         id: 7C01
         chains:
@@ -361,8 +361,159 @@ mason21_optim_therap_antib_by_predic: # TODO
   source_code: https://github.com/dahjan/DMS_opt
   data: https://github.com/dahjan/DMS_opt,email,org
   use_for: "discrete relative"
-  raw_data: ask derek mason
+  raw_data: can ask derek mason
 
+
+taft22_deep_mutat_learn_predic_ace2:
+  dms_target: antigen
+  fv_type: igg
+  doi: 10.1016/j.cell.2022.08.024
+  comment: 'Data is binary by design. But should be good enough for our purposes (siamese learning)'
+  data: 'supp data (csvs)'
+  complexes:
+    - antigen:
+        name: cov2rbd
+        full_name: SARS_COV2_RBD
+      antibody:
+        name: a23581
+        full_name: A23-58.1
+      pdb:
+        id: 7LRS
+        chains:
+          antigen:
+            - C
+          antibody:
+            - E
+            - D
+    - antigen:
+        name: cov2rbd
+        full_name: SARS_COV2_RBD
+      antibody:
+        name: gr32a4  # seems to be a typo on their end
+        full_name: G32A4
+      pdb:
+        id: 7SWN
+        chains:
+          antigen:
+            - A
+          antibody:
+            - L
+            - H
+    - antigen:
+        name: cov2rbd
+        full_name: SARS_COV2_RBD
+      antibody:
+        name: ly1404
+        full_name: LY-CoV1404
+      pdb:
+        comment: 'The antigen builds a homodimer from which both monomers bind to the antibody. This can lead to a convoluted signal.'
+        id: 7MMO
+        chains:
+          antigen:
+            - C
+          antibody:
+            - A
+            - B
+    - antigen:
+        name: cov2rbd
+        full_name: SARS_COV2_RBD
+      antibody:
+        name: lycov016
+        full_name: LY-CoV016/CB6/JS016/Etesevimab
+      pdb:
+        id: 7C01
+        chains:
+          antigen:
+            - A
+          antibody:
+            - L
+            - H
+      comment: 'Similarly to 7MMO, when you look at 7C01, you see that the CDRs/the the epitope might interact with additional proteins, therefore skewing the binding affinity. alternative antibody names: CB6, JS016'
+    - antigen:
+        name: cov2rbd
+        full_name: SARS_COV2_RBD
+      antibody:
+        name: regn10987
+        full_name: REGN10987
+      pdb:
+        id: 6XDG
+        chains:
+          antigen:
+            - E
+          antibody:
+            - A
+            - C
+    - antigen:
+        name: cov2rbd
+        full_name: SARS_COV2_RBD
+      antibody:
+        name: regn10933
+        full_name: REGN10933
+      pdb:
+        id: 6XDG
+        chains:
+          antigen:
+            - E
+          antibody:
+            - B
+            - D
+    - antigen:
+        name: cov2rbd
+        full_name: SARS_COV2_RBD
+      antibody:
+        name: ly555
+        full_name: LY-CoV555
+      pdb:
+        id: 7KMG  # TODO: maybe *add* 7L3N as alternative. They are quite different and it's hard to tell which one is more realistic
+        chains:
+          antigen:
+            - C
+            - F
+          antibody:
+            - A
+            - B
+    - antigen:
+        name: cov2rbd
+        full_name: SARS_COV2_RBD
+      antibody:
+        name: s2e12
+        full_name: S2E12
+      pdb:
+        id: 7K45  # alternatives: 7K4N,7R6X. They are all very similar
+        chains:
+          antigen:
+            - B
+          antibody:
+            - L
+            - H
+    - antigen:
+        name: cov2rbd
+        full_name: SARS_COV2_RBD
+      antibody:
+        name: s2h97
+        full_name: S2H97
+      pdb:
+        id: 7M7W
+        chains:
+          antigen:
+            - R
+          antibody:
+            - E
+            - F
+    - antigen:
+        name: cov2rbd
+        full_name: SARS_COV2_RBD
+      antibody:
+        name: s309
+        full_name: S309
+      pdb:
+        id: 7R6W  # alternative: 6WPS
+        chains:
+          antigen:
+            - R
+          antibody:
+            - A
+            - B
 # For now I use this file to store metadata
 # TODO if fv_fype == f_v, check if it's actually igg (igg vs fab/fv makes a difference)
 
@@ -462,22 +613,23 @@ koenig17_mutat:
     - antigen: VEGF
       antibody: G6.31
       pdb: 2FJG
-  comment: "positive+negative selection; TODO write an email!!"
+  comment: "Only binding to VEGF is relevant after all; positive+negative selection; TODO write an email?"
   source_code: null
-  data: null
+  data: Provided by Email
   raw_data: null
 
 b.20_funct_screen_strat_engin_chimer:
   dms_target: fv
   fv_type: scfv (via CARs)
-  doi: 10.1073/pnas.1613231114
   complexes:
     - antigen: HER2
-      antibody: trastuzumab-derived scFV
+      antibody: trastuzumab(4D5)-derived scFV 
       pdb: 6BGT/6OGE/7MN8/((6ZQK))
-  comment: "screen on binding affinity and activation potential; raw data is undocumented; TODO write an email!! available structures are for FVs. data for scF_Vs.."
+  comment: "screen on binding affinity and activation potential; raw data is undocumented; available structures are for FVs. data for scF_Vs.."
   source_code: null
-  data: null
+  doi: 10.1016/j.ymthe.2020.08.003
+  WT_seq: WGGDGFYAMD
+  data: Provided by Email
   raw_data: https://www.ncbi.nlm.nih.gov/sra/?term=PRJNA649781
 
 forsyth13_deep:
