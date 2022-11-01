@@ -585,209 +585,209 @@ taft22_deep_mutat_learn_predic_ace2:
 #   source_code: https://github.com/jbloomlab/SARS-CoV-2-RBD_MAP_Crowe_antibodies
 #   raw_data: TODO
 
+# TODO continue from here
+# warszawski19_optim_antib_affin_stabil_by:
+#   dms_target: fv
+#   fv_type: scfv
+#   doi: 10.1371/journal.pcbi.1007207
+#   complexes:
+#     - antigen: lysozyme
+#       antibody:
+#             - D44.1 
+#       pdb: 1MLC
+#     - antigen: lysozyme
+#       antibody:
+#             - D44.1^{des}
+#       pdb: 6GC2
+#       comment: "The PDB is FV only. Need to manually model the complex. Ignore for now since it's only one additional structure"
+#   comment: "positive selection; some K_ds are available"
+#   source_code:
+#   data: https://doi.org/10.1371/journal.pcbi.1007207.s010
+#   raw_data:
 
-warszawski19_optim_antib_affin_stabil_by:
-  dms_target: fv
-  fv_type: scfv
-  doi: 10.1371/journal.pcbi.1007207
-  complexes:
-    - antigen: lysozyme
-      antibody:
-            - D44.1 
-      pdb: 1MLC
-    - antigen: lysozyme
-      antibody:
-            - D44.1^{des}
-      pdb: 6GC2
-      comment: "The PDB is FV only. Need to manually model the complex. Ignore for now since it's only one additional structure"
-  comment: "positive selection; some K_ds are available"
-  source_code:
-  data: https://doi.org/10.1371/journal.pcbi.1007207.s010
-  raw_data:
+# koenig17_mutat:
+#   dms_target: fv
+#   fv_type: fv (not sure)
+#   doi: 10.1073/pnas.1613231114
+#   complexes:
+#     - antigen: VEGF
+#       antibody: G6.31
+#       pdb: 2FJG
+#   comment: "Only binding to VEGF is relevant after all; positive+negative selection; TODO write an email?"
+#   source_code: null
+#   data: Provided by Email
+#   raw_data: null
 
-koenig17_mutat:
-  dms_target: fv
-  fv_type: fv (not sure)
-  doi: 10.1073/pnas.1613231114
-  complexes:
-    - antigen: VEGF
-      antibody: G6.31
-      pdb: 2FJG
-  comment: "Only binding to VEGF is relevant after all; positive+negative selection; TODO write an email?"
-  source_code: null
-  data: Provided by Email
-  raw_data: null
+# b.20_funct_screen_strat_engin_chimer:
+#   dms_target: fv
+#   fv_type: scfv (via CARs)
+#   complexes:
+#     - antigen: HER2
+#       antibody: trastuzumab(4D5)-derived scFV 
+#       pdb: 6BGT/6OGE/7MN8/((6ZQK))
+#   comment: "screen on binding affinity and activation potential; raw data is undocumented; available structures are for FVs. data for scF_Vs.."
+#   source_code: null
+#   doi: 10.1016/j.ymthe.2020.08.003
+#   WT_seq: WGGDGFYAMD
+#   data: Provided by Email
+#   raw_data: https://www.ncbi.nlm.nih.gov/sra/?term=PRJNA649781
 
-b.20_funct_screen_strat_engin_chimer:
-  dms_target: fv
-  fv_type: scfv (via CARs)
-  complexes:
-    - antigen: HER2
-      antibody: trastuzumab(4D5)-derived scFV 
-      pdb: 6BGT/6OGE/7MN8/((6ZQK))
-  comment: "screen on binding affinity and activation potential; raw data is undocumented; available structures are for FVs. data for scF_Vs.."
-  source_code: null
-  doi: 10.1016/j.ymthe.2020.08.003
-  WT_seq: WGGDGFYAMD
-  data: Provided by Email
-  raw_data: https://www.ncbi.nlm.nih.gov/sra/?term=PRJNA649781
-
-forsyth13_deep:
-  dms_target: fv
-  fv_type: fv
-  doi: 10.4161/mabs.24979
-  complexes:
-    - antigen: HER2
-      antibody: trastuzumab
-      pdb: 6BGT/6OGE/7MN8
-  comment: "awesome screen; but data is only in PDF format. needs to be extracted..."
-  source_code: null
-  data: https://www.tandfonline.com/doi/suppl/10.4161/mabs.24979/suppl_file/kmab_a_10924979_sm0001.zip
-  raw_data: null
-doud18_how_h1:
-  dms_target: antigen
-  fv_type: fv
-  doi: 10.1038/s41467-018-03665-3
-  complexes:
-    - antigen: A/WSN/1933 (H1N1)
-      antibody: FI6v3
-      pdb: 3ZTN
-      comment: "FI6v3 is extremely broad, and neutralizes both group 1 and group 2 HAs"
-    - antigen: A/WSN/1933 (H1N1)
-      antibody: C179
-      pdb: 4HLZ
-      comment: "C179 is less broad, and neutralizes only some group 1 HAs. pdb is for H2N2 but should be fine"
-    - antigen: A/WSN/1933 (H1N1)
-      antibody: S139/1
-      pdb: 4GMS
-      comment: "S139/1 binds to residues in HA’s receptor-binding pocket, and which can neutralize both group 1 and group 2 HAs"
-  comment: ""
-  source_code: https://github.com/jbloomlab/HA_antibody_ease_of_escape
-  data:  # the first one seems to contain everything..
-    - https://static-content.springer.com/esm/art%3A10.1038%2Fs41467-018-03665-3/MediaObjects/41467_2018_3665_MOESM5_ESM.zip
-    - https://static-content.springer.com/esm/art%3A10.1038%2Fs41467-018-03665-3/MediaObjects/41467_2018_3665_MOESM6_ESM.html
-    - https://static-content.springer.com/esm/art%3A10.1038%2Fs41467-018-03665-3/MediaObjects/41467_2018_3665_MOESM7_ESM.zip
-  raw_data: https://www.ncbi.nlm.nih.gov/sra/?term=SAMN05789126
-
-# dingens17_compr_mappin_hiv_escap_broad_neutr_antib:
+# forsyth13_deep:
+#   dms_target: fv
+#   fv_type: fv
+#   doi: 10.4161/mabs.24979
+#   complexes:
+#     - antigen: HER2
+#       antibody: trastuzumab
+#       pdb: 6BGT/6OGE/7MN8
+#   comment: "awesome screen; but data is only in PDF format. needs to be extracted..."
+#   source_code: null
+#   data: https://www.tandfonline.com/doi/suppl/10.4161/mabs.24979/suppl_file/kmab_a_10924979_sm0001.zip
+#   raw_data: null
+# doud18_how_h1:
 #   dms_target: antigen
 #   fv_type: fv
-#   doi: 10.1016/j.chom.2017.05.003
+#   doi: 10.1038/s41467-018-03665-3
 #   complexes:
-#     - antigen: HIV1_Env
-#       antibody: PGT151
-#       pdb: 5FUU(,6OLP)
-#   comment: "like many other DMS applications, they have a couple of K_D experiments that could help up scale the enrichment values obtained from the DMS; data can be easily computed with provided script"
-#   source_code: https://github.com/adingens/BF520_MutationalAntigenicProfiling_PGT151
-#   data: https://www.cell.com/cms/10.1016/j.chom.2017.05.003/attachment/de4e20a4-1d94-48d6-a840-bba251d49e13/mmc3.zip (data s2)
-#   raw_data: SRX2548567–SRX2548579
+#     - antigen: A/WSN/1933 (H1N1)
+#       antibody: FI6v3
+#       pdb: 3ZTN
+#       comment: "FI6v3 is extremely broad, and neutralizes both group 1 and group 2 HAs"
+#     - antigen: A/WSN/1933 (H1N1)
+#       antibody: C179
+#       pdb: 4HLZ
+#       comment: "C179 is less broad, and neutralizes only some group 1 HAs. pdb is for H2N2 but should be fine"
+#     - antigen: A/WSN/1933 (H1N1)
+#       antibody: S139/1
+#       pdb: 4GMS
+#       comment: "S139/1 binds to residues in HA’s receptor-binding pocket, and which can neutralize both group 1 and group 2 HAs"
+#   comment: ""
+#   source_code: https://github.com/jbloomlab/HA_antibody_ease_of_escape
+#   data:  # the first one seems to contain everything..
+#     - https://static-content.springer.com/esm/art%3A10.1038%2Fs41467-018-03665-3/MediaObjects/41467_2018_3665_MOESM5_ESM.zip
+#     - https://static-content.springer.com/esm/art%3A10.1038%2Fs41467-018-03665-3/MediaObjects/41467_2018_3665_MOESM6_ESM.html
+#     - https://static-content.springer.com/esm/art%3A10.1038%2Fs41467-018-03665-3/MediaObjects/41467_2018_3665_MOESM7_ESM.zip
+#   raw_data: https://www.ncbi.nlm.nih.gov/sra/?term=SAMN05789126
 
-doud17_compl:
-  dms_target: antigen
-  fv_type: fv
-  doi: 10.1371/journal.ppat.1006271
-  complexes:
-    - antigen: A/WSN/1933 (H1N1)
-      antibody: H17-L19
-      comment: "They run the experiments at different antibody concentrations, targets 'Ca2'"
-    - antigen: A/WSN/1933 (H1N1)
-      antibody: H17-L10
-      comment: "targets Ca1"
-    - antigen: A/WSN/1933 (H1N1)
-      antibody: H17-L7
-      comment: "targets Cb"
-    - antigen: A/WSN/1933 (H1N1)
-      antibody: H18-S415
-      comment: "targets Cb"
-  comment: "no structures available; like other publications, they have a numbering scheme in their supp files; like many other DMS applications, they have a couple of K_D-like experiments that could help up scale the enrichment values obtained from the DMS; data can be easily computed with provided script"
-  source_code: https://github.com/mbdoud/mutational_antigenic_profiling
-  data:  https://doi.org/10.1371/journal.ppat.1006271.s009
-  raw_data: https://www.ncbi.nlm.nih.gov/sra/?term=SAMN05789126
+# # dingens17_compr_mappin_hiv_escap_broad_neutr_antib:
+# #   dms_target: antigen
+# #   fv_type: fv
+# #   doi: 10.1016/j.chom.2017.05.003
+# #   complexes:
+# #     - antigen: HIV1_Env
+# #       antibody: PGT151
+# #       pdb: 5FUU(,6OLP)
+# #   comment: "like many other DMS applications, they have a couple of K_D experiments that could help up scale the enrichment values obtained from the DMS; data can be easily computed with provided script"
+# #   source_code: https://github.com/adingens/BF520_MutationalAntigenicProfiling_PGT151
+# #   data: https://www.cell.com/cms/10.1016/j.chom.2017.05.003/attachment/de4e20a4-1d94-48d6-a840-bba251d49e13/mmc3.zip (data s2)
+# #   raw_data: SRX2548567–SRX2548579
+
+# doud17_compl:
+#   dms_target: antigen
+#   fv_type: fv
+#   doi: 10.1371/journal.ppat.1006271
+#   complexes:
+#     - antigen: A/WSN/1933 (H1N1)
+#       antibody: H17-L19
+#       comment: "They run the experiments at different antibody concentrations, targets 'Ca2'"
+#     - antigen: A/WSN/1933 (H1N1)
+#       antibody: H17-L10
+#       comment: "targets Ca1"
+#     - antigen: A/WSN/1933 (H1N1)
+#       antibody: H17-L7
+#       comment: "targets Cb"
+#     - antigen: A/WSN/1933 (H1N1)
+#       antibody: H18-S415
+#       comment: "targets Cb"
+#   comment: "no structures available; like other publications, they have a numbering scheme in their supp files; like many other DMS applications, they have a couple of K_D-like experiments that could help up scale the enrichment values obtained from the DMS; data can be easily computed with provided script"
+#   source_code: https://github.com/mbdoud/mutational_antigenic_profiling
+#   data:  https://doi.org/10.1371/journal.ppat.1006271.s009
+#   raw_data: https://www.ncbi.nlm.nih.gov/sra/?term=SAMN05789126
 
 
-madan21_mutat_hiv:
-  dms_target: fv
-  fv_type: fab  # todo: most of the fvs (in this document) are actually fabs!
-  doi: 10.1073/pnas.2011653118
-  complexes:
-    - antigen: BG505-FP8v1
-      antibody: vFP16.02
-      pdb: 6CDO/https://www.rcsb.org/structure/6CDI
-      comment: "antigen is only a small peptide in 6CDO. 6CDI might be better"
-    - antigen: BG505-FP8v2
-      antibody: vFP16.02
-      pdb: 6CDO/https://www.rcsb.org/structure/6CDI
-      comment: "antigen is only a small peptide in 6CDO. 6CDI might be better"
-  anchors: "Figure S6 is against the BG505-FP8v1. IC50 is proportional and could be used in addition"
-  source_code: https://github.com/wchnicholas/C05mut
-  raw_data: PRJNA326694
-  comment: "HIV fusion peptide (FP). they also have a high throughput neutralization screen (see Dataset_S01). maybe ideal for anchoring? 6WWC and 6WX2 contain single point mutations (good for validation)"
-  data: https://www.pnas.org/doi/suppl/10.1073/pnas.2011653118/suppl_file/pnas.2011653118.sd02.xlsx
+# madan21_mutat_hiv:
+#   dms_target: fv
+#   fv_type: fab  # todo: most of the fvs (in this document) are actually fabs!
+#   doi: 10.1073/pnas.2011653118
+#   complexes:
+#     - antigen: BG505-FP8v1
+#       antibody: vFP16.02
+#       pdb: 6CDO/https://www.rcsb.org/structure/6CDI
+#       comment: "antigen is only a small peptide in 6CDO. 6CDI might be better"
+#     - antigen: BG505-FP8v2
+#       antibody: vFP16.02
+#       pdb: 6CDO/https://www.rcsb.org/structure/6CDI
+#       comment: "antigen is only a small peptide in 6CDO. 6CDI might be better"
+#   anchors: "Figure S6 is against the BG505-FP8v1. IC50 is proportional and could be used in addition"
+#   source_code: https://github.com/wchnicholas/C05mut
+#   raw_data: PRJNA326694
+#   comment: "HIV fusion peptide (FP). they also have a high throughput neutralization screen (see Dataset_S01). maybe ideal for anchoring? 6WWC and 6WX2 contain single point mutations (good for validation)"
+#   data: https://www.pnas.org/doi/suppl/10.1073/pnas.2011653118/suppl_file/pnas.2011653118.sd02.xlsx
 
-medina-cucurella18_pro_ngf:
-  dms_target: antigen
-  fv_type: igg
-  doi: 10.1002/bit.26706
-  complexes:
-    - antigen: pro-cNGF
-      antibody: tanezumab
-      pdb: 4EDW
-    - antigen: Pro?1,2-cNGF
-      antibody: tanezumab
-      pdb: 4EDW  # not sure if applicable
-    - antigen: Pro.v4-cNGF
-      antibody: tanezumab
-      pdb: 4EDW  # not sure if applicable
-  source_code: https://github.com/JKlesmith
-  raw_data: SAMN07693504–SAMN07693526
-  comment: "HIV fusion peptide (FP). they also have a high throughput neutralization screen (see Dataset_S01). maybe ideal for anchoring?"
-  data:
-    - S1
-    - S5
-    - S7
+# medina-cucurella18_pro_ngf:
+#   dms_target: antigen
+#   fv_type: igg
+#   doi: 10.1002/bit.26706
+#   complexes:
+#     - antigen: pro-cNGF
+#       antibody: tanezumab
+#       pdb: 4EDW
+#     - antigen: Pro?1,2-cNGF
+#       antibody: tanezumab
+#       pdb: 4EDW  # not sure if applicable
+#     - antigen: Pro.v4-cNGF
+#       antibody: tanezumab
+#       pdb: 4EDW  # not sure if applicable
+#   source_code: https://github.com/JKlesmith
+#   raw_data: SAMN07693504–SAMN07693526
+#   comment: "HIV fusion peptide (FP). they also have a high throughput neutralization screen (see Dataset_S01). maybe ideal for anchoring?"
+#   data:
+#     - S1
+#     - S5
+#     - S7
 
-doolan15_confor_depen_epitop_recog_prion:
-  dms_target: antigen
-  fv_type: scfv # except EP1820Y
-  doi: 10.1016/j.jmb.2014.10.024
-  complexes:
-    - antigen: mouse PrP
-      antibody: ICSM18
-      anchors: See Fig 3
-      pdb:
-        id: 6SUZ # alternative: 2W9E
-        chains:
-          antigen: A
-          light: L
-          heavy: H
-    - antigen: mouse PrP
-      antibody:
-            - D18
-      comment: "PDB doesn't exist, but could maybe be modeled manually?"
-    - antigen: mouse PrP
-      antibody: 6H4
-      comment: "PDB doesn't exist, but could maybe be modeled manually?"
-    - antigen: mouse PrP
-      antibody: EP1802Y
-      comment: "PDB doesn't exist, but could maybe be modeled manually? This is an IgG antibody."
-  source_code: https://ars.els-cdn.com/content/image/1-s2.0-S0022283614005750-mmc1.zip
-  raw_data:
-  data: https://ars.els-cdn.com/content/image/1-s2.0-S0022283614005750-mmc2.docx
-  comment: "Data would need to be extracted manually from pixelated images in supp data"
+# doolan15_confor_depen_epitop_recog_prion:
+#   dms_target: antigen
+#   fv_type: scfv # except EP1820Y
+#   doi: 10.1016/j.jmb.2014.10.024
+#   complexes:
+#     - antigen: mouse PrP
+#       antibody: ICSM18
+#       anchors: See Fig 3
+#       pdb:
+#         id: 6SUZ # alternative: 2W9E
+#         chains:
+#           antigen: A
+#           light: L
+#           heavy: H
+#     - antigen: mouse PrP
+#       antibody:
+#             - D18
+#       comment: "PDB doesn't exist, but could maybe be modeled manually?"
+#     - antigen: mouse PrP
+#       antibody: 6H4
+#       comment: "PDB doesn't exist, but could maybe be modeled manually?"
+#     - antigen: mouse PrP
+#       antibody: EP1802Y
+#       comment: "PDB doesn't exist, but could maybe be modeled manually? This is an IgG antibody."
+#   source_code: https://ars.els-cdn.com/content/image/1-s2.0-S0022283614005750-mmc1.zip
+#   raw_data:
+#   data: https://ars.els-cdn.com/content/image/1-s2.0-S0022283614005750-mmc2.docx
+#   comment: "Data would need to be extracted manually from pixelated images in supp data"
 
-kowalsky15_rapid_fine_confor_epitop_mappin:
-  dms_target: antigen
-  fv_type: "?"
-  doi: 10.1074/jbc.M115.676635
-  comment: "Only focus on the one with PDB probably, as we don't have structures for the other two"
-  complexes:
-    - antigen: TNF-alpha
-      antibody: hu1B7
-      pdb: 4G3Y
-    - antigen: PTxS1
-      antibody: hu1B7
-      pdb: null
-    - antigen: TROP2
-      antibody: m7E6
-      pdb: null
-  data: supp data (csvs)
+# kowalsky15_rapid_fine_confor_epitop_mappin:
+#   dms_target: antigen
+#   fv_type: "?"
+#   doi: 10.1074/jbc.M115.676635
+#   comment: "Only focus on the one with PDB probably, as we don't have structures for the other two"
+#   complexes:
+#     - antigen: TNF-alpha
+#       antibody: hu1B7
+#       pdb: 4G3Y
+#     - antigen: PTxS1
+#       antibody: hu1B7
+#       pdb: null
+#     - antigen: TROP2
+#       antibody: m7E6
+#       pdb: null
+#   data: supp data (csvs)
