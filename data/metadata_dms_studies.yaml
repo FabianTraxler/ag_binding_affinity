@@ -337,7 +337,7 @@ wu20_differ_ha_h3_h1:
     - PRJNA493101
     - PRJNA510700
 
-mason21_optim_therap_antib_by_predic: # TODO
+mason21_optim_therap_antib_by_predic: # TODO <- I think the combinatorial is not yet included?
   dms_target: fv
   fv_type: fv
   doi: 10.1038/s41551-021-00699-9
@@ -514,7 +514,35 @@ taft22_deep_mutat_learn_predic_ace2:
           antibody:
             - A
             - B
-# For now I use this file to store metadata
+
+b.20_funct_screen_strat_engin_chimer:
+  dms_target: fv
+  fv_type: scfv  # (via CARs)
+  complexes:
+    - antigen:
+        name: her2
+        full_name: ERBB2
+        uniprot: https://www.uniprot.org/uniprotkb/P04626/entry
+      antibody:
+        full_name: Trastuzumab(4D5)-derived scFV
+        name: trastuzumab
+      pdb:
+        id: 6OGE  # Alternatives 6BGT/7MN8/((6ZQK))
+        chains:
+          antibody:
+            - D
+            - E
+          antigen:
+            - A
+
+  comment: "screen on binding affinity and activation potential; raw data is undocumented; available structures are for FVs. data for scF_Vs.."
+  source_code: null
+  doi: 10.1016/j.ymthe.2020.08.003
+  WT_seq: WGGDGFYAMD
+  data: Provided by Email
+  raw_data: https://www.ncbi.nlm.nih.gov/sra/?term=PRJNA649781
+
+
 # TODO if fv_fype == f_v, check if it's actually igg (igg vs fab/fv makes a difference)
 
 # sourisseau19_deep_mutat_scann_compr_maps:
@@ -617,20 +645,6 @@ taft22_deep_mutat_learn_predic_ace2:
 #   source_code: null
 #   data: Provided by Email
 #   raw_data: null
-
-# b.20_funct_screen_strat_engin_chimer:
-#   dms_target: fv
-#   fv_type: scfv (via CARs)
-#   complexes:
-#     - antigen: HER2
-#       antibody: trastuzumab(4D5)-derived scFV 
-#       pdb: 6BGT/6OGE/7MN8/((6ZQK))
-#   comment: "screen on binding affinity and activation potential; raw data is undocumented; available structures are for FVs. data for scF_Vs.."
-#   source_code: null
-#   doi: 10.1016/j.ymthe.2020.08.003
-#   WT_seq: WGGDGFYAMD
-#   data: Provided by Email
-#   raw_data: https://www.ncbi.nlm.nih.gov/sra/?term=PRJNA649781
 
 # forsyth13_deep:
 #   dms_target: fv
