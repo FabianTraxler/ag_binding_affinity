@@ -337,7 +337,7 @@ wu20_differ_ha_h3_h1:
     - PRJNA493101
     - PRJNA510700
 
-mason21_optim_therap_antib_by_predic: # TODO <- I think the combinatorial is not yet included?
+mason21_optim_therap_antib_by_predic:
   dms_target: fv
   fv_type: fv
   doi: 10.1038/s41551-021-00699-9
@@ -357,7 +357,7 @@ mason21_optim_therap_antib_by_predic: # TODO <- I think the combinatorial is not
             - E
           antigen:
             - A
-  comment: "screen on binding affinity and activation potential!!"
+  comment: "screen on binding affinity and activation potential. They have a decent number of KD experiments included"
   source_code: https://github.com/dahjan/DMS_opt
   data: https://github.com/dahjan/DMS_opt,email,org
   use_for: "discrete relative"
@@ -534,13 +534,53 @@ b.20_funct_screen_strat_engin_chimer:
             - E
           antigen:
             - A
-
   comment: "screen on binding affinity and activation potential; raw data is undocumented; available structures are for FVs. data for scF_Vs.."
   source_code: null
   doi: 10.1016/j.ymthe.2020.08.003
   WT_seq: WGGDGFYAMD
-  data: Provided by Email
+  data: Provided by email
   raw_data: https://www.ncbi.nlm.nih.gov/sra/?term=PRJNA649781
+
+madan21_mutat_hiv:
+  dms_target: fv
+  fv_type: fab  # todo: most of the fvs (in this document) are actually fabs!
+  doi: 10.1073/pnas.2011653118
+  complexes:
+    - antigen:
+        name: fp8v1
+        full_name: BG505-FP8v1
+      antibody:
+        name: vfp1602
+        full_name: vFP16.02
+      pdb:
+        id: 6CDI  # antigen is only a small peptide in 6CDO, but DMS was carried out with the full trimer
+        mutations: Lc520C
+        chains:
+          antigen:
+            - c  # lowercase
+          antibody:
+            - l
+            - h
+    - antigen:
+        name: fp8v2
+        full_name: BG505-FP8v2
+      antibody:
+        name: vfp1602
+        full_name: vFP16.02
+      pdb:
+        id: 6CDI  # antigen is only a small peptide in 6CDO, but DMS was carried out with the full trimer
+        mutations: Lc520C;Ic515L
+        chains:
+          antigen:
+            - c  # lowercase
+          antibody:
+            - l
+            - h
+  anchors: "Figure S6 is against the BG505-FP8v1. IC50 is proportional and could be used in addition"
+  source_code: https://github.com/wchnicholas/C05mut
+  raw_data: PRJNA326694
+  comment: "HIV fusion peptide (FP). they also have a high throughput neutralization screen (see Dataset_S01). maybe ideal for anchoring? 6WWC and 6WX2 contain single point mutations (good for validation)"
+  data: email,https://www.pnas.org/doi/suppl/10.1073/pnas.2011653118/suppl_file/pnas.2011653118.sd02.xlsx
 
 
 # TODO if fv_fype == f_v, check if it's actually igg (igg vs fab/fv makes a difference)
@@ -718,25 +758,6 @@ b.20_funct_screen_strat_engin_chimer:
 #   data:  https://doi.org/10.1371/journal.ppat.1006271.s009
 #   raw_data: https://www.ncbi.nlm.nih.gov/sra/?term=SAMN05789126
 
-
-# madan21_mutat_hiv:
-#   dms_target: fv
-#   fv_type: fab  # todo: most of the fvs (in this document) are actually fabs!
-#   doi: 10.1073/pnas.2011653118
-#   complexes:
-#     - antigen: BG505-FP8v1
-#       antibody: vFP16.02
-#       pdb: 6CDO/https://www.rcsb.org/structure/6CDI
-#       comment: "antigen is only a small peptide in 6CDO. 6CDI might be better"
-#     - antigen: BG505-FP8v2
-#       antibody: vFP16.02
-#       pdb: 6CDO/https://www.rcsb.org/structure/6CDI
-#       comment: "antigen is only a small peptide in 6CDO. 6CDI might be better"
-#   anchors: "Figure S6 is against the BG505-FP8v1. IC50 is proportional and could be used in addition"
-#   source_code: https://github.com/wchnicholas/C05mut
-#   raw_data: PRJNA326694
-#   comment: "HIV fusion peptide (FP). they also have a high throughput neutralization screen (see Dataset_S01). maybe ideal for anchoring? 6WWC and 6WX2 contain single point mutations (good for validation)"
-#   data: https://www.pnas.org/doi/suppl/10.1073/pnas.2011653118/suppl_file/pnas.2011653118.sd02.xlsx
 
 # medina-cucurella18_pro_ngf:
 #   dms_target: antigen
