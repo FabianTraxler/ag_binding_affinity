@@ -16,16 +16,19 @@ DATA:
     folder_path: "SKEMPI_v2"
     summary: "cleaned_data.csv"
     mutated_pdb_path: "mutated_wildtype"
+    affinity_type: "-log(Kd)"
 
   Dataset_v1:
     folder_path: "dataset_v1"
     pdb_path: ""
     summary: "dataset_v1.csv"
+    affinity_type: "-log(Kd)"
 
   PDBBind:
     folder_path: "PDBBind"
     dataset_path: "data"
     summary: "pdbbind.csv"
+    affinity_type: "-log(Kd)"
 
   AntibodyBenchmark:
     folder_path: "antibody_benchmark"
@@ -33,11 +36,17 @@ DATA:
       - "relaxed_pdbs"
       - "unrelaxed_pdbs"
     summary: "antibody_benchmark_scores.csv"
+    affinity_type: "-log(Kd)"
 
   DMS:
     folder_path: "DMS"
-    summary: "dms_curated.csv"
+    summary: "dms_infos.csv"
     mutated_pdb_path: "mutated"
+    affinity_types:
+      phillips21_bindin: "-log(Kd)"
+      starr21_prosp_covid: "E"
+      wu17_in: "E"
+      wu20_differ_ha_h3_h1: "E"
 
 RESOURCES:
   path: "resources"
@@ -86,15 +95,15 @@ RESULTS:
   cleaned_pdbs: "cleaned_pdb"
 
 MODELS:
-  binding_dgg_predictor:
-    model_path: "ag_binding_affinity/binding_ddg_predictor/data/model.pt"
+  Binding_DDG:
+    model_path: "src/abag_affinity/binding_ddg_predictor/data/model.pt"
 
-  deep_refine:
+  DeepRefine:
     model_path: "../other_repos/DeepRefine/project/checkpoints/EGR_All_Atom_Models/LitPSR_EGR_AllAtomModel1_Seed42.ckpt"
 
 TRAIN:
   standard:
-    dataset: Dataset_v1:absolute
+    dataset: DMS-wu20_differ_ha_h3_h1:relative
 
   transfer:
     datasets:
@@ -113,34 +122,69 @@ TRAIN:
 
 HYPERPARAMETER_SEARCH:
   method: 'random'
+  name: 'Hyperparameter_Search_2.0'
   metric:
     goal: 'maximize'
     name: 'Dataset_v1:absolute_val_corr'
   parameters:
-    model_type:
-      values:
-        - "GraphConv"
-        - "GraphAttention"
-        - "FixedSizeGraphConv"
-        - "DDGBackboneFC"
-        - "KpGNN"
-        - "DeepRefineBackbone"
     train_strategy:
       values:
         - "bucket_train"
         - "pretrain_model"
         - "model_train"
-    batch_size:
+    pretrained_model:
       values:
-        - 1
+        - ""
+        - "DeepRefine"
+        - "Binding_DDG"
+    layer_type:
+      values:
+        - "GAT"
+        - "GCN"
+    gnn_type:
+      values:
+        - "proximity"
+        - "guided"
+    max_edge_distance:
+      values:
+        - 2
+        - 3
+        - 4
         - 5
-        - 10
+      probabilities:
+        - 0.1
+        - 0.2
+        - 0.3
+        - 0.4
+    num_gnn_layers:
+      min: 0
+      max: 15
+    size_halving:
+      values:
+        - True
+        - False
+    aggregation_method:
+      values:
+        - "max"
+        - "sum"
+        - "mean"
+        - "attention"
+        - "fixed_size"
+        - "edge"
+    nonlinearity:
+      values:
+        - relu
+        - leaky
+        - gelu
+    num_fc_layers:
+      min: 1
+      max: 5
+    batch_size:
+      min: 1
+      max: 10
     learning_rate:
       max: 0.001
       min: 0.0000001
-    patience:
-      min: 5
-      max: 30
     node_type:
       values:
         - "atom"
@@ -151,19 +195,16 @@ HYPERPARAMETER_SEARCH:
         - "L2"
     max_num_nodes:
       values:
-        - 10
-        - 30
+        - 25
         - 50
-        - 80
+        - 75
+        - None
+      probabilities:
+        - 0.05
+        - 0.1
+        - 0.2
+        - 0.65
     scale_values:
       values:
         - True
         - False
-    interface_hull_size:
-      values:
-        - 5
-        - 7
-        - 10
-    max_epochs:
-      values:
-        - 200
