@@ -185,7 +185,7 @@ starr21_prosp_covid:
         id: 6XDG
         chains:
           antigen:
-            -E
+            - E
           antibody:
             - A
             - C
@@ -557,10 +557,10 @@ madan21_mutat_hiv:
         mutations: Lc520C
         chains:
           antigen:
-            - c  # lowercase
+            - C
           antibody:
-            - l
-            - h
+            - L
+            - H
     - antigen:
         name: fp8v2
         full_name: BG505-FP8v2
@@ -572,10 +572,10 @@ madan21_mutat_hiv:
         mutations: Lc520C;Ic515L
         chains:
           antigen:
-            - c  # lowercase
+            - C
           antibody:
-            - l
-            - h
+            - L
+            - H
   anchors: "Figure S6 is against the BG505-FP8v1. IC50 is proportional and could be used in addition"
   source_code: https://github.com/wchnicholas/C05mut
   raw_data: PRJNA326694
