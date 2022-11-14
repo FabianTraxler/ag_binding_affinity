@@ -30,6 +30,9 @@ def read_config(file_path: str) -> Dict:
     config["processed_graph_path"] = os.path.join(folder_path, config["RESULTS"]["path"], config["RESULTS"]["processed_graph_path"])
     config["cleaned_pdbs"] = os.path.join(folder_path, config["RESULTS"]["path"], config["RESULTS"]["cleaned_pdbs"])
 
+    for model in config["MODELS"].keys():
+        config["MODELS"][model]["model_path"] = os.path.join(folder_path, config["MODELS"][model]["model_path"])
+
     return config
 
 

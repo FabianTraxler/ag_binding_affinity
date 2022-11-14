@@ -5,17 +5,17 @@ import subprocess
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Tuple, Union
-
 import numpy as np
 import scipy.spatial as sp
-from abag_affinity.binding_ddg_predictor.utils.protein import (
-    ATOM_CA, NON_STANDARD_SUBSTITUTIONS, RESIDUE_SIDECHAIN_POSTFIXES,
-    augmented_three_to_index, augmented_three_to_one, get_residue_pos14)
-from abag_affinity.utils.pdb_reader import read_file
 from Bio.PDB.PDBIO import PDBIO
 from Bio.PDB.Structure import Structure
 from Bio.SeqUtils import seq1
 from biopandas.pdb import PandasPdb
+
+from abag_affinity.binding_ddg_predictor.utils.protein import (
+    ATOM_CA, NON_STANDARD_SUBSTITUTIONS, RESIDUE_SIDECHAIN_POSTFIXES,
+    augmented_three_to_index, augmented_three_to_one, get_residue_pos14)
+from abag_affinity.utils.pdb_reader import read_file
 
 # Definition of standard amino acids and objects to quickly access them
 AMINO_ACIDS = ["ala","cys","asp","glu","phe","gly","his","ile","lys","leu","met","asn","pro","gln","arg","ser","thr","val","trp","tyr"]
@@ -177,7 +177,7 @@ def get_distances(residue_info: List[Dict], residue_distance: bool = True, ca_di
             else:
                 antigen_idx.append(node_idx)
             node_idx += 1
-        else: # get atoms and their coordinates
+        else: # get all atoms and their coordinates
             for atom_idx, atom_coordinates in enumerate(residue_coordinates):
                 if np.isinf(atom_coordinates).any():
                     continue
@@ -345,13 +345,19 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_fil
     model = structure[0]
     io = PDBIO()
     io.set_structure(model)
-    io.save(str(tmp_pdb_filepath))
+    io.save(tmp_pdb_filepath)
 
     # Clean temporary PDB file and then save its cleaned version as the original PDB file
-    command = f'pdb_sort {tmp_pdb_filepath} | pdb_tidy | pdb_fixinsert | pdb_delhetatm  > {cleaned_file_path}'
-    subprocess.run(command, shell=True)
+    # retry 3 times because these commands sometimes do not properly write to disc
+    retries = 0
+    while not os.path.exists(cleaned_file_path):
+        command = f'pdb_sort {tmp_pdb_filepath} | pdb_tidy | pdb_fixinsert | pdb_delhetatm  > {cleaned_file_path}'
+        subprocess.run(command, shell=True)
+        retries += 1
+        if retries >= 3:
+            raise RuntimeError(f"Error in PDB Utils commands to clean PDB {tmp_pdb_filepath}")
 
-    cleaned_pdb = PandasPdb().read_pdb(str(cleaned_file_path))
+    cleaned_pdb = PandasPdb().read_pdb(cleaned_file_path)
     input_atom_df = cleaned_pdb.df['ATOM']
 
     # remove all duplicate (alternate location residues)
@@ -363,6 +369,13 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_fil
 
     # drop H atoms
     filtered_df = filtered_df[filtered_df['element_symbol'] != 'H']
+
+    # remove all non-standard atoms - used in Binding_DDG preprocessing
+    all_postfixes = [ "" ]
+    for postfixes in RESIDUE_SIDECHAIN_POSTFIXES.values():
+        all_postfixes += postfixes
+    atom_name_postfix = filtered_df['atom_name'].apply(get_atom_postfixes)
+    filtered_df = filtered_df[atom_name_postfix.isin(all_postfixes)]
 
     assert len(filtered_df) > 0, f"No atoms in pdb file after cleaning: {pdb_file_path}"
 
@@ -376,3 +389,13 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_fil
     # Clean up from using temporary PDB file for tidying
     if os.path.exists(tmp_pdb_filepath):
         os.remove(tmp_pdb_filepath)
+
+
+def get_atom_postfixes(atom_name: str):
+    # very similar to binding_ddg preprocessing
+    if atom_name in ('N', 'CA', 'C', 'O'):
+        return ""
+    if atom_name[-1].isnumeric():
+        return atom_name[-2:]
+    else:
+        return atom_name[-1:]
