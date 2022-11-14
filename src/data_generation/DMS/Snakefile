@@ -1,30 +1,30 @@
 import os.path
-import yaml
 import pandas as pd
 from pathlib import Path
+
+INTERFACE_SIZE = 5
+INTERFACE_HULL_SIZE = 10
 
 
 project_root = Path(workflow.basedir).parents[2] # two directories above - absolute paths not working
 out_folder = os.path.join(project_root, "data/DMS/")
 
 metadata_file = os.path.join(project_root, "data/metadata_dms_studies.yaml")
+dms_out_summary_file = os.path.join(project_root, "data/DMS/dms_infos.csv")
 
 dms_info_file = os.path.join(project_root, "data/DMS/dms_curated.csv")
 info_df = pd.read_csv(dms_info_file)
 
 # filter mason21 data
-info_df = info_df[info_df["publication"].str[:7] != "mason21"]
+#info_df = info_df[info_df["publication"].str[:7] != "mason21"]
+#info_df = info_df[info_df["publication"].isin(["wu17_in"])]
 
 complexes = info_df.groupby(["publication", "antibody", "antigen"]).groups.keys()
 publications, antibodies, antigens = list(zip(*complexes))
 
 rule all:
     input:
-        expand(out_folder + "mutated/{publication}/{antibody}_{antigen}.logs", zip,
-            publication=publications,
-            antibody=antibodies,
-            antigen=antigens
-        )
+        dms_out_summary_file
 
 rule get_complex:
     output:
@@ -33,22 +33,55 @@ rule get_complex:
         metadata_file=metadata_file,
         project_root=project_root
     conda: "../../../envs/rosetta_environment.yml"
+    threads: 5
     script: "scripts/get_complex.py"
 
-rule mutate_complex:
+rule reduce2interface_hull:
     input:
         out_folder + "prepared_pdbs/{publication}/{antibody}_{antigen}.pdb"
     output:
-        out_folder + "mutated/{publication}/{antibody}_{antigen}.logs"
-        #out_folder + "mutated/{publication}/{antibody}_{antigen}/{mutation_code}.pdb"
+        out_folder + "interface_hull_pdbs/{publication}/{antibody}_{antigen}.pdb"
+    params:
+        metadata_file=metadata_file,
+        project_root=project_root,
+        interface_size=INTERFACE_SIZE,
+        interface_hull_size=INTERFACE_HULL_SIZE
     conda: "../../../envs/rosetta_environment.yml"
-    threads: 50
     resources:
         mem_mb=50000
+    script: "scripts/reduce2interface_hull.py"
+
+
+rule mutate_complex:
+    input:
+        out_folder + "interface_hull_pdbs/{publication}/{antibody}_{antigen}.pdb"
+    output:
+        out_folder + "mutated/{publication}/{antibody}_{antigen}.logs",
+        out_folder + "mutated/{publication}/{antibody}_{antigen}.json"
+        #out_folder + "mutated/{publication}/{antibody}_{antigen}/{mutation_code}.pdb"
+    conda: "../../../envs/rosetta_environment.yml"
+    resources:
+        mem_mb=50000
+    threads: 100
     params:
         info_df=info_df,
         mutation_out_folder = out_folder + "mutated"
     script: "scripts/mutate.py"
 
 
-
+rule generate_summary_df:
+    input:
+        expand(out_folder + "mutated/{publication}/{antibody}_{antigen}.logs", zip,
+            publication=publications,
+            antibody=antibodies,
+            antigen=antigens
+        )
+    output:
+        dms_out_summary_file
+    conda: "../../../envs/rosetta_environment.yml"
+    resources:
+        mem_mb=10000
+    params:
+        info_df=info_df,
+        metadata_file=metadata_file,
+    script: "scripts/generate_summary.py"
