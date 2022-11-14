@@ -2,19 +2,23 @@
 import os
 import random
 from abc import ABC
+from torch_geometric.data import HeteroData, Batch, Dataset
+import dgl
+from dgl.subgraph import node_subgraph
 import pandas as pd
 from pathlib import Path
 import numpy as np
 import torch
 from typing import Tuple, Dict, List, Union
-from torch_geometric.data import Data
-from torch_geometric.data import Dataset
 from parallel import submit_jobs
 import itertools
 import logging
+from ast import literal_eval
+import pickle
+from argparse import Namespace
 
-from abag_affinity.utils.config import get_data_paths
-from .utils import scale_affinity, load_graph
+from ..utils.config import get_data_paths
+from .utils import scale_affinity, load_graph_dict, get_hetero_edges, get_pdb_path_and_id, load_deeprefine_graph
 
 logger = logging.getLogger(__name__)
 
@@ -24,26 +28,54 @@ class AffinityDataset(Dataset, ABC):
     Provides functionality to load dataset csv files and graph generation as well as the item_getter methods
     """
 
-    def __init__(self, config: Dict, dataset_name: str, pdb_ids: List, node_type: str = "residue",
-                 relative_data: bool = False, save_graphs: bool = False, num_threads: int = 1,
-                 force_recomputation: bool = False, scale_values: bool = True, preprocess_data: bool = False):
+    def __init__(self, config: Dict,
+                 dataset_name: str, pdb_ids: List,
+                 node_type: str = "residue",
+                 max_nodes: int = None,
+                 interface_distance_cutoff: int = 5,
+                 interface_hull_size: int = None,
+                 max_edge_distance: int = 5,
+                 pretrained_model: str = "",
+                 scale_values: bool = True,
+                 relative_data: bool = False,
+                 save_graphs: bool = False, force_recomputation: bool = False,
+                 preprocess_data: bool = False, num_threads: int = 1):
         super(AffinityDataset, self).__init__()
         self.dataset_name = dataset_name
         self.config = config
         self.node_type = node_type
         self.save_graphs = save_graphs
+        self.pretrained_model = pretrained_model
 
-        self.max_nodes = None  # can be overwritten by subclasses
-        self.interface_hull_size = None  # can be overwritten by subclasses
-        self.interface_distance_cutoff = 5
+        self.max_nodes = max_nodes
+        self.interface_hull_size = interface_hull_size
+        self.interface_distance_cutoff = interface_distance_cutoff
+        self.max_edge_distance = max_edge_distance
+
+        if "-" in dataset_name:
+            dataset_name, publication = dataset_name.split("-")
+            self.affinity_type = self.config["DATA"][dataset_name]["affinity_types"][publication]
+            self.dataset_name = dataset_name
+        else:
+            self.affinity_type = self.config["DATA"][dataset_name]["affinity_type"]
+
+
+        if node_type == "residue":
+            self.edge_types = ["proximity", "peptide_bond", "same_protein"]
+        elif node_type == "atom":
+            self.edge_types = ["proximity", "same_residue", "same_protein"]
+        else:
+            raise ValueError(f"Invalid node type provided - got {node_type} - supported 'residue', 'atom'")
 
         # create path for processed graphs
-        self.results_dir = os.path.join(config["PROJECT_ROOT"], config["RESULTS"]["path"])
-        self.temp_dir = os.path.join(config["RESULTS"]["processed_graph_path"], node_type, dataset_name)
-        Path(self.temp_dir).mkdir(exist_ok=True, parents=True)
+        self.results_dir = os.path.join(self.config["PROJECT_ROOT"], self.config["RESULTS"]["path"])
+        self.graph_dir = os.path.join(self.config["processed_graph_path"], dataset_name, node_type)
 
+        if self.save_graphs or preprocess_data:
+            logger.debug(f"Saving processed graphs in {self.graph_dir}")
+            Path(self.graph_dir).mkdir(exist_ok=True, parents=True)
         # create path for clean pdbs
-        self.pdb_clean_dir = os.path.join(config["cleaned_pdbs"], dataset_name)
+        self.pdb_clean_dir = os.path.join(self.config["cleaned_pdbs"], dataset_name)
         logger.debug(f"Saving cleaned pdbs in {self.pdb_clean_dir}")
         Path(self.pdb_clean_dir).mkdir(exist_ok=True, parents=True)
 
@@ -52,21 +84,24 @@ class AffinityDataset(Dataset, ABC):
         self.preprocess_data = preprocess_data
 
         # load dataframe with metainfo
-        self.data_df = self._load_df(pdb_ids)
+        self.data_df = self.load_df(pdb_ids)
 
         # set dataset to load relative or absolute data points
         self.relative_data = relative_data
         if relative_data:
             self.get = self.get_relative
-            self.data_points = self.get_all_pairs()
+            self.data_points = pdb_ids #self.get_all_pairs()
 
-            self.preprocess_data = True # necessary to preprocess graphs in order to avoid race conditions in workers
+            self.preprocess_data = True  # necessary to preprocess graphs in order to avoid race conditions in workers
         else:
             self.get = self.get_absolute
             self.data_points = pdb_ids
 
         self.num_threads = num_threads
 
+        if self.preprocess_data:
+            logger.debug(f"Preprocessing {node_type}-graphs for {self.dataset_name}")
+            self.preprocess()
 
     def get_all_pairs(self) -> List:
         """ Get all mutation pairs available for a complex that do not have the exact same affinity
@@ -84,8 +119,8 @@ class AffinityDataset(Dataset, ABC):
                 lambda e: self.data_df.loc[e[0], "-log(Kd)"] != self.data_df.loc[e[1], "-log(Kd)"], all_combinations)
             all_data_points.extend(all_combinations)
 
-        #TODO: Remove sampler and use all values
-        all_data_points = random.sample(all_data_points, min(5000, len(all_data_points)))
+        # TODO: Remove sampler and use all values
+        all_data_points = random.sample(all_data_points, min(10000, len(all_data_points)))
 
         return all_data_points
 
@@ -101,23 +136,42 @@ class AffinityDataset(Dataset, ABC):
         Returns:
             None
         """
+        Path(self.graph_dir).mkdir(exist_ok=True, parents=True)
+        if self.interface_hull_size is not None and self.interface_hull_size != "" and self.interface_hull_size != "None":
+            Path(os.path.join(self.graph_dir, f"interface_hull_{self.interface_hull_size}")).mkdir(exist_ok=True,
+                                                                                                   parents=True)
 
-        pdb_info = []
-
-        Path(self.temp_dir).mkdir(exist_ok=True, parents=True)
-
+        graph_dicts2process = []
+        deeprefine_graphs2process = []
         for df_idx, row in self.data_df.iterrows():
-
-            file_path = os.path.join(self.temp_dir, str(df_idx) + ".npz")
-
+            # Pre-Load Dictionary containing all relevant information to generate graphs
+            file_path = os.path.join(self.graph_dir, str(df_idx) + ".npz")
             if not os.path.exists(file_path) or self.force_recomputation:
-                pdb_info.append((row, file_path))
+                graph_dicts2process.append((row, file_path))
 
-        logger.debug(f"Preprocessing {len(pdb_info)} graphs with {self.num_threads} threads")
 
-        submit_jobs(self.preload_graphs, pdb_info, self.num_threads)
+            if "pdb" not in row:
+                row["pdb"] = "-".join((row["publication"], row["ab_ag"]))
+            pdb_path, _ = get_pdb_path_and_id(row, self.dataset_name, self.config)
 
-    def preload_graphs(self, row: pd.Series, out_path: str):
+            # Pre-Load DeepRefine graphs
+            # TODO: Store only full graph and reduce to interface hull later on
+            if self.interface_hull_size is None or self.interface_hull_size == "" or self.interface_hull_size == "None":
+                graph_filepath = os.path.join(self.graph_dir, str(df_idx) + ".pickle")
+            else:
+                graph_filepath = os.path.join(self.graph_dir, f"interface_hull_{self.interface_hull_size}",
+                                              str(df_idx) + ".pickle")
+            if not os.path.exists(graph_filepath) or self.force_recomputation:
+                deeprefine_graphs2process.append((df_idx, pdb_path, row))
+
+        logger.debug(f"Preprocessing {len(graph_dicts2process)} graph dicts with {self.num_threads} threads")
+        submit_jobs(self.preload_graph_dict, graph_dicts2process, self.num_threads)
+
+        logger.debug(
+            f"Preprocessing {len(deeprefine_graphs2process)} DeepRefine graphs with {self.num_threads} threads")
+        submit_jobs(self.preload_deeprefine_graph, deeprefine_graphs2process, self.num_threads)
+
+    def preload_graph_dict(self, row: pd.Series, out_path: str):
         """ Function to get graph dict and store to disc
 
         Used by preprocess functionality
@@ -130,15 +184,42 @@ class AffinityDataset(Dataset, ABC):
             None
         """
 
-        graph_dict = load_graph(row, self.dataset_name, self.config, self.pdb_clean_dir,
-                                node_type=self.node_type,
-                                distance_cutoff=self.interface_distance_cutoff,
-                                interface_hull_size=self.interface_hull_size,
-                                force_recomputation=self.force_recomputation)
+        graph_dict = load_graph_dict(row, self.dataset_name, self.config, self.pdb_clean_dir,
+                                     node_type=self.node_type,
+                                     interface_distance_cutoff=self.interface_distance_cutoff,
+                                     interface_hull_size=self.interface_hull_size,
+                                     max_edge_distance=self.max_edge_distance)
 
         np.savez_compressed(out_path, **graph_dict)
 
-    def _load_df(self, pdb_ids: List):
+    def preload_deeprefine_graph(self, idx: str, pdb_filepath: str, row: pd.Series):
+        """ Function to get graph dict and store to disc
+
+        Used by preprocess functionality
+
+        Args:
+            idx: ID = Name of the DataPoint
+            pdb_filepath: Path of pdb file
+            row: DataFrame Row of the data point
+
+        Returns:
+            None
+        """
+
+        chain_infos = literal_eval(row["chain_infos"])
+        graph = load_deeprefine_graph(idx, pdb_filepath, chain_infos, self.pdb_clean_dir,
+                                      self.interface_distance_cutoff, self.interface_hull_size)
+
+        if self.interface_hull_size is None or self.interface_hull_size == "" or self.interface_hull_size == "None":
+            graph_filepath = os.path.join(self.graph_dir, idx + ".pickle")
+        else:
+            graph_filepath = os.path.join(self.graph_dir, f"interface_hull_{self.interface_hull_size}",
+                                          idx + ".pickle")
+
+        with open(graph_filepath, 'wb') as f:
+            pickle.dump(graph, f)
+
+    def load_df(self, pdb_ids: List):
         """ Load all the dataset information (csv) into a pandas dataframe
 
         Only consider the pdbs given as argument
@@ -156,13 +237,86 @@ class AffinityDataset(Dataset, ABC):
 
         return summary_df.fillna("")
 
-    def _get_edges(self, data_file: Dict):
-        # needs to be implemented by subclass
-        raise NotImplemented
+    def get_edges(self, data_file: Dict) -> Tuple[Dict, Dict]:
+        """ Function to extract edge information based on graph dict
 
-    def _get_node_features(self, data_file: Dict):
-        # needs to be implemented by subclass
-        raise NotImplemented
+        Extract residue edges :
+        - based on distance: < distance cutoff (interface_distance_cutoff)
+        - based on residues: has peptide bond to other residue (neighbor)
+        - based on residues: is in same protein
+
+        Extract atom edges :
+        - based on distance: < distance cutoff (interface_distance_cutoff)
+        - based on atoms: is in same residue
+        - based on residues: has peptide bond to residue of other atom (neighbor)
+        - based on residues: is in same protein
+
+
+        Args:
+            data_file: Dict containing all relevant information about the complex
+
+        Returns:
+            Tuple: Edge Dict with indices, edge dict with attributes
+        """
+
+        # TODO: Add Max num Nodes, Interface hull size, ...
+        # use only nodes actually available in the graph
+        data_file["adjacency_tensor"] = data_file["adjacency_tensor"][:, data_file["graph_nodes"], :][:, :,
+                                        data_file["graph_nodes"]]
+
+        all_edges, edge_attributes = get_hetero_edges(data_file, self.edge_types,
+                                                      max_interface_distance=self.interface_distance_cutoff,
+                                                      max_edge_distance=self.max_edge_distance)
+
+        return all_edges, edge_attributes
+
+    def get_node_features(self, data_file: Dict) -> np.ndarray:
+        """ Extract residue features from data dict
+
+        Args:
+            data_file: Dict containing all relevant information about the complex
+
+        Returns:
+            np.ndarray: Residue encodings
+        """
+        if self.max_nodes is not None:  # use only the n-closest nodes
+            graph_nodes = data_file["closest_residues"][:self.max_nodes].astype(int)
+        elif self.interface_hull_size is not None:  # use only nodes in interface hull
+            adjacency_matrix = data_file["adjacency_tensor"]
+            # below interface distance threshold and not in same protein -> interface edge
+            interface_nodes = \
+            np.where((adjacency_matrix[-1, :, :] < self.interface_distance_cutoff) & (adjacency_matrix[2, :, :] != 1))[
+                0]
+            interface_nodes = np.unique(interface_nodes)
+
+            interface_hull = np.where(adjacency_matrix[3, interface_nodes, :] < self.interface_hull_size)
+            graph_nodes = np.unique(interface_hull[1])
+        else:  # use all nodes
+            graph_nodes = data_file["closest_residues"].astype(int)
+
+        data_file["graph_nodes"] = graph_nodes
+
+        if self.pretrained_model == "Binding_DDG":  # different node features required for binding-ddg pretrained model
+            node_features = []
+            for idx in graph_nodes:
+                residue_info = data_file["residue_infos"][idx]
+                residue_coords = data_file["residue_atom_coordinates"][idx, :]
+                node_coordinates = residue_coords.flatten()
+                coordinate_mask = ~np.all(np.isinf(residue_coords), axis=-1)
+                indices = np.array([residue_info["residue_pdb_index"],
+                                    residue_info["chain_idx"], residue_info["on_chain_residue_idx"]])
+                all_features = np.concatenate([node_coordinates, indices, coordinate_mask])
+                node_features.append(all_features)
+
+            node_features = np.array(node_features)
+        else:
+            node_features = data_file["node_features"][graph_nodes]
+
+        if self.max_nodes is not None and len(graph_nodes) < self.max_nodes:  # add zero nodes for fixed size graphs
+            diff = self.max_nodes - len(graph_nodes)
+            node_features = np.vstack((node_features, np.zeros((diff, len(node_features[0])))))
+
+        return node_features
 
     def get_graph_dict(self, df_idx: str) -> Dict:
         """ Get the graph dict for a data point
@@ -175,8 +329,7 @@ class AffinityDataset(Dataset, ABC):
         Returns:
             Dict: graph information for index
         """
-
-        file_path = os.path.join(self.temp_dir, df_idx + ".npz")
+        file_path = os.path.join(self.graph_dir, df_idx + ".npz")
         graph_dict = {}
 
         if os.path.exists(file_path) and (not self.force_recomputation or self.preprocess_data):
@@ -191,11 +344,11 @@ class AffinityDataset(Dataset, ABC):
 
         if compute_graph:  # graph not loaded from disc
             row = self.data_df.loc[df_idx]
-            graph_dict = load_graph(row, self.dataset_name, self.config, self.pdb_clean_dir,
-                                    node_type=self.node_type,
-                                    distance_cutoff=self.interface_distance_cutoff,
-                                    interface_hull_size=self.interface_hull_size,
-                                    force_recomputation=self.force_recomputation)
+            graph_dict = load_graph_dict(row, self.dataset_name, self.config, self.pdb_clean_dir,
+                                         node_type=self.node_type,
+                                         interface_distance_cutoff=self.interface_distance_cutoff,
+                                         interface_hull_size=self.interface_hull_size,
+                                         max_edge_distance=self.max_edge_distance)
 
             if self.save_graphs and not os.path.exists(file_path):
                 graph_dict.pop("atom_names", None)  # remove unnecessary information that takes lot of storage
@@ -203,7 +356,7 @@ class AffinityDataset(Dataset, ABC):
 
         return graph_dict
 
-    def load_data_point(self, df_idx: str) -> Data:
+    def load_graph(self, df_idx: str) -> Tuple[HeteroData, Dict]:
         """ Load a data point either from disc or compute it anew
 
         Standard method for PyTorch geometric graphs
@@ -217,23 +370,89 @@ class AffinityDataset(Dataset, ABC):
             Dict: PyG Data object
         """
         graph_dict = self.get_graph_dict(df_idx)
-        residue_features = self._get_node_features(graph_dict)
-        edge_index, edge_features = self._get_edges(graph_dict)
+        node_features = self.get_node_features(graph_dict)
+        edge_indices, edge_features = self.get_edges(graph_dict)
+
         affinity = graph_dict["affinity"]
         if self.scale_values:
             affinity = scale_affinity(affinity)
         affinity = np.array(affinity)
 
-        data = Data(
-            x=torch.Tensor(residue_features),
-            edge_index=torch.Tensor(edge_index).long(),
-            edge_attr=torch.Tensor(edge_features),
-            y=torch.from_numpy(affinity).float()
-        )
+        graph = HeteroData()
 
-        return data
+        graph["node"].x = torch.Tensor(node_features).float()
+        graph.y = torch.from_numpy(affinity).float()
 
-    def get_absolute(self, idx: int) -> Union[Data, Dict]:
+        for edge_type, edges in edge_indices.items():
+            graph[edge_type].edge_index = edges
+            graph[edge_type].edge_attr = edge_features[edge_type].float()
+
+        return graph, graph_dict
+
+    def load_deeprefine_graph(self, df_idx: str) -> dgl.DGLGraph:
+        """ Convert PDB file to a graph with node and edge encodings
+
+        Utilize DeepRefine functionality to get graphs
+
+        Args:
+            file_name: Name of the file
+            input_filepath: Path to PDB File
+            chain_infos: Dict with protein information for each chain
+
+        Returns:
+            Dict: Information about graph, protein and filepath of pdb
+        """
+        if self.interface_hull_size is None or self.interface_hull_size == "" or self.interface_hull_size == "None":
+            graph_filepath = os.path.join(self.graph_dir, df_idx + ".pickle")
+        else:
+            graph_filepath = os.path.join(self.graph_dir, f"interface_hull_{self.interface_hull_size}",
+                                          df_idx + ".pickle")
+
+        compute_graph = True
+        if (not self.force_recomputation or self.preprocess_data) and os.path.exists(graph_filepath):
+            try:
+                with open(graph_filepath, 'rb') as f:
+                    graph = pickle.load(f)
+                    compute_graph = False
+            except:
+                # recompute graph if saved graph is not parsable
+                compute_graph = True
+
+        if compute_graph:  # graph not loaded from disc
+            row = self.data_df.loc[df_idx]
+            chain_infos = literal_eval(row["chain_infos"])
+            pdb_filepath, _ = get_pdb_path_and_id(row, self.dataset_name, self.config)
+
+            graph = load_deeprefine_graph(df_idx, pdb_filepath, chain_infos, self.pdb_clean_dir,
+                                          self.interface_distance_cutoff, self.interface_hull_size)
+
+            if self.save_graphs and not os.path.exists(graph_filepath):
+                with open(graph_filepath, 'wb') as f:
+                    pickle.dump(graph, f)
+
+        return graph
+
+    def load_data_point(self, df_idx: str):
+
+        if self.interface_hull_size is None or self.interface_hull_size == "":
+            filepath = os.path.join(self.pdb_clean_dir, df_idx + ".pdb")
+        else:
+            filepath = os.path.join(self.pdb_clean_dir, f"interface_hull_{self.interface_hull_size}", df_idx + ".pdb")
+
+        graph, graph_dict = self.load_graph(df_idx)
+        data_point = {
+            "filepath": filepath,
+            "graph": graph
+        }
+
+        if self.pretrained_model == "DeepRefine":
+            deeprefine_graph = self.load_deeprefine_graph(df_idx)
+            nodes = graph_dict["graph_nodes"]
+            data_point["deeprefine_graph"] = node_subgraph(deeprefine_graph, nodes)
+
+        return data_point
+
+    def get_absolute(self, idx: int) -> Dict:
         """ Get the datapoint for a dataset index
 
         Args:
@@ -243,10 +462,16 @@ class AffinityDataset(Dataset, ABC):
             Data: PyG data object containing node, edge and label information
         """
         pdb_id = self.data_points[idx]
-        data = self.load_data_point(pdb_id)
+        graph_data = self.load_data_point(pdb_id)
+
+        data = {
+            "relative": False,
+            "affinity_type": self.affinity_type,
+            "input":graph_data,
+        }
         return data
 
-    def get_relative(self, idx: int) -> List[Union[Data, Dict]]:
+    def get_relative(self, idx: int) -> Dict:
         """ Get the datapoints for a dataset index
 
         List of two related datapoints for siamese networks
@@ -257,107 +482,101 @@ class AffinityDataset(Dataset, ABC):
         Returns:
             List: List of PyG data object containing node, edge and label information
         """
-        data_instances = []
+        data = {
+            "relative": True,
+            "affinity_type": self.affinity_type,
+            "input": []
+        }
 
-        for pdb_mut in self.data_points[idx]:
-            data = self.load_data_point(pdb_mut)
-            data_instances.append(data)
+        pdb_id = self.data_points[idx]
+        data["input"].append(self.load_data_point(pdb_id))
 
-        return data_instances
+        other_pdb_id = self.get_compatible_pair(pdb_id)
+        data["input"].append(self.load_data_point(other_pdb_id))
+
+        return data
+
+    def get_compatible_pair(self, pdb_id: str) -> str:
+        pdb_file = self.data_df.loc[pdb_id, "pdb"]
+        if self.affinity_type == "-log(Kd)":
+            other_mutations = self.data_df[(self.data_df["pdb"] == pdb_file) & (self.data_df.index != pdb_id)]
+        elif self.affinity_type == "E":
+            other_mutations = self.data_df[(self.data_df["pdb"] == pdb_file) & (self.data_df.index != pdb_id)]
+            # get data point that has distance > avg(NLL) from current data point
+            pdb_nll = self.data_df.loc[self.data_df.index != pdb_id, "NLL"].values[0]
+            pdb_e = self.data_df.loc[self.data_df.index != pdb_id, "E"].values[0]
+            other_mutations["valid_pair"] = other_mutations.apply(lambda row:
+                                                                np.abs(pdb_e - row["E"]) >= (pdb_nll + row["NLL"]) / 2,
+                                                                axis=1)
+            other_mutations = other_mutations[other_mutations["valid_pair"]]
+        else:
+            raise ValueError(
+                f"Wrong affinity type given - expected one of (-log(Kd), E) but got {self.affinity_type}")
+
+        if len(other_mutations) > 0: # random choose one of the available mutations
+            other_pdb_id = other_mutations.sample(n=1).index.values[0]
+        else: # compare to oneself if there is no other option available
+            other_pdb_id = pdb_id
+        return other_pdb_id
+
 
     @property
     def num_node_features(self) -> int:
-        """Returns the number of features per node in the dataset."""
-        data = self[0]
-        data = data[0] if isinstance(data, List) else data
-        if hasattr(data, 'num_node_features'):
-            return data.num_node_features
+        r"""Returns the number of features per node in the dataset."""
+        data = self[0]["input"]
+        data = data[0]["graph"] if isinstance(data, List) else data["graph"]
+        if hasattr(data["node"], 'num_node_features'):
+            return data["node"].num_node_features
         raise AttributeError(f"'{data.__class__.__name__}' object has no "
                              f"attribute 'num_node_features'")
 
     @property
     def num_edge_features(self) -> int:
-        """Returns the number of features per edge in the dataset."""
-        data = self[0]
-        data = data[0] if isinstance(data, List) else data
-        if hasattr(data, 'num_edge_features'):
-            return data.num_edge_features
-        raise AttributeError(f"'{data.__class__.__name__}' object has no "
-                             f"attribute 'num_node_features'")
+        r"""Returns the number of features per edge in the dataset."""
+        return 1  # only one feature (distance) per edge
 
+    @staticmethod
+    def collate(input_dicts: List[Dict]) -> Union[List, Dict]:
+        """ Collate multiple datapoints to a batch
+        1. Batch the graphs (using DGL Batch)
+        2. Batch the filepaths
+        3. Batch the affinity values (using numpy)
+        Args:
+            input_dicts: List of input data points
+        Returns:
+            Dict: Containing the batches data points
+        """
 
-class BoundComplexGraphs(AffinityDataset, ABC):
-    """ Dataset supplying a graph for the bound complexes
-    Either only the interface hull, n-closest nodes or all residues in the PDB"""
+        relative_data = input_dicts[0]["relative"]
+        assert all([relative_data == input_dict["relative"] for input_dict in input_dicts])
 
-    def __init__(self, config: Dict, dataset_name: str, pdb_ids: List, interface_hull_size: int = None,
-                 max_nodes: int = None, interface_distance_cutoff: float = 5.0, num_threads: int = 1,
-                 node_type: str = "residue", relative_data: bool = False, save_graphs: bool = False,
-                 force_recomputation: bool = False, scale_values: bool = False,
-                 preprocess_data: bool = False):
-        super(BoundComplexGraphs, self).__init__(config, dataset_name, pdb_ids, node_type=node_type,
-                                                 relative_data=relative_data, save_graphs=save_graphs,
-                                                 force_recomputation=force_recomputation, num_threads=num_threads,
-                                                 scale_values=scale_values, preprocess_data=preprocess_data)
-        self.interface_hull_size = interface_hull_size
-        self.interface_distance_cutoff = interface_distance_cutoff
-        self.max_nodes = max_nodes
+        affinity_type = input_dicts[0]["affinity_type"]
+        assert all([affinity_type == input_dict["affinity_type"] for input_dict in input_dicts])
 
-        # path for storing preloaded graphs
-        self.temp_dir = os.path.join(self.temp_dir, f"complex-nodes_{max_nodes}-hull_{interface_distance_cutoff}.{interface_hull_size}")
+        data_batch = {
+            "relative": relative_data,
+            "affinity_type": affinity_type
+        }
+        if relative_data:  # relative data
+            input_graphs = []
+            for i in range(2):
+                batched_dict = {"graph": Batch.from_data_list([input_dict["input"][i]["graph"] for input_dict in input_dicts]),
+                                "filepath": [input_dict["input"][i]["filepath"] for input_dict in input_dicts]}
 
-        if self.save_graphs:
-            logger.debug(f"Saving processed graphs in {self.temp_dir}")
-            Path(self.temp_dir).mkdir(exist_ok=True, parents=True)
+                if "deeprefine_graph" in input_dicts[0]["input"][i]:
+                    batched_dict["deeprefine_graph"] = dgl.batch(
+                        [input_dict["input"][i]["deeprefine_graph"] for input_dict in input_dicts])
 
-        if self.preprocess_data:
-            logger.debug(f"Preprocessing graphs for {self.dataset_name}")
-            Path(self.temp_dir).mkdir(exist_ok=True, parents=True)
-            self.preprocess()
+                input_graphs.append(batched_dict)
 
-    def _get_edges(self, data_file: Dict) -> Tuple[np.ndarray, np.ndarray]:
-        if self.max_nodes:
-            adjacency_matrix = data_file["adjacency_tensor"]
-            closest_nodes = data_file["closest_residues"][:self.max_nodes]
-            closest_nodes_adj = adjacency_matrix[0, closest_nodes, :][:, closest_nodes]
-            edges = np.where(closest_nodes_adj[:, :] > 0.001)
-            edge_attributes = adjacency_matrix[:3, edges[0], edges[1]]
-            edge_attributes = np.transpose(edge_attributes, (1, 0))
-        elif self.interface_hull_size is not None:
-            adjacency_matrix = data_file["adjacency_tensor"]
-            adjacency_matrix = adjacency_matrix[:, data_file["interface_nodes"], :][:, :, data_file["interface_nodes"]]
-            edges = np.where(adjacency_matrix[0, :, :] - adjacency_matrix[2, :, :] > 0.001)
-            edge_attributes = adjacency_matrix[:3, edges[0], edges[1]]
-            edge_attributes = np.transpose(edge_attributes, (1, 0))
+            data_batch["input"] = input_graphs
+
         else:
-            adjacency_matrix = data_file["adjacency_tensor"]
-            edges = np.where(adjacency_matrix[0, :, :] > 0.001)
-            edge_attributes = adjacency_matrix[:3, edges[0], edges[1]]
-            edge_attributes = np.transpose(edge_attributes, (1, 0))
+            data_batch["input"] = {"graph": Batch.from_data_list([input_dict["input"]["graph"] for input_dict in input_dicts]),
+                            "filepath": [input_dict["input"]["filepath"] for input_dict in input_dicts]}
 
-        return np.array(edges), edge_attributes
+            if "deeprefine_graph" in input_dicts[0]["input"]:
+                data_batch["input"]["deeprefine_graph"] = dgl.batch(
+                    [input_dict["input"]["deeprefine_graph"] for input_dict in input_dicts])
 
-    def _get_node_features(self, data_file: Dict) -> np.ndarray:
-        if self.max_nodes is not None:  # use n-closest nodes
-            closest_nodes = data_file["closest_residues"][:self.max_nodes]
-            node_features = data_file["node_features"][closest_nodes]
-
-            if len(closest_nodes) < self.max_nodes:
-                missing_nodes = self.max_nodes - len(closest_nodes)
-                shape = (missing_nodes,) + node_features.shape[1:]
-                node_features = np.vstack([node_features, np.zeros(shape)])
-
-            return node_features
-        elif self.interface_hull_size is not None:  # use only nodes in interface hull
-            adjacency_matrix = data_file["adjacency_tensor"]
-            interface_nodes = np.where(adjacency_matrix[0, :, :] - adjacency_matrix[2, :, :] > 0.001)[0]
-            interface_nodes = np.unique(interface_nodes)
-
-            interface_hull = np.where(adjacency_matrix[3, interface_nodes, :] < self.interface_hull_size)
-            interface_hull_nodes = np.unique(interface_hull[1])
-
-            data_file["interface_nodes"] = interface_hull_nodes
-
-            return data_file["node_features"][interface_hull_nodes]
-        else:  # use all nodes
-            return data_file["node_features"]
+        return data_batch
