@@ -8,9 +8,10 @@ from typing import Dict, Tuple
 import random
 from collections import Counter
 
-from abag_affinity.utils.config import read_config
-from abag_affinity.train.utils import load_model, load_datasets, train_loop, finetune_backbone, bucket_learning
+from ..utils.config import read_config
+from ..train.utils import load_model, load_datasets, train_loop, finetune_pretrained, bucket_learning
 
+# TODO: create global seeding mechanism
 random.seed(123)
 
 torch.cuda.empty_cache()
@@ -42,19 +43,22 @@ def model_train(args:Namespace, validation_set: int = None) -> Tuple[torch.nn.Mo
     if validation_set is None:
         validation_set = args.validation_set
 
-    train_data, val_data = load_datasets(config, dataset_name, args.data_type, validation_set, args)
+    train_data, val_data = load_datasets(config, dataset_name, validation_set, args)
 
     logger.info("Val Set:{} | Train Size:{} | Test Size: {}".format(str(validation_set), len(train_data), len(val_data)))
 
-    use_cuda = torch.cuda.is_available()
+    use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
 
-    model = load_model(args.model_type, train_data.num_features, train_data.num_edge_features, args, device)
+    model = load_model(train_data.num_features, train_data.num_edge_features, args, device)
+
+    logger.debug(f"Training with  {dataset_name}")
+    logger.debug(f"Training done on GPU: {next(model.parameters()).is_cuda}")
 
     results, model = train_loop(model, train_data, val_data, args)
 
-    if args.model_type in ["DDGBackboneFC", "DeepRefineBackbone"]:
-        results, model = finetune_backbone(model, train_data, val_data, args)
+    if args.pretrained_model in ["Binding_DDG", "DeepRefine"]:
+        results, model = finetune_pretrained(model, train_data, val_data, args)
     return model, results
 
 
@@ -97,7 +101,7 @@ def pretrain_model(args:Namespace) -> Tuple[torch.nn.Module, Dict]:
 
     datasets = config["TRAIN"]["transfer"]["datasets"]
 
-    use_cuda = torch.cuda.is_available()
+    use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
     model = None
 
@@ -108,23 +112,24 @@ def pretrain_model(args:Namespace) -> Tuple[torch.nn.Module, Dict]:
     for dataset_name in datasets:
         logger.info("Training with {} starting ...".format(dataset_name))
         logger.debug(f"Loading  {dataset_name}")
-        train_data, val_data = load_datasets(config, dataset_name, args.data_type, args.validation_set, args)
+        train_data, val_data = load_datasets(config, dataset_name, args.validation_set, args)
 
         if model is None: # only load model for first dataset
-            logger.debug(f"Loading  {args.model_type}")
-            model = load_model(args.model_type, train_data.num_features, train_data.num_edge_features, args, device)
+            logger.debug(f"Loading  Model")
+            model = load_model(train_data.num_features, train_data.num_edge_features, args, device)
             logger.debug(f"Model Memory usage: {torch.cuda.max_memory_allocated()}")
         logger.debug(f"Training with  {dataset_name}")
         logger.debug(f"Training done on GPU: {next(model.parameters()).is_cuda}")
+
         results, model = train_loop(model, train_data, val_data, args)
 
         logger.info("Training with {} completed".format(dataset_name))
         logger.debug(results)
         all_results[dataset_name] = results
 
-    if args.model_type in ["DDGBackboneFC", "DeepRefineBackbone"]:
-        train_data, val_data = load_datasets(config, datasets[-1], args.data_type, args.validation_set, args)
-        results, model = finetune_backbone(model, train_data, val_data, args)
+    if args.pretrained_model in ["Binding_DDG", "DeepRefine"]:
+        train_data, val_data = load_datasets(config, datasets[-1], args.validation_set, args)
+        results, model = finetune_pretrained(model, train_data, val_data, args)
         all_results["finetuning"] = results
 
 
@@ -144,7 +149,7 @@ def bucket_train(args:Namespace) -> Tuple[torch.nn.Module, Dict]:
 
     datasets = config["TRAIN"]["bucket"]["datasets"]
 
-    use_cuda = torch.cuda.is_available()
+    use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
 
     train_datasets = []
@@ -157,7 +162,7 @@ def bucket_train(args:Namespace) -> Tuple[torch.nn.Module, Dict]:
             double_dataset.add(name)
 
     for dataset_type in datasets:
-        train_data, val_data = load_datasets(config, dataset_type, args.data_type, args.validation_set, args)
+        train_data, val_data = load_datasets(config, dataset_type, args.validation_set, args)
 
         data_name, data_type = dataset_type.split(":")
         if data_type == "absolute" and data_name in double_dataset:
@@ -168,15 +173,15 @@ def bucket_train(args:Namespace) -> Tuple[torch.nn.Module, Dict]:
         train_datasets.append(train_data)
         val_datasets.append(val_data)
 
-    model = load_model(args.model_type, train_datasets[0].num_features, train_datasets[0].num_edge_features, args, device)
+    model = load_model(train_datasets[0].num_features, train_datasets[0].num_edge_features, args, device)
     logger.debug(f"Training done on GPU = {next(model.parameters()).is_cuda}")
 
     logger.info("Training with {} starting ...".format(datasets))
     results, model = bucket_learning(model, train_datasets, val_datasets, args)
     logger.info("Training with {} completed".format(datasets))
 
-    if args.model_type in ["DDGBackboneFC", "DeepRefineBackbone"]:
-        results, model = finetune_backbone(model, train_datasets, val_datasets, args)
+    if args.pretrained_model in ["Binding_DDG", "DeepRefine"]:
+        results, model = finetune_pretrained(model, train_datasets, val_datasets, args)
 
     logger.debug(results)
     return model, results

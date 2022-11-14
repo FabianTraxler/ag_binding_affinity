@@ -25,7 +25,6 @@ def configure(args: Namespace) -> Tuple:
 
     config = wandb.config
     for parameter in ["batch_size", "max_epochs", "learning_rate", "patience", "max_num_nodes", "node_type", "num_workers", "validation_set"]:
-        if parameter not in config:
-            config[parameter] = args.__dict__[parameter]
+        config[parameter] = args.__dict__[parameter]
 
     return wandb, config, args.use_wandb, run
