@@ -9,5 +9,7 @@ ln -s /root/projects /msc/home/ftraxl96
 source /msc/home/ftraxl96/miniconda3/etc/profile.d/conda.sh
 conda activate abag_cluster
 
+export OMP_NUM_THREADS=1
+
 # start training
 python -m abag_affinity.main "$@"
