@@ -224,7 +224,7 @@ wu20_differ_ha_h3_h1:
         name: fi6v3
       pdb:
         id: 3ZTJ # alternative: 7X6L (maybe merge with 3ZTJ)
-        mutations: DC7A;NC8D;SC9P;TC10G;IC182V;DE7A;NE8D;SE9P;TE10G;IE182V;RF123G;EF132D
+        mutations: SC9P;TC10G;IC182V;SE9P;TE10G;IE182V;RF123G;EF132D
         chains:
           antigen:
             - F
