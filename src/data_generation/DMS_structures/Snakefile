@@ -1,0 +1,96 @@
+import glob
+
+# several things to do:
+# [X] test the other fasta's I tried before 
+# [X] check the templates
+# try to manually provide the templates!
+# [X] run 4 processes in parallel
+
+rule all:  # TODO scores
+    input:
+        # all
+        # [d.replace('input_pdb', 'output_pdb').replace('.pdb', f'_{i}.pdb') for d in glob.glob('input_pdb/*/*.pdb') for i in range(1, 6)]
+        # scores
+        [d.replace('input_pdb', 'scores').replace('.pdb', f'_{i}.score') for d in glob.glob('input_pdb/*/*.pdb') for i in range(1, 6)]
+        # scores/{publication}/{complex}_{rank}.score
+
+        # [d.replace('input_pdb', 'output_pdb') for d in glob.glob('input_pdb/*/*.pdb')]
+        # [d.replace('input_pdb', 'input_fasta').replace('.pdb', '.fasta') for d in glob.glob('input_pdb/*/*.pdb')]
+
+rule input_pdb_to_fasta:
+    input:
+        'input_pdb/{publication}/{complex}.pdb'
+    output:
+        'input_fasta/{publication}/{complex}.fasta'
+    run:
+        from Bio import SeqIO
+
+        with open(input[0], 'r') as pdb_file, open(output[0], 'w') as fasta_file:
+            fasta_file.write(f'>{wildcards.publication}_{wildcards.complex}\n')
+            for i, record in enumerate(SeqIO.parse(pdb_file, 'pdb-atom')):
+                if i > 0:
+                    fasta_file.write(':')
+                fasta_file.write(str(record.seq))
+
+rule get_template:
+    input:
+        'metadata_dms_studies.yaml'
+    output:
+        directory('templates/{publication}/{complex}/')
+    run:
+        import yaml, subprocess
+        with open(input[0]) as f:
+            if wildcards.publication.startswith('mason21_'):
+                publication = yaml.safe_load(f.read())['mason21_optim_therap_antib_by_predic']
+            else:
+                publication = yaml.safe_load(f.read())[wildcards.publication]
+        for complex in publication['complexes']:
+            if complex['antibody']['name'] == wildcards.complex.split('_')[0] and complex['antigen']['name'] == wildcards.complex.split('_')[1]:
+                break
+        else:
+            raise ValueError(f'{wildcards.complex.split("_")} does not exist in metadata for publication {wildcards.publication}')
+
+        key = 'template' if 'template' in complex else 'pdb'
+
+        pdb_id = complex[key]['id'].lower()
+        chains = ','.join(complex[key]['chains']['antigen'] + complex[key]['chains']['antibody'])
+        print(pdb_id)
+        # TODO use pdb_fetch {pdb_id} --output {pdb_id}.unprep --add-atoms=none --replace-nonstandard <- if they become an issue
+        subprocess.run(f'''mkdir {output[0]} && pdb_fetch {pdb_id} | \
+            pdb_sort | \
+            pdb_tidy | \
+            pdb_selchain -{chains} | \
+            pdb_fixinsert | \
+            pdb_delhetatm | \
+            pdb_seg | \
+            pdb_chainbows > {output[0]}/{pdb_id}.pdb''', shell=True)
+
+
+rule predict_structures:
+    input:
+        fasta='input_fasta/{publication}/{complex}.fasta',
+        template_dir='templates/{publication}/{complex}/'
+    output:
+        expand('output_pdb/{{publication}}/{{complex}}_{rank}.pdb', rank=list(range(1, 6)))
+    shell:
+        '''
+        colabfold_batch --rank multimer --templates --custom-template-path {input.template_dir} {input.fasta} output_pdb/{wildcards.publication}/{wildcards.complex}/
+        for rank in `seq 1 5`; do
+            cp output_pdb/{wildcards.publication}/{wildcards.complex}/*_unrelaxed_rank_${{rank}}_model_?.pdb output_pdb/{wildcards.publication}/{wildcards.complex}_${{rank}}.pdb
+        done
+        '''
+
+rule match_scores:
+    input:
+        input='input_pdb/{publication}/{complex}.pdb',
+        output='output_pdb/{publication}/{complex}_{rank}.pdb'
+    output:
+        output='scores/{publication}/{complex}_{rank}.score'
+    run:
+        from pymol import cmd
+
+        cmd.load(input.input, 'F1')
+        cmd.load(input.output, 'F2')
+        rmsd = round(cmd.align('F1','F2')[0], 3)
+        with open(output[0], 'w') as f:
+            f.write(rmsd)
