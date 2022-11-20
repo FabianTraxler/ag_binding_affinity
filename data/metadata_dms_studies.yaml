@@ -1,4 +1,4 @@
-phillips21_bindin:
+phillips21_bindin:  # TODO we should add antibodies light-chains?
   dms_target: fv
   fv_type: scfv
   doi: 10.7554/eLife.71393
@@ -24,6 +24,15 @@ phillips21_bindin:
       #     light: L
       #     heavy: H
       # comment: 'PDB is in complex with H5N1. H1 structure not available... 5CJS used an H1-derived mini HA stem'
+      template:
+        id: 4FQY
+        chains:
+          antigen:
+            - A
+            - B
+          antibody:
+            - H
+
     - antigen:
         name: h1wiscon05
         full_name: A/Wisconsin/67/2005 (H3N2)
@@ -40,6 +49,14 @@ phillips21_bindin:
             - D
       # pdb: 4FQY
       #   comment: "resolution is bad, but it's an H3-influenza!! maybe combine with another structure?"
+      template:
+        id: 4FQY
+        chains:
+          antigen:
+            - A
+            - B
+          antibody:
+            - H
     - antigen:
         name: h5ohio05
         full_name: B/Ohio/1/2005 (Victoria lineage)H5N1-InfB
@@ -54,7 +71,14 @@ phillips21_bindin:
             - C
           antibody:
             - D
-      # pdb: 4FQI
+      template:
+        id: 4FQY  # 4FQI should be more suited, but the quality is worse
+        chains:
+          antigen:
+            - A
+            - B
+          antibody:
+            - H
     - antigen:
         full_name: A/New Caledonia/20/1999 (H1N1)
         name: h1newcal99
@@ -69,7 +93,15 @@ phillips21_bindin:
             - C
           antibody:
             - D
+      template:
       # pdb: 3GBN # 3GBN is what phillips21 used. alternatives: 5WKZ/6UYN/5C0S
+        id: 3GBN
+        chains:
+          antigen:
+            - A
+            - B
+          antibody:
+            - H
     - antigen:
         full_name: A/Hong Kong/1073/1999 (H9N2)
         name: h9hk99
@@ -84,6 +116,15 @@ phillips21_bindin:
             - C
           antibody:
             - D
+      template:
+      # pdb: 3GBN # 3GBN is what phillips21 used. alternatives: 5WKZ/6UYN/5C0S
+        id: 3GBN
+        chains:
+          antigen:
+            - A
+            - B
+          antibody:
+            - H
       # pdb: 5WKZ/3GBN/6UYN/5C0S
   use_for: "absolute K_D"
   comment: "'real' binding affinity values (-logK_D). not full DMS, but many combinations. Used AlphaFold (with template) to model structures with mutations. be careful: FluB-binding K_Ds are often very low. minimum K_D=6.0; Can be used to directly train/predict K_D"
