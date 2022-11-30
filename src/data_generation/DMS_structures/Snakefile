@@ -93,4 +93,4 @@ rule match_scores:
         cmd.load(input.output, 'F2')
         rmsd = round(cmd.align('F1','F2')[0], 3)
         with open(output[0], 'w') as f:
-            f.write(rmsd)
+            f.write(str(rmsd))
