@@ -1,0 +1,76 @@
+import os
+from os.path import join
+from pathlib import Path
+
+DATASET_NAME = "antibody_benchmark"
+
+project_root = Path(workflow.basedir).parents[2] # two directories above - absolute paths not working
+resource_folder = os.path.join(project_root, "resources")
+results_folder = os.path.join(project_root, "results")
+
+dataset_resource_folder = os.path.join(resource_folder, DATASET_NAME)
+dataset_results_folder = os.path.join(results_folder, DATASET_NAME)
+
+pdb_relaxed_folder = os.path.join(dataset_results_folder, "pdbs_relaxed")
+pdb_folder = os.path.join(dataset_resource_folder, "pdbs")
+
+def gater_pdb_ids(wildcards):
+    folder = checkpoints.download_repo.get(**wildcards).output[0]
+    pdb_id = glob_wildcards(f"{pdb_folder}/{{pdb_id}}_r_b.pdb").pdb_id
+    return expand(f"{pdb_relaxed_folder}/{{pdb_id}}.pdb", pdb_id=pdb_id)
+
+
+rule all:
+    input:
+        gater_pdb_ids,
+        join(dataset_results_folder, "benchmark.csv")
+
+checkpoint download_repo:
+    output:
+        join(dataset_resource_folder, "README.md")
+    params:
+        resource_folder=resource_folder,
+    shell:
+        "scripts/download_repo.sh {params.resource_folder}"
+
+
+checkpoint download_metadata:
+    input:
+        rules.download_repo.output
+    output:
+        join(dataset_resource_folder, "antibody_benchmark_cases.xlsx")
+    params:
+        dataset_resource_folder=dataset_resource_folder
+    shell:
+        "scripts/download_metadata.sh {params.dataset_resource_folder}"
+
+
+rule clean_metadata:
+    input:
+        rules.download_metadata.output
+    output:
+        join(dataset_results_folder, "benchmark.csv")
+    script:
+        "scripts/clean_metadata.py"
+
+
+rule bind_structures:
+    input:
+        join(dataset_resource_folder, "pdbs/{pdb_id}_r_b.pdb"),
+        join(dataset_resource_folder, "pdbs/{pdb_id}_l_b.pdb"),
+    output:
+        join(dataset_results_folder, "pdbs_bound/{pdb_id}.pdb")
+    shell:
+        "cat {input} > {output}"
+
+
+rule relax_structures:
+    input:
+        join(dataset_results_folder, "pdbs_bound/{pdb_id}.pdb")
+    output:
+        join(pdb_relaxed_folder, "{pdb_id}.pdb")
+    conda:
+        join(project_root, "envs/generation_environment.yml")
+    threads: 5
+    script:
+        "../scripts/relax.py"

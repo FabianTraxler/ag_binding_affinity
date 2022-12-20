@@ -99,8 +99,9 @@ file_path = snakemake.input[0]
 mutation_code = snakemake.wildcards.mutation
 
 pose = load_pose(file_path)
-decoded_mutation = convert_mutations(mutation_code)
-mutate(pose, decoded_mutation)
+if mutation_code != "original":
+    decoded_mutation = convert_mutations(mutation_code)
+    mutate(pose, decoded_mutation)
 add_score(pose)
 
 dump_comment_pdb(out_path, pose)

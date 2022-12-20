@@ -5,28 +5,16 @@ from pathlib import Path
 
 import pyrosetta
 from pyrosetta.rosetta.core.pose import Pose, add_comment, dump_comment_pdb
-
-if "snakemake" not in globals(): # use fake snakemake object for debugging
-    from abag_affinity.utils.config import get_data_paths, read_config
-    config = read_config("../../../abag_affinity/config.yaml")
-    skempi_df_path, pdb_path = get_data_paths(config, "SKEMPI.v2")
-    data_path = config["DATA"]["path"]
-
-    skempi_folder_path = os.path.join(data_path, config["DATA"]["SKEMPI.v2"]["folder_path"])
-    skempi_resource_folder_path = os.path.join(config["RESOURCES"]["path"], config["DATA"]["SKEMPI.v2"]["folder_path"])
-
-    sample_pdb_id = "5TAR"
-    mutation_code = "WB30A"
-    snakemake = type('', (), {})()
-    snakemake.input = [os.path.join("/home/fabian/Downloads", sample_pdb_id.lower() + ".pdb")] #[os.path.join(skempi_resource_folder_path + "/PDBs/" + sample_pdb_id + ".pdb")]
-    snakemake.output = [os.path.join(skempi_folder_path + "/wildtype/", sample_pdb_id, mutation_code + ".pdb")]
-    snakemake.wildcards = type('', (), {})()
-    snakemake.wildcards.mutation = mutation_code
+from pyrosetta.rosetta.protocols.relax import FastRelax
 
 
-pyrosetta.init(extra_options="-mute all")
+pyrosetta.init(extra_options="")
 
+relax = FastRelax()
 scorefxn = pyrosetta.get_fa_scorefxn()
+relax.set_scorefxn(scorefxn)
+relax.constrain_relax_to_start_coords(True)
+
 packer = pyrosetta.rosetta.protocols.minimization_packing.PackRotamersMover(scorefxn)
 
 
@@ -63,15 +51,11 @@ def load_pose(pdb_path: str) -> pyrosetta.Pose:
     return testPose
 
 
-def add_score(pose: Pose):
-    score = scorefxn(pose)
-    add_comment(pose, "rosetta_energy_score", str(score))
-
 out_path = snakemake.output[0]
 Path(out_path).parent.mkdir(parents=True, exist_ok=True)
 file_path = snakemake.input[0]
 
 pose = load_pose(file_path)
-add_score(pose)
+relax.apply(pose) # TODO uncomment!
 
 dump_comment_pdb(out_path, pose)

@@ -1,88 +1,155 @@
 import os
+from os.path import join
 import pandas as pd
-from abag_affinity.utils.config import read_config, get_data_paths, get_resources_paths
+from pathlib import Path
 
-config = read_config("../../config.yaml")
-skempi_df_path, _ = get_data_paths(config, "SKEMPI.v2")
-_, pdb_path = get_resources_paths(config, "SKEMPI.v2")
-skempi_df = pd.read_csv(skempi_df_path)
 
-data_path = config["DATA"]["path"]
-skempi_folder_path = os.path.join(data_path, config["DATA"]["SKEMPI.v2"]["folder_path"])
+DATASET_NAME = "SKEMPI_v2"
+REDUNDANCY_CUTOFF = 0.8
 
-wiltype_pdbs = [ pdb_id.split("_")[0] for pdb_id in skempi_df["#Pdb"].tolist() ]
-mutation_codes = skempi_df["Mutation(s)_cleaned"].tolist()
+dataset_metadata_file = "skempi_v2.csv"
+
+project_root = Path(workflow.basedir).parents[2] # two directories above - absolute paths not working
+resource_folder = os.path.join(project_root, "resources")
+results_folder = os.path.join(project_root, "results")
+
+abag_affinity_df_path = join(results_folder, "abag_affinity_dataset", "abag_affinity_dataset.csv")
+abag_affinity_pdb_path = join(results_folder, "abag_affinity_dataset", "pdbs")
+
+dataset_resource_folder = os.path.join(resource_folder, DATASET_NAME)
+dataset_results_folder = os.path.join(results_folder, DATASET_NAME)
+
+pdb_relaxed_folder = os.path.join(dataset_results_folder, "pdbs_relaxed")
+pdb_folder = os.path.join(dataset_resource_folder, "pdbs")
+
+
+def gater_pdb_ids(wildcards):
+    file = checkpoints.download.get(**wildcards).output[0]
+    skempi_df = pd.read_csv(file, sep=";")
+    wiltype_pdbs = [pdb_id.split("_")[0] for pdb_id in skempi_df["#Pdb"].tolist()]
+    mutation_codes = skempi_df["Mutation(s)_cleaned"].tolist()
+    return expand(dataset_results_folder + '/mutated/{pdb_id}/original.pdb', pdb_id=wiltype_pdbs),\
+            expand(dataset_results_folder + "/mutated/{pdb_id}/{mutation}.pdb", zip, pdb_id=wiltype_pdbs, mutation=mutation_codes), \
+            expand(dataset_results_folder + "/mutated_relaxed/{pdb_id}/{mutation}.pdb", zip, pdb_id=wiltype_pdbs, mutation=mutation_codes), \
+            expand(dataset_results_folder + "/relaxed/{pdb_id}.pdb",  pdb_id=wiltype_pdbs), \
+            expand(dataset_results_folder + "/relaxed_mutated/{pdb_id}/{mutation}.pdb", zip, pdb_id=wiltype_pdbs, mutation=mutation_codes), \
+            expand(dataset_results_folder + "/relaxed_mutated_relaxed/{pdb_id}/{mutation}.pdb", zip, pdb_id=wiltype_pdbs, mutation=mutation_codes)
+
+
+def get_mutations(wildcards):
+    file = checkpoints.download.get(**wildcards).output[0]
+    skempi_df = pd.read_csv(file, sep=";")
+    skempi_df = skempi_df[skempi_df["iMutation_Location(s)"].isin(["COR", "RIM", "SUP"])]
+    skempi_df = skempi_df[skempi_df["Hold_out_type"].isin(["AB/AG", "Pr/PI", "AB/AG,Pr/PI"])]
+    wildtype_pdbs = [pdb_id.split("_")[0] for pdb_id in skempi_df["#Pdb"].tolist()]
+    mutation_codes = skempi_df["Mutation(s)_cleaned"].tolist()
+    for pdb in set(wildtype_pdbs):
+        wildtype_pdbs.append(pdb)
+        mutation_codes.append("original")
+    return expand(dataset_results_folder + "/mutated/{pdb_id}/{mutation}.pdb", zip, pdb_id=wildtype_pdbs, mutation=mutation_codes)
 
 
 rule final_output:
     input:
-        skempi_folder_path + "/skempi_generation_summary.csv"
+        #join(dataset_results_folder, "/skempi_generation_summary.csv"),
+        join(dataset_results_folder, "skempi_v2.csv"),
 
-# use not relaxed wildtye for mutation
-rule score_wildtype:
-    input:
-        pdb_path + '/{pdb_id}.pdb'
+
+checkpoint download:
     output:
-        skempi_folder_path + "/wildtype/{pdb_id}.pdb",
-    conda: "../../envs/rosetta_environment.yml"
-    script: "scripts/score.py"
+        join(dataset_resource_folder, dataset_metadata_file),
+        directory(pdb_folder)
+    params:
+        resource_folder=dataset_resource_folder,
+    shell:
+        "scripts/download.sh {params.resource_folder} {output} "
+
+
+rule generate_dataset:
+    input:
+        join(dataset_resource_folder, dataset_metadata_file),
+        get_mutations
+    output:
+        join(dataset_results_folder, "skempi_v2.csv"),
+    params:
+        abag_affinity_pdb_path = abag_affinity_pdb_path,
+        abag_affinity_df_path = abag_affinity_df_path,
+        redundancy_cutoff = REDUNDANCY_CUTOFF,
+        pdb_folder = join(dataset_results_folder, "mutated")
+    conda:
+        join(project_root, "envs/generation_environment.yml")
+    script:
+        "scripts/generate_dataset.py"
+
 
 rule mutate_wildtype:
     input:
-        pdb_path + '/{pdb_id}.pdb'
+        join(pdb_folder, '{pdb_id}.pdb')
     output:
-        skempi_folder_path + "/mutated_wildtype/{pdb_id}/{mutation}.pdb"
-    conda: "../../envs/rosetta_environment.yml"
-    script: "scripts/mutate.py"
+        join(dataset_results_folder, "mutated", "{pdb_id}/{mutation}.pdb")
+    conda:
+        join(project_root,"envs/generation_environment.yml")
+    script:
+        "scripts/mutate.py"
+
 
 rule relax_mutated:
     input:
-        skempi_folder_path +"/mutated_wildtype/{pdb_id}/{mutation}.pdb"
+        join(dataset_results_folder, "mutated", "{pdb_id}/{mutation}.pdb")
     output:
-        skempi_folder_path + "/mutated_relaxed/{pdb_id}/{mutation}.pdb"
-    conda: "../../envs/rosetta_environment.yml"
+        join(dataset_results_folder, "mutated_relaxed", "{pdb_id}/{mutation}.pdb")
+    conda:
+        join(project_root,"envs/generation_environment.yml")
     resources:
         mem_mb=4000
-    script: "scripts/relax.py"
+    script:
+        "scripts/relax.py"
+
 
 # use relaxed wiltype for mutation
 rule relax_wildtype:
     input:
-        pdb_path + '/{pdb_id}.pdb'
+        join(pdb_folder, '{pdb_id}.pdb')
     output:
-        skempi_folder_path + "/relaxed_wildtype/{pdb_id}.pdb",
-    conda: "../../envs/rosetta_environment.yml"
+        join(dataset_results_folder, "relaxed", "{pdb_id}.pdb")
+    conda:
+        join(project_root,"envs/generation_environment.yml")
     resources:
         mem_mb=4000
-    script: "scripts/relax.py"
+    script:
+        "scripts/relax.py"
+
 
 rule mutate_relaxed_wildtype:
     input:
-        skempi_folder_path + "/relaxed_wildtype/{pdb_id}.pdb"
+        join(dataset_results_folder, "relaxed", "{pdb_id}.pdb")
     output:
-        skempi_folder_path + "/relaxed_mutated/{pdb_id}/{mutation}.pdb"
-    conda: "../../envs/rosetta_environment.yml"
-    script: "scripts/mutate.py"
+        join(dataset_results_folder,"relaxed_mutated", "{pdb_id}/{mutation}.pdb")
+    conda:
+        join(project_root,"envs/generation_environment.yml")
+    script:
+        "scripts/mutate.py"
+
 
 rule rerelax_mutated:
     input:
-        skempi_folder_path +"/relaxed_mutated/{pdb_id}/{mutation}.pdb"
+        join(dataset_results_folder,"relaxed_mutated", "{pdb_id}/{mutation}.pdb")
     output:
-        skempi_folder_path +"/relaxed_mutated_relaxed/{pdb_id}/{mutation}.pdb"
-    conda: "../../envs/rosetta_environment.yml"
+        join(dataset_results_folder, "relaxed_mutated_relaxed", "{pdb_id}/{mutation}.pdb")
+    conda:
+        join(project_root,"envs/generation_environment.yml")
     resources:
         mem_mb=4000
-    script: "scripts/relax.py"
+    script:
+        "scripts/relax.py"
+
 
 rule calculate_change_in_binding_affinity:
     input:
-        expand(skempi_folder_path + '/wildtype/{pdb_id}.pdb', pdb_id=wiltype_pdbs),
-        expand(skempi_folder_path + "/mutated_wildtype/{pdb_id}/{mutation}.pdb", zip, pdb_id=wiltype_pdbs, mutation=mutation_codes),
-        expand(skempi_folder_path + "/mutated_relaxed/{pdb_id}/{mutation}.pdb", zip, pdb_id=wiltype_pdbs, mutation=mutation_codes),
-        expand(skempi_folder_path + "/relaxed_wildtype/{pdb_id}.pdb",  pdb_id=wiltype_pdbs),
-        expand(skempi_folder_path + "/relaxed_mutated/{pdb_id}/{mutation}.pdb", zip, pdb_id=wiltype_pdbs, mutation=mutation_codes),
-        expand(skempi_folder_path +"/relaxed_mutated_relaxed/{pdb_id}/{mutation}.pdb", zip, pdb_id=wiltype_pdbs, mutation=mutation_codes),
+
     output:
-        skempi_folder_path + "/skempi_generation_summary.csv"
-    conda: "../../envs/rosetta_environment.yml"
-    script: "scripts/calculate_affinity_changes.py"
+        join(dataset_results_folder, "/skempi_generation_summary.csv")
+    conda:
+        join(project_root,"envs/generation_environment.yml")
+    script:
+        "scripts/calculate_affinity_changes.py"

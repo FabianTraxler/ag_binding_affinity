@@ -1,0 +1,88 @@
+import os
+from os.path import join
+from pathlib import Path
+
+DATASET_NAME = "abag_affinity_dataset"
+NUM_VALIDATION_SPLITS = 3
+
+# link changes every day - please copy link for "summary file" from  http://opig.stats.ox.ac.uk/webapps/newsabdab/sabdab/search/?ABtype=All&method=All&species=All&resolution=&rfactor=&antigen=All&ltype=All&constantregion=All&affinity=True&isin_covabdab=All&isin_therasabdab=All&chothiapos=&restype=ALA&field_0=Antigens&keyword_0=#downloads
+sabdab_link = "http://opig.stats.ox.ac.uk/webapps/newsabdab/sabdab/summary/20221216_0262929/"
+
+pdb_folder_name = "pdbs"
+redundancy_file = "abdb_redundancy_info.txt"
+
+
+project_root = Path(workflow.basedir).parents[2] # two directories above - absolute paths not working
+resource_folder = os.path.join(project_root, "resources")
+results_folder = os.path.join(project_root, "results")
+
+benchmark_dataset_file = join(results_folder, "antibody_benchmark", "benchmark.csv")
+
+dataset_results_folder = os.path.join(results_folder, DATASET_NAME)
+
+pdb_relaxed_folder = os.path.join(dataset_results_folder, "pdbs_relaxed")
+
+
+
+def gather_pdb_ids(wildcards):
+    pdb_dir = checkpoints.generate_dataset.get(**wildcards).output[1]
+    pdb_ids = glob_wildcards(f"{pdb_dir}/{{pdb_id}}.pdb").pdb_id
+    return expand(f"{pdb_relaxed_folder}/{{pdb_id}}.pdb", pdb_id=pdb_ids)
+
+
+rule all:
+    input:
+        join(dataset_results_folder, "abag_affinity_dataset.csv"),
+        gather_pdb_ids
+
+
+rule download_sabdab:
+    output:
+        join(resource_folder, "SAbDab", "sabdab_summary.tsv")
+    params:
+        sabdab_link=sabdab_link,
+        dataset_resource_folder=join(resource_folder, "SAbDab")
+    shell:
+        "scripts/download_sabdab.sh {params.dataset_resource_folder} {params.sabdab_link}"
+
+rule download_abdb:
+    output:
+        join(resource_folder, "AbDb", redundancy_file)
+    params:
+        dataset_resource_folder=join(resource_folder, "AbDb"),
+        pdb_folder_name=pdb_folder_name,
+        redundancy_file=redundancy_file,
+    shell:
+        "scripts/download_abdb.sh {params.dataset_resource_folder} {params.pdb_folder_name} {params.redundancy_file}"
+
+
+checkpoint generate_dataset:
+    input:
+        join(resource_folder, "SAbDab", "sabdab_summary.tsv"),
+        join(resource_folder, "AbDb", redundancy_file)
+    output:
+        join(dataset_results_folder, "abag_affinity_dataset.csv"),
+        directory(join(dataset_results_folder, pdb_folder_name))
+    params:
+        pdb_folder=join(dataset_results_folder, pdb_folder_name),
+        abdb_pdb_folder=join(resource_folder, "AbDb", pdb_folder_name),
+        redundancy_file=join(resource_folder, "AbDb", redundancy_file),
+        benchmark_dataset_file=benchmark_dataset_file,
+        n_val_splits=NUM_VALIDATION_SPLITS
+    conda:
+        join(project_root, "envs/generation_environment.yml")
+    threads: 10
+    script:
+        "scripts/generate_dataset.py"
+
+
+rule relax_structures:
+    input:
+        join(dataset_results_folder, "pdbs/{pdb_id}.pdb")
+    output:
+        join(dataset_results_folder, "pdbs_relaxed/{pdb_id}.pdb")
+    conda:
+        join(project_root, "envs/generation_environment.yml")
+    threads: 10
+    script:
+        "../scripts/relax.py"

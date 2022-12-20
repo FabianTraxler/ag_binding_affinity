@@ -17,7 +17,7 @@ if "snakemake" not in globals(): # use fake snakemake object for debugging
                                             get_resources_paths, read_config)
     config = read_config("../../../abag_affinity/config.yaml")
     _, pdb_path = get_resources_paths(config, "AntibodyBenchmark")
-    benchmark_folder_path = os.path.join(config["DATA"]["path"], config["DATA"]["AbDb"]["folder_path"])
+    benchmark_folder_path = os.path.join(config["DATA"]["path"], config["DATA"]["AbDb_REF15"]["folder_path"])
 
     sample_pdb_id = "1WEJ"
     snakemake = type('', (), {})()

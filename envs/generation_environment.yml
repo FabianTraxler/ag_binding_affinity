@@ -1,0 +1,21 @@
+name: rosetta_env
+channels:
+  - conda-forge
+  - https://levinthal:paradox@conda.rosettacommons.org
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.8
+  - python-blosc=1.8.3
+  - python_abi=3.8
+  - pip=22.1.2
+  - pyrosetta
+  - pip:
+      - pandas==1.5.1
+      - tqdm==4.62.2
+      - pyyaml==5.4.1
+      - biopython==1.79
+      - biopandas
+      - biopython
+      - easy-parallel-py3==0.1.6.4
+

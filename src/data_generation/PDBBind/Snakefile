@@ -1,0 +1,71 @@
+import os
+from os.path import join
+from pathlib import Path
+
+import pandas as pd
+
+DATASET_NAME = "PDBBind"
+REDUNDANCY_CUTOFF = 0.8
+
+dataset_metadata_file = "pp_infos.txt"
+
+project_root = Path(workflow.basedir).parents[2] # two directories above - absolute paths not working
+resource_folder = os.path.join(project_root, "resources")
+results_folder = os.path.join(project_root, "results")
+
+abag_affinity_df_path = join(results_folder, "abag_affinity_dataset", "abag_affinity_dataset.csv")
+abag_affinity_pdb_path = join(results_folder, "abag_affinity_dataset", "pdbs")
+
+dataset_resource_folder = os.path.join(resource_folder, DATASET_NAME)
+dataset_results_folder = os.path.join(results_folder, DATASET_NAME)
+
+pdb_relaxed_folder = os.path.join(dataset_results_folder, "pdbs_relaxed")
+pdb_folder = os.path.join(dataset_results_folder, "pdbs")
+
+def gater_pdb_ids(wildcards):
+    data_df_path = checkpoints.generate_dataset.get(**wildcards).output[0]
+    data_df = pd.read_csv(data_df_path, index_col=0)
+    pdb_id = data_df["pdb"].tolist()
+    return expand(f"{pdb_relaxed_folder}/{{pdb_id}}.pdb", pdb_id=pdb_id)
+
+
+rule all:
+    input:
+        gater_pdb_ids,
+        join(dataset_results_folder, "pdbbind.csv")
+
+rule download:
+    output:
+        join(dataset_resource_folder, dataset_metadata_file),
+        directory(pdb_folder)
+    params:
+        resource_folder=dataset_resource_folder,
+    shell:
+        "scripts/download.sh {output} {params.resource_folder}"
+
+
+checkpoint generate_dataset:
+    input:
+        rules.download.output
+    output:
+        join(dataset_results_folder, "pdbbind.csv")
+    params:
+        abag_affinity_pdb_path = abag_affinity_pdb_path,
+        abag_affinity_df_path = abag_affinity_df_path,
+        redundancy_cutoff = REDUNDANCY_CUTOFF
+    conda:
+        join(project_root, "envs/generation_environment.yml")
+    script:
+        "scripts/generate_dataset.py"
+
+
+rule relax_structures:
+    input:
+        join(pdb_folder, "{pdb_id}.pdb")
+    output:
+        join(pdb_relaxed_folder, "{pdb_id}.pdb")
+    conda:
+        join(project_root, "envs/generation_environment.yml")
+    threads: 5
+    script:
+        "../scripts/relax.py"
