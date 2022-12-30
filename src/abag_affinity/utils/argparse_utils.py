@@ -1,3 +1,4 @@
+import json
 import sys
 from argparse import Namespace, ArgumentParser, Action
 from pathlib import Path
@@ -64,30 +65,45 @@ def parse_args() -> Namespace:
 
     required = parser.add_argument_group('required arguments')
     optional = parser.add_argument_group('optional arguments')
-
+    # train config arguments
+    # -datasets
+    optional.add_argument("--target_dataset", type=str, help='The datasize used for final and patience',
+                          default="abag_affinity:absolute")
+    optional.add_argument("-tld", "--transfer_learning_datasets", type=str,
+                          help='Datasets used for transfer-learning in addition to goal_dataset', default="", nargs='+')
+    optional.add_argument("--relaxed_pdbs", action=BooleanOptionalAction, help="Use the relaxed pdbs for training "
+                                                                               "and validation", default=False)
+    # -train strategy
     optional.add_argument("-t", "--train_strategy", type=str, help='The training strategy to use',
                           choices=["bucket_train", "pretrain_model", "model_train", "cross_validation"],
                           default="model_train")
-    optional.add_argument("-m", "--pretrained_model", type=str, help='Name of the pretrained model to use for node embeddings',
+    optional.add_argument("--bucket_size_mode", type=str, help="Mode to determine the size of the training buckets",
+                          default="min", choices=["min", "geometric_mean", "double_geometric_mean"])
+    optional.add_argument("-m", "--pretrained_model", type=str,
+                          help='Name of the pretrained model to use for node embeddings',
                           choices=["", "DeepRefine", "Binding_DDG"], default="")
-    optional.add_argument("-b", "--batch_size", type=int, help="Batch size used for training", default=1)
+    # -train config
+    optional.add_argument("-b", "--batch_size", type=int, help="Batch size used for training", default=10)
     optional.add_argument("-e", "--max_epochs", type=int, help="Max number of training epochs", default=200)
     optional.add_argument("-lr", "--learning_rate", type=float, help="Initial learning rate", default=1e-4)
     optional.add_argument("-p", "--patience", type=int,
                           help="Number of epochs with no improvement until end of training",
-                          default=10)
+                          default=15)
+    # model config arguments
     optional.add_argument("-n", "--node_type", type=str, help="Type of nodes in the graphs", default="residue",
                           choices=["residue", "atom"])
     optional.add_argument("--max_num_nodes", type=int, help="Maximal number of nodes for fixed sized graphs",
                           default=None)
-    optional.add_argument("--bucket_size_mode", type=int, help="Mode to determine the size of the training buckets",
-                          default="min", choices=["min", "geometric_mean", "double_geometric_mean"])
     optional.add_argument("--interface_distance_cutoff", type=int, help="Max distance of nodes to be regarded as interface",
                           default=5)
-    optional.add_argument("--interface_hull_size", type=int, help="Size of the extension from interface to generate interface hull",
-                          default=7)
+    optional.add_argument("--interface_hull_size", type=int,
+                          help="Size of the extension from interface to generate interface hull", default=7)
     optional.add_argument("--scale_values", action=BooleanOptionalAction, help="Scale affinity values between 0 and 1",
                           default=False)
+    optional.add_argument("--scale_min", type=int, help="The minimal affinity value -> gets mapped to 0",
+                          default=2)
+    optional.add_argument("--scale_max", type=int, help="The maximal affinity value -> gets mapped to 1",
+                          default=19)
     optional.add_argument("--loss_function", type=str, help="Type of Loss Function", default="L1",
                           choices=["L1", "L2"] )
     optional.add_argument("--layer_type", type=str, help="Type of GNN Layer", default="GAT",
@@ -96,27 +112,36 @@ def parse_args() -> Namespace:
                           choices=["proximity", "guided"] )
     optional.add_argument("--max_edge_distance", type=int, help="Maximal distance of proximity edges", default=5)
     optional.add_argument("--num_gnn_layers", type=int, help="Number of GNN Layers", default=3)
-    optional.add_argument("--size_halving", action=BooleanOptionalAction,
-                          help="Indicator if after every layer the embedding size should be halved", default=False)
+    optional.add_argument("--attention_heads", type=int, help="Number of attention heads for GAT layer type",
+                          default=3)
+    optional.add_argument("--channel_halving", action=BooleanOptionalAction,
+                          help="Indicator if after every layer the embedding size should be halved", default=True)
+    optional.add_argument("--channel_doubling", action=BooleanOptionalAction,
+                          help="Indicator if after every layer the embedding size should be doubled", default=False)
     optional.add_argument("--aggregation_method", type=str, help="Type aggregation method to get graph embeddings",
                           default="max",  choices=["max", "sum", "mean", "attention", "fixed_size", "edge"])
-    optional.add_argument("--nonlinearity", type=str, help="Type of activation function", default="relu",
+    optional.add_argument("--nonlinearity", type=str, help="Type of activation function", default="gelu",
                           choices=["relu", "leaky", "gelu"])
     optional.add_argument("--num_fc_layers", type=int, help="Number of FullyConnected Layers in regression head",
                           default=3)
-    optional.add_argument("-w", "--num_workers", type=int, help="Number of workers to use for data loading", default=0)
+
+    # weight and bias arguments
     optional.add_argument("-wdb", "--use_wandb", action=BooleanOptionalAction, help="Use Weight&Bias to log training process",
                           default=False)
     optional.add_argument("--wandb_mode", type=str, help="Mode of Weights&Bias Process", choices=["online", "offline"],
-                          default="online")
+                          default="offline")
     optional.add_argument("--wandb_name", type=str, help="Name of the Weight&Bias logs", default="")
-    optional.add_argument("--init_sweep", action=BooleanOptionalAction, help="Use Weight&Bias sweep to search hyperparameter space",
-                          default=False)
+    optional.add_argument("--init_sweep", action=BooleanOptionalAction,
+                          help="Use Weight&Bias sweep to search hyperparameter space", default=False)
     optional.add_argument("--sweep_config", type=str, help="Path to the configuration file of the sweep",
                           default=(Path(__file__).resolve().parents[2] / "config.yaml").resolve())
     optional.add_argument("--sweep_id", type=str, help="The sweep ID to use for all runs")
     optional.add_argument("--sweep_runs", type=int, help="Number of runs to perform in this sweep instance",
                           default=30)
+
+    # general config
+    optional.add_argument("-w", "--num_workers", type=int, help="Number of workers to use for data loading", default=0)
+    optional.add_argument("--cross_validation", action=BooleanOptionalAction, help="Perform CV on all validation datasets", default=False)
     optional.add_argument("-v", "--validation_set", type=int, help="Which validation set to use", default=1,
                           choices=[1, 2, 3])
     optional.add_argument("-c", "--config_file", type=str,
@@ -127,8 +152,8 @@ def parse_args() -> Namespace:
     optional.add_argument("--preprocess_graph", action=BooleanOptionalAction,
                           help="Compute graphs beforehand to speedup training (especially for DeepRefine",
                           default=False)
-    optional.add_argument("--save_graphs", action=BooleanOptionalAction, help="Saves computed graphs to speed up training in later epochs",
-                          default=False)
+    optional.add_argument("--save_graphs", action=BooleanOptionalAction,
+                          help="Saves computed graphs to speed up training in later epochs", default=False)
     optional.add_argument("--force_recomputation", action=BooleanOptionalAction,
                           help="Force recomputation of graphs - deletes folder containing processed graphs",
                           default=False)
@@ -141,9 +166,12 @@ def parse_args() -> Namespace:
     optional.add_argument("--cuda", action=BooleanOptionalAction,
                           help="Use cuda resources for training if available",
                           default=True)
+    optional.add_argument("--args_file", type=str,
+                          help="Specify the path to a file with additional arguments",
+                          default=None)
 
     args = parser.parse_args()
-    args.config = read_config(args.config_file)
+    args.config = read_config(args.config_file, args.relaxed_pdbs)
     args.tqdm_output = True  # enable tqdm output
 
     if args.wandb_name == "":
@@ -160,6 +188,9 @@ def parse_args() -> Namespace:
         args.__dict__["node_type"] = enforced_node_type[args.pretrained_model]
 
     args.__dict__["learning_rate"] = args.__dict__["learning_rate"] * args.__dict__["batch_size"]
+
+    if args.args_file is not None:
+        args = read_args_from_file(args)
 
     return args
 
@@ -187,3 +218,16 @@ def adapt_batch_size(args: Namespace, model: torch.nn.Module, dataset: AffinityD
 
 
     return 1
+
+
+def read_args_from_file(args: Namespace) -> Namespace:
+    with open(args.args_file) as f:
+        arg_dict = json.load(f)
+
+    for key, value in arg_dict.items():
+        if value["value"] == "None":
+            value["value"] = None
+        if key in args.__dict__:
+            args.__dict__[key] = value["value"]
+
+    return args
