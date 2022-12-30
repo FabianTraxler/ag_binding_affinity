@@ -10,7 +10,7 @@ from pathlib import Path
 from biopandas.pdb import PandasPdb
 import scipy.spatial as sp
 import dgl
-
+import logging
 
 warnings.filterwarnings("ignore")
 
@@ -27,16 +27,24 @@ from project.utils.deeprefine_utils import process_pdb_into_graph
 
 
 alphabet_letters = set(string.ascii_lowercase)
+logger = logging.getLogger(__name__)
 
 
 def get_pdb_path_and_id(row: pd.Series, dataset_name: str, config: Dict):
-    data_location = row["data_location"]
-    if "mutation_code" in row and row["mutation_code"] != "" and not isinstance(row["mutation_code"], float):
-        pdb_id = row["pdb"] + "_" + row["mutation_code"]
+    data_location = "DATASETS"
+    if "-" in dataset_name:
+        dataset_name, publication = dataset_name.split("-")
+
+    if "mutation_code" in row:
+        if row["mutation_code"] == "" or isinstance(row["mutation_code"], float):
+            pdb_id = row["pdb"] + "-original"
+        else:
+            pdb_id = row["pdb"] + "-" + row["mutation_code"]
 
         pdb_file_path = os.path.join(config[data_location]["path"],
                                      config[data_location][dataset_name]["folder_path"],
                                      config[data_location][dataset_name]["mutated_pdb_path"])
+
     else:
         pdb_id = row["pdb"]
         pdb_file_path = os.path.join(config[data_location]["path"],
@@ -87,20 +95,6 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, affinity: float, chain_id2pr
         node_features, atom_names = get_atom_encodings(residue_infos, structure_info, chain_id2protein)
         adj_tensor = get_atom_edge_encodings(distances, node_features, distance_cutoff=distance_cutoff)
 
-        # TODO: Check if necessary when beforehandy pdb is reduced to interface
-        #if interface_hull_size is not None:
-        #    # limit graph to interface + hull
-        #    interface_nodes = np.where(adj_tensor[0, :, :] - adj_tensor[2, :, :] > 0.001)[0]
-        #    interface_nodes = np.unique(interface_nodes)
-        #    interface_hull = np.where(adj_tensor[3, interface_nodes, :] <= interface_hull_size)
-        #    interface_hull_nodes = np.unique(interface_hull[1])
-        #    interface_hull_residue_expanded = np.where(adj_tensor[1, interface_hull_nodes, :] == 1)
-        #    interface_hull_residue_expanded_nodes = np.unique(interface_hull_residue_expanded[1])#
-
-        #    adj_tensor = adj_tensor[:, interface_hull_residue_expanded_nodes, :][:,:,interface_hull_residue_expanded_nodes]
-        #    node_features = node_features[interface_hull_residue_expanded_nodes]
-
-        #   closest_nodes = np.where(closest_nodes[:, None] == interface_hull_residue_expanded_nodes[None, :])[1]
     else:
         raise ValueError("Invalid graph_type: Either 'residue' or 'atom'")
 
@@ -119,7 +113,8 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, affinity: float, chain_id2pr
 
 
 def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, cleaned_pdb_folder: str, node_type: str = "residue",
-                    interface_distance_cutoff: int = 5, interface_hull_size: int = None, max_edge_distance: int = 5) -> Dict:
+                    interface_distance_cutoff: int = 5, interface_hull_size: int = None, max_edge_distance: int = 5,
+                    affinity_type: str = "-log(Kd)") -> Dict:
     """ Load and process a data point and generate a graph and meta-information for it
 
     1. Get the PDB Path
@@ -141,8 +136,12 @@ def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, cleaned_pdb
 
     pdb_file_path, pdb_id = get_pdb_path_and_id(row, dataset_name, config)
 
-    affinity = row["-log(Kd)"]
-    chain_id2protein = literal_eval(row["chain_infos"])
+    affinity = row[affinity_type]
+    try:
+        chain_id2protein = literal_eval(row["chain_infos"])
+    except:
+        logger.error(row["chain_infos"])
+        logger.debug(pdb_id)
 
     cleaned_path = os.path.join(cleaned_pdb_folder,pdb_id + ".pdb")
     if not os.path.exists(cleaned_path):
@@ -208,7 +207,10 @@ def scale_affinity(affinity: float, min: float = 0, max: float = 16) -> float:
     Returns:
         float: scaled affinity
     """
-    assert min < affinity < max, "Affinity value out of scaling range"
+
+    if not min < affinity < max:
+        a = 0
+    assert min < affinity < max, f"Affinity value out of scaling range: {affinity}"
 
     return (affinity - min) / (max - min)
 
@@ -234,13 +236,13 @@ def get_hetero_edges(graph_dict: Dict, edge_names: List[str], max_interface_edge
     all_edges = {}
     edge_attributes = {}
 
-    proximity_idx = edge_names.index("proximity")
+    proximity_idx = edge_names.index("distance")
     distance_idx = -1
     same_protein_idx = edge_names.index("same_protein")
 
     for idx, edge_name in enumerate(edge_names):
         edge_type = ("node", edge_name, "node")
-        if edge_name == "proximity":
+        if edge_name == "distance":
             edges = np.where(adjacency_matrix[idx, :, :] > 0.001)
         elif edge_name == "same_protein": # same protein and < distance_cutoff
             edges = np.where((adjacency_matrix[idx, :, :] == 1) & (adjacency_matrix[distance_idx, :, :] < max_edge_distance))
@@ -268,10 +270,18 @@ def get_hetero_edges(graph_dict: Dict, edge_names: List[str], max_interface_edge
         interface_edges = interface_edges[:, sorted_edge_idx]
         distance = adjacency_matrix[distance_idx, interface_edges[0], interface_edges[1]]
 
-    interface_proximity = 1 / (distance + 1)
+    interface_distance = distance # 1 / (distance + 1)
 
     all_edges[("node", "interface", "node")] = torch.tensor(interface_edges).long()
-    edge_attributes[("node", "interface", "node")] = torch.tensor(interface_proximity)
+    edge_attributes[("node", "interface", "node")] = torch.tensor(interface_distance)
+
+    full_edges = np.where(adjacency_matrix[0, :, :] > 0.001)
+    full_edge_featutes = np.vstack([adjacency_matrix[0, full_edges[0], full_edges[1]],
+                               adjacency_matrix[1, full_edges[0], full_edges[1]],
+                               adjacency_matrix[2, full_edges[0], full_edges[1]]]).T
+
+    all_edges[("node", "edge", "node")] = torch.tensor(full_edges).long()
+    edge_attributes[("node", "edge", "node")] = torch.tensor(full_edge_featutes)
 
     return all_edges, edge_attributes
 

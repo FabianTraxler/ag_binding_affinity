@@ -3,10 +3,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 from scipy import stats
-from sklearn.metrics import mean_absolute_error as mae
 
 
-def plot_correlation(x: np.ndarray, y: np.ndarray, path: str, show_corr: bool = True, show_mae: bool = True ):
+
+def plot_correlation(x: np.ndarray, y: np.ndarray, path: str, show_corr: bool = True, show_rmse: bool = True ):
     """ Plot a correlation plot and show the regression line
 
     Optional show the pearson correlation with p-value
@@ -17,7 +17,7 @@ def plot_correlation(x: np.ndarray, y: np.ndarray, path: str, show_corr: bool = 
         y: True values
         path: Path of the results image
         show_corr: Indicator if pearson correlation is to be shown
-        show_mae: Indicator if MAE is to be shown
+        show_rmse: Indicator if RSME is to be shown
 
     Returns:
         None
@@ -29,9 +29,9 @@ def plot_correlation(x: np.ndarray, y: np.ndarray, path: str, show_corr: bool = 
     if show_corr:
         r, p = stats.pearsonr(x=x, y=y)
         legend += 'r={:f}, p={:f}, '.format(r, p)
-    if show_mae:
-        error = mae(y, x)
-        legend += 'mae={:f}, '.format(error)
+    if show_rmse:
+        error = np.sqrt(np.mean((x-y)**2))
+        legend += 'rmse={:f}, '.format(error)
 
     legend = legend[:-2]
     phantom, = plot.ax_joint.plot([], [], linestyle="", alpha=0)

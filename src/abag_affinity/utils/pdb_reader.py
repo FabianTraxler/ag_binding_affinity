@@ -20,8 +20,11 @@ def read_file(structure_id: str, path: Union[str, Path]) -> Tuple[Structure, Dic
     Returns:
         Tuple: Structure (Bio.PDB object), header (Dict)
     """
-    structure = parser.get_structure(structure_id, str(path))
-    header = parser.get_header()
+    try:
+        structure = parser.get_structure(structure_id, str(path))
+        header = parser.get_header()
+    except Exception as e:
+        raise RuntimeError(f"Could not load pdb_file {path}: {e}")
 
     return structure, header
 

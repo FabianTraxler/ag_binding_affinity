@@ -11,11 +11,10 @@ import numpy as np
 import torch
 from typing import Tuple, Dict, List, Union
 from parallel import submit_jobs
-import itertools
+import scipy.spatial as sp
 import logging
 from ast import literal_eval
 import pickle
-from argparse import Namespace
 
 from ..utils.config import get_data_paths
 from .utils import scale_affinity, load_graph_dict, get_hetero_edges, get_pdb_path_and_id, load_deeprefine_graph
@@ -36,7 +35,7 @@ class AffinityDataset(Dataset, ABC):
                  interface_hull_size: int = None,
                  max_edge_distance: int = 5,
                  pretrained_model: str = "",
-                 scale_values: bool = True,
+                 scale_values: bool = True, scale_min: int = 0, scale_max: int = 16,
                  relative_data: bool = False,
                  save_graphs: bool = False, force_recomputation: bool = False,
                  preprocess_data: bool = False, num_threads: int = 1):
@@ -54,16 +53,20 @@ class AffinityDataset(Dataset, ABC):
 
         if "-" in dataset_name:
             dataset_name, publication = dataset_name.split("-")
-            self.affinity_type = self.config["DATA"][dataset_name]["affinity_types"][publication]
+            publication_code = publication if "mason21" not in publication else "mason21"
+            self.affinity_type = self.config["DATASETS"][dataset_name]["affinity_types"][publication_code]
             self.dataset_name = dataset_name
+            self.publication = publication
+            self.full_dataset_name = dataset_name + "-" + publication
         else:
-            self.affinity_type = self.config["DATA"][dataset_name]["affinity_type"]
-
+            self.affinity_type = self.config["DATASETS"][dataset_name]["affinity_type"]
+            self.publication = None
+            self.full_dataset_name = dataset_name
 
         if node_type == "residue":
-            self.edge_types = ["proximity", "peptide_bond", "same_protein"]
+            self.edge_types = ["distance", "peptide_bond", "same_protein"]
         elif node_type == "atom":
-            self.edge_types = ["proximity", "same_residue", "same_protein"]
+            self.edge_types = ["distance", "same_residue", "same_protein"]
         else:
             raise ValueError(f"Invalid node type provided - got {node_type} - supported 'residue', 'atom'")
 
@@ -81,16 +84,18 @@ class AffinityDataset(Dataset, ABC):
 
         self.force_recomputation = force_recomputation
         self.scale_values = scale_values
+        self.scale_min = scale_min
+        self.scale_max = scale_max
         self.preprocess_data = preprocess_data
 
         # load dataframe with metainfo
-        self.data_df = self.load_df(pdb_ids)
+        self.data_df, pdb_ids = self.load_df(pdb_ids)
 
         # set dataset to load relative or absolute data points
         self.relative_data = relative_data
         if relative_data:
             self.get = self.get_relative
-            self.data_points = pdb_ids #self.get_all_pairs()
+            self.data_points = self.get_valid_pairs(pdb_ids)
 
             self.preprocess_data = True  # necessary to preprocess graphs in order to avoid race conditions in workers
         else:
@@ -103,24 +108,21 @@ class AffinityDataset(Dataset, ABC):
             logger.debug(f"Preprocessing {node_type}-graphs for {self.dataset_name}")
             self.preprocess()
 
-    def get_all_pairs(self) -> List:
+    def get_valid_pairs(self, pdb_ids: List) -> List:
         """ Get all mutation pairs available for a complex that do not have the exact same affinity
 
         Returns:
             List: All Pairs of mutation data points of the same complex
         """
-        grouped_data = self.data_df.groupby("pdb")  # group by pdb_id of complex
         all_data_points = []
-        for pdb, data_points in grouped_data.groups.items():
-            data_points = data_points.tolist()
-            all_combinations = itertools.combinations(data_points, 2)
-            # remove all combination that have exactly the same affinity (probably lowest or highest value)
-            all_combinations = filter(
-                lambda e: self.data_df.loc[e[0], "-log(Kd)"] != self.data_df.loc[e[1], "-log(Kd)"], all_combinations)
-            all_data_points.extend(all_combinations)
+        for pdb_id in pdb_ids:
+            other_pdb_id = self.get_compatible_pair(pdb_id)
+            if other_pdb_id is None:
+                # do not use this pdb
+                continue
+            all_data_points.append((pdb_id, other_pdb_id))
 
-        # TODO: Remove sampler and use all values
-        all_data_points = random.sample(all_data_points, min(10000, len(all_data_points)))
+        logger.debug(f"There are in total {len(all_data_points)} valid pairs")
 
         return all_data_points
 
@@ -167,9 +169,10 @@ class AffinityDataset(Dataset, ABC):
         logger.debug(f"Preprocessing {len(graph_dicts2process)} graph dicts with {self.num_threads} threads")
         submit_jobs(self.preload_graph_dict, graph_dicts2process, self.num_threads)
 
-        logger.debug(
-            f"Preprocessing {len(deeprefine_graphs2process)} DeepRefine graphs with {self.num_threads} threads")
-        submit_jobs(self.preload_deeprefine_graph, deeprefine_graphs2process, self.num_threads)
+        if self.pretrained_model == "DeepRefine":
+            logger.debug(
+                f"Preprocessing {len(deeprefine_graphs2process)} DeepRefine graphs with {self.num_threads} threads")
+            submit_jobs(self.preload_deeprefine_graph, deeprefine_graphs2process, self.num_threads)
 
     def preload_graph_dict(self, row: pd.Series, out_path: str):
         """ Function to get graph dict and store to disc
@@ -188,7 +191,8 @@ class AffinityDataset(Dataset, ABC):
                                      node_type=self.node_type,
                                      interface_distance_cutoff=self.interface_distance_cutoff,
                                      interface_hull_size=self.interface_hull_size,
-                                     max_edge_distance=self.max_edge_distance)
+                                     max_edge_distance=self.max_edge_distance,
+                                     affinity_type=self.affinity_type)
 
         np.savez_compressed(out_path, **graph_dict)
 
@@ -231,11 +235,16 @@ class AffinityDataset(Dataset, ABC):
             pd.DataFrame: Object with all information available for the pdb_ids
         """
         summary_path, _ = get_data_paths(self.config, self.dataset_name)
+        if self.publication is not None:
+            summary_path = os.path.join(summary_path, self.publication + ".csv")
         summary_df = pd.read_csv(summary_path, index_col=0)
+        if pdb_ids is None:
+            pdb_ids = summary_df.index.tolist()
+        else:
+            summary_df = summary_df.loc[pdb_ids]
 
-        summary_df = summary_df.loc[pdb_ids]
-
-        return summary_df.fillna("")
+        summary_df = summary_df[~summary_df.index.duplicated(keep='first')]
+        return summary_df.fillna(""), pdb_ids
 
     def get_edges(self, data_file: Dict) -> Tuple[Dict, Dict]:
         """ Function to extract edge information based on graph dict
@@ -344,11 +353,17 @@ class AffinityDataset(Dataset, ABC):
 
         if compute_graph:  # graph not loaded from disc
             row = self.data_df.loc[df_idx]
+            if isinstance(row, pd.DataFrame):
+                # multiple instances with same id (== same mutation code)
+                # sample one randomly == data augmentation
+                row = row.sample(1).squeeze()
+
             graph_dict = load_graph_dict(row, self.dataset_name, self.config, self.pdb_clean_dir,
                                          node_type=self.node_type,
                                          interface_distance_cutoff=self.interface_distance_cutoff,
                                          interface_hull_size=self.interface_hull_size,
-                                         max_edge_distance=self.max_edge_distance)
+                                         max_edge_distance=self.max_edge_distance,
+                                         affinity_type=self.affinity_type)
 
             if self.save_graphs and not os.path.exists(file_path):
                 graph_dict.pop("atom_names", None)  # remove unnecessary information that takes lot of storage
@@ -374,8 +389,8 @@ class AffinityDataset(Dataset, ABC):
         edge_indices, edge_features = self.get_edges(graph_dict)
 
         affinity = graph_dict["affinity"]
-        if self.scale_values:
-            affinity = scale_affinity(affinity)
+        if self.scale_values and self.affinity_type == "-log(Kd)":
+            affinity = scale_affinity(affinity, self.scale_min, self.scale_max)
         affinity = np.array(affinity)
 
         graph = HeteroData()
@@ -488,10 +503,9 @@ class AffinityDataset(Dataset, ABC):
             "input": []
         }
 
-        pdb_id = self.data_points[idx]
+        pdb_id, other_pdb_id = self.data_points[idx]
         data["input"].append(self.load_data_point(pdb_id))
 
-        other_pdb_id = self.get_compatible_pair(pdb_id)
         data["input"].append(self.load_data_point(other_pdb_id))
 
         return data
@@ -500,25 +514,29 @@ class AffinityDataset(Dataset, ABC):
         pdb_file = self.data_df.loc[pdb_id, "pdb"]
         if self.affinity_type == "-log(Kd)":
             other_mutations = self.data_df[(self.data_df["pdb"] == pdb_file) & (self.data_df.index != pdb_id)]
+            possible_partner = other_mutations.index.tolist()
         elif self.affinity_type == "E":
-            other_mutations = self.data_df[(self.data_df["pdb"] == pdb_file) & (self.data_df.index != pdb_id)]
             # get data point that has distance > avg(NLL) from current data point
-            pdb_nll = self.data_df.loc[self.data_df.index != pdb_id, "NLL"].values[0]
-            pdb_e = self.data_df.loc[self.data_df.index != pdb_id, "E"].values[0]
-            other_mutations["valid_pair"] = other_mutations.apply(lambda row:
-                                                                np.abs(pdb_e - row["E"]) >= (pdb_nll + row["NLL"]) / 2,
-                                                                axis=1)
-            other_mutations = other_mutations[other_mutations["valid_pair"]]
+            pdb_nll = self.data_df.loc[self.data_df.index == pdb_id, "NLL"].values[0]
+            pdb_e = np.array(self.data_df.loc[self.data_df.index == pdb_id, "E"].values[0]).reshape(-1,1)
+
+            e_values = self.data_df["E"].values.reshape(-1,1)
+            nll_values = self.data_df["NLL"].values
+            e_dists = sp.distance.cdist(pdb_e, e_values)[0, :]
+            nll_avg = (pdb_nll + nll_values) / 2
+
+            valid_pairs = (e_dists - nll_avg) >= 0
+            valid_partner = np.where(valid_pairs)[0]
+            possible_partner = self.data_df.index[valid_partner].tolist()
+
         else:
             raise ValueError(
                 f"Wrong affinity type given - expected one of (-log(Kd), E) but got {self.affinity_type}")
 
-        if len(other_mutations) > 0: # random choose one of the available mutations
-            other_pdb_id = other_mutations.sample(n=1).index.values[0]
+        if len(possible_partner) > 0: # random choose one of the available mutations
+            return random.sample(possible_partner, 1)[0]
         else: # compare to oneself if there is no other option available
-            other_pdb_id = pdb_id
-        return other_pdb_id
-
+            return None
 
     @property
     def num_node_features(self) -> int:
@@ -533,7 +551,10 @@ class AffinityDataset(Dataset, ABC):
     @property
     def num_edge_features(self) -> int:
         r"""Returns the number of features per edge in the dataset."""
-        return 1  # only one feature (distance) per edge
+        data = self[0]["input"]
+        data = data[0]["graph"] if isinstance(data, List) else data["graph"]
+        if hasattr(data["node", "edge", "node"], 'num_edge_features'):
+            return data["node", "edge", "node"].num_edge_features
 
     @staticmethod
     def collate(input_dicts: List[Dict]) -> Union[List, Dict]:

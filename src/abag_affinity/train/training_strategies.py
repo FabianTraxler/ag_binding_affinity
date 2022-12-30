@@ -1,6 +1,8 @@
 """Module providing implementations of different training modalities"""
 
 import logging
+import os
+
 import torch
 from argparse import Namespace
 import numpy as np
@@ -9,7 +11,7 @@ import random
 from collections import Counter
 
 from ..utils.config import read_config
-from ..train.utils import load_model, load_datasets, train_loop, finetune_pretrained, bucket_learning
+from .utils import load_model, load_datasets, train_loop, finetune_pretrained, bucket_learning, get_benchmark_score
 
 # TODO: create global seeding mechanism
 random.seed(123)
@@ -36,14 +38,12 @@ def model_train(args:Namespace, validation_set: int = None) -> Tuple[torch.nn.Mo
         Tuple: Trained model and Dict with results and statistics of training
     """
 
-    config = read_config(args.config_file)
-
-    dataset_name = config["TRAIN"]["standard"]["dataset"]
+    dataset_name = args.target_dataset
 
     if validation_set is None:
         validation_set = args.validation_set
 
-    train_data, val_data = load_datasets(config, dataset_name, validation_set, args)
+    train_data, val_data = load_datasets(args.config, dataset_name, validation_set, args)
 
     logger.info("Val Set:{} | Train Size:{} | Test Size: {}".format(str(validation_set), len(train_data), len(val_data)))
 
@@ -62,32 +62,6 @@ def model_train(args:Namespace, validation_set: int = None) -> Tuple[torch.nn.Mo
     return model, results
 
 
-def cross_validation(args:Namespace) -> Tuple[None, Dict]:
-    """ Perform a Cross Validation based on predefined splits of the data
-
-    Args:
-        args: CLI arguments
-
-    Returns:
-        Tuple: None and the results and statistics of training
-    """
-    losses = []
-    correlations = []
-    all_results = {}
-
-    for i in range(1, 4):
-        logger.info("Validation on split {} and training with all other splits\n".format(i))
-        results = model_train(args, validation_set=i)
-        losses.append(results["best_loss"])
-        correlations.append(results["best_correlation"])
-        all_results[i] = results
-
-    logger.info("Average Loss: {} ({})".format(np.mean(losses), np.std(losses)))
-    logger.info("Average Pearson Correlation: {} ({})".format(np.mean(correlations), np.std(correlations)))
-
-    return None, all_results
-
-
 def pretrain_model(args:Namespace) -> Tuple[torch.nn.Module, Dict]:
     """ Pretrain model and then finetune model based on information in config file
 
@@ -99,7 +73,7 @@ def pretrain_model(args:Namespace) -> Tuple[torch.nn.Module, Dict]:
     """
     config = read_config(args.config_file)
 
-    datasets = config["TRAIN"]["transfer"]["datasets"]
+    datasets = args.transfer_learning_datasets + [args.target_dataset]
 
     use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
@@ -117,7 +91,7 @@ def pretrain_model(args:Namespace) -> Tuple[torch.nn.Module, Dict]:
         if model is None: # only load model for first dataset
             logger.debug(f"Loading  Model")
             model = load_model(train_data.num_features, train_data.num_edge_features, args, device)
-            logger.debug(f"Model Memory usage: {torch.cuda.max_memory_allocated()}")
+            logger.debug(f"Model Memory usage: {torch.cuda.max_memory_allocated()/(1<<20):,.0f} MB")
         logger.debug(f"Training with  {dataset_name}")
         logger.debug(f"Training done on GPU: {next(model.parameters()).is_cuda}")
 
@@ -131,7 +105,6 @@ def pretrain_model(args:Namespace) -> Tuple[torch.nn.Module, Dict]:
         train_data, val_data = load_datasets(config, datasets[-1], args.validation_set, args)
         results, model = finetune_pretrained(model, train_data, val_data, args)
         all_results["finetuning"] = results
-
 
     return model, all_results
 
@@ -147,7 +120,7 @@ def bucket_train(args:Namespace) -> Tuple[torch.nn.Module, Dict]:
     """
     config = read_config(args.config_file)
 
-    datasets = config["TRAIN"]["bucket"]["datasets"]
+    datasets = args.transfer_learning_datasets + [args.target_dataset]
 
     use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
@@ -185,3 +158,60 @@ def bucket_train(args:Namespace) -> Tuple[torch.nn.Module, Dict]:
 
     logger.debug(results)
     return model, results
+
+
+def cross_validation(args:Namespace) -> Tuple[None, Dict]:
+    """ Perform a Cross Validation based on predefined splits of the data
+
+    Args:
+        args: CLI arguments
+
+    Returns:
+        Tuple: None and the results and statistics of training
+    """
+    losses = []
+    correlations = []
+    all_results = {}
+    benchmark_loss = []
+    benchmark_correlation = []
+
+    training = {
+        "bucket_train": bucket_train,
+        "pretrain_model": pretrain_model,
+        "model_train": model_train
+    }
+
+    #args.max_epochs = 1
+
+    for i in range(1, 4):
+        logger.info("Validation on split {} and training with all other splits\n".format(i))
+        args.validation_set = i
+        model, results = training[args.train_strategy](args)
+        if args.target_dataset in results:
+            losses.append(results[args.target_dataset]["best_loss"])
+            correlations.append(results[args.target_dataset]["best_correlation"])
+            logger.info(f"Results for split {i} >>> {results[args.target_dataset]['best_correlation']}")
+        else:
+            losses.append(results["best_loss"])
+            correlations.append(results["best_correlation"])
+            logger.info(f"Results for split {i} >>> {results['best_correlation']}")
+
+        all_results[i] = results
+
+        benchmark_plot_path = os.path.join(args.config["plot_path"], args.node_type, args.train_strategy,
+                                           f"val_set_{args.validation_set}", "benchmark.png")
+        pearson, loss = get_benchmark_score(model, args, tqdm_output=args.tqdm_output, plot_path=benchmark_plot_path)
+        benchmark_loss.append(loss)
+        benchmark_correlation.append(pearson)
+        logger.info(f"Benchmark results >>> {pearson}")
+
+    logger.info("Average Loss: {} ({})".format(np.mean(losses), np.std(losses)))
+    logger.info("Losses: {}".format(" - ".join([ str(loss) for loss in losses ])))
+    logger.info("Average Pearson Correlation: {} ({})".format(np.mean(correlations), np.std(correlations)))
+    logger.info("Correlations: {}".format(" - ".join([ str(corr) for corr in correlations ])))
+
+    logger.info("Average Pearson Correlation Benchmark: {} ({})".format(np.mean(benchmark_correlation), np.std(benchmark_correlation)))
+    logger.info("Benchmark Correlations: {}".format(" - ".join([ str(corr) for corr in benchmark_correlation ])))
+
+    return None, all_results
+

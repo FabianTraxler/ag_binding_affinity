@@ -11,11 +11,14 @@ from Bio.PDB.PDBIO import PDBIO
 from Bio.PDB.Structure import Structure
 from Bio.SeqUtils import seq1
 from biopandas.pdb import PandasPdb
+from rdkit import Chem
+import re
 
 from abag_affinity.binding_ddg_predictor.utils.protein import (
     ATOM_CA, NON_STANDARD_SUBSTITUTIONS, RESIDUE_SIDECHAIN_POSTFIXES,
     augmented_three_to_index, augmented_three_to_one, get_residue_pos14)
-from abag_affinity.utils.pdb_reader import read_file
+from .pdb_reader import read_file
+from .feature_extraction import residue_features, atom_features
 
 # Definition of standard amino acids and objects to quickly access them
 AMINO_ACIDS = ["ala","cys","asp","glu","phe","gly","his","ile","lys","leu","met","asn","pro","gln","arg","ser","thr","val","trp","tyr"]
@@ -26,6 +29,8 @@ ID2AA = {i: aa for i, aa in enumerate(AMINO_ACIDS)}
 ATOM_POSTFIXES = ['N', 'CA', 'C', 'O']
 for postfixes in RESIDUE_SIDECHAIN_POSTFIXES.values():
     ATOM_POSTFIXES += list(postfixes)
+ATOM_POSTFIXES = set(ATOM_POSTFIXES)
+
 ATOM2ID = {atom: i for i, atom in enumerate(ATOM_POSTFIXES)}
 ID2ATOM = {i: atom for i, atom in enumerate(ATOM_POSTFIXES)}
 
@@ -71,7 +76,6 @@ def convert_aa_info(info: Dict, structure_info: Dict, chain_id2protein: Dict) ->
     Returns:
         np.ndarray: numerical encoding of residue - shape: (23,)
     """
-    # TODO: Get more amino acid information (charge, ... )
 
     type_encoding = np.zeros(len(AMINO_ACIDS))
     type_encoding[AAA2ID[info["residue_type"].lower()]] = 1
@@ -84,7 +88,10 @@ def convert_aa_info(info: Dict, structure_info: Dict, chain_id2protein: Dict) ->
 
     relative_residue_position = info["residue_id"] / structure_info["chain_length"][info["chain_id"].lower()]
 
-    return np.concatenate([type_encoding, protein_encoding, np.array([relative_residue_position])])
+    manual_features = residue_features(augmented_three_to_one(info["residue_type"].upper()))
+    manual_features = np.array(manual_features)
+
+    return np.concatenate([type_encoding, protein_encoding, manual_features, np.array([relative_residue_position])])
 
 
 def get_residue_infos(structure: Structure, chain_id2protein: Dict) -> Tuple[Dict, List[Dict], np.ndarray]:
@@ -131,7 +138,7 @@ def get_residue_infos(structure: Structure, chain_id2protein: Dict) -> Tuple[Dic
             atom_names = [atom.get_name() for atom in residue.get_atoms()]
 
             try:
-                chain_id2protein[chain.id.lower()]
+                antibody = chain_id2protein[chain.id.lower()]
             except Exception as e:
                 raise RuntimeError(f"Error getting chains for {structure.id}: {e}")
 
@@ -143,7 +150,7 @@ def get_residue_infos(structure: Structure, chain_id2protein: Dict) -> Tuple[Dic
                 "chain_idx": chain_idx,
                 "on_chain_residue_idx": on_chain_residue_idx,
                 "all_atom_coordinates": all_atom_coordinates,
-                "antibody": chain_id2protein[chain.id.lower()],
+                "antibody": antibody,
                 "atom_names": atom_names
             }
 
@@ -233,7 +240,8 @@ def get_residue_encodings(residue_infos: List, structure_info: Dict, chain_id2pr
     """
     residue_encodings = []
     for res_info in residue_infos:
-        residue_encodings.append(convert_aa_info(res_info, structure_info, chain_id2protein))
+        aa_protein_chain_encoding = convert_aa_info(res_info, structure_info, chain_id2protein)
+        residue_encodings.append(aa_protein_chain_encoding)
     return np.array(residue_encodings)
 
 
@@ -257,7 +265,10 @@ def get_residue_edge_encodings(distance_matrix: np.ndarray, residue_infos: List,
 
     contact_map = distance_matrix < distance_cutoff
 
-    A[0, contact_map] = 1 / (distance_matrix[contact_map] + 1)
+    # scale distances
+    distance_matrix = distance_matrix / distance_cutoff
+
+    A[0, contact_map] = distance_matrix[contact_map] # 1 / (distance_matrix[contact_map] + 1)
     for i, res_info in enumerate(residue_infos):
         for j, other_res_info in enumerate(residue_infos[i:]):
             j += i
@@ -289,15 +300,45 @@ def get_atom_encodings(residue_infos: List[Dict], structure_info: Dict, chain_id
     atom_names = []
     for res_idx, res_info in enumerate(residue_infos):
         res_encoding = convert_aa_info(res_info, structure_info, chain_id2protein)
+
         atom_order = ['N', 'CA', 'C', 'O'] + RESIDUE_SIDECHAIN_POSTFIXES[augmented_three_to_one(res_info["residue_type"].upper())]
+
+        # get rdkit features for sequence
+        seq = ""
+        has_aa_before = False
+        has_aa_after = False
+        if res_idx > 0:
+            seq += augmented_three_to_one(residue_infos[res_idx - 1]["residue_type"].upper())
+            has_aa_before = True
+        seq += augmented_three_to_one(res_info["residue_type"].upper())
+        if res_idx < len(residue_infos) - 1:
+            seq += augmented_three_to_one(residue_infos[res_idx + 1]["residue_type"].upper())
+            has_aa_after = True
+        mol = Chem.MolFromSequence(seq)
+        atoms = [ atom for atom in mol.GetAtoms()]
+        atom_types = "".join([ atom.GetSymbol() for atom in atoms ])
+        res_start_atoms = [ x.start() for x in re.finditer("NCCO", atom_types)]
+        if has_aa_before:
+            atoms = atoms[res_start_atoms[1]:]
+            atom_types = atom_types[res_start_atoms[1]:]
+        if has_aa_after:
+            atoms = atoms[:res_start_atoms[-1]]
+            atom_types = atom_types[:res_start_atoms[-1]]
+
         atom_idx = 0
         for atom_coords in res_info["all_atom_coordinates"]:
             if not np.isinf(atom_coords).any():
                 atom_type = np.zeros(len(ATOM_POSTFIXES))
                 atom_type[ATOM2ID[atom_order[atom_idx]]] = 1
-                atom_info = np.concatenate([res_encoding, atom_type, np.array([res_idx])])
+                if atom_types[atom_idx] == res_info["atom_names"][atom_idx][0]:
+                    atom_feats = atom_features(atoms[atom_idx]).astype(np.float)
+                else:
+                    atom_feats = np.zeros(13)
+                    #print("Atom not found")
+                atom_info = np.concatenate([atom_feats, atom_type, res_encoding])
                 atom_encoding.append(atom_info)
                 atom_names.append(res_info["atom_names"][atom_idx])
+
                 atom_idx += 1
     return np.array(atom_encoding), atom_names # (residue_type, protein_type, relative_chain_position, atom_type, residue_index)
 
@@ -323,7 +364,8 @@ def get_atom_edge_encodings(distance_matrix: np.ndarray, atom_encodings: np.ndar
 
     contact_map = distance_matrix < distance_cutoff
 
-    A[0, contact_map] = 1 / (distance_matrix[contact_map] + 1)
+    # scale distances
+    A[0, contact_map] = distance_matrix[contact_map] / distance_cutoff # 1 / (distance_matrix[contact_map] + 1)
 
     # same residue index
     A[1, :, :] = (atom_encodings[:, -1, None] == atom_encodings[:, -1]).astype(float)
@@ -351,7 +393,7 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_fil
     # retry 3 times because these commands sometimes do not properly write to disc
     retries = 0
     while not os.path.exists(cleaned_file_path):
-        command = f'pdb_sort {tmp_pdb_filepath} | pdb_tidy | pdb_fixinsert | pdb_delhetatm  > {cleaned_file_path}'
+        command = f'pdb_sort "{tmp_pdb_filepath}" | pdb_tidy | pdb_fixinsert | pdb_delhetatm  > "{cleaned_file_path}"'
         subprocess.run(command, shell=True)
         retries += 1
         if retries >= 3:
@@ -388,7 +430,10 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_fil
 
     # Clean up from using temporary PDB file for tidying
     if os.path.exists(tmp_pdb_filepath):
-        os.remove(tmp_pdb_filepath)
+        try:
+            os.remove(tmp_pdb_filepath)
+        except FileNotFoundError:
+            pass # file has already been removed
 
 
 def get_atom_postfixes(atom_name: str):

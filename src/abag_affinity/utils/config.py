@@ -6,11 +6,12 @@ from typing import Dict, List, Tuple
 import yaml
 
 
-def read_config(file_path: str) -> Dict:
+def read_config(file_path: str, use_relaxed: bool = False) -> Dict:
     """ Read a yaml file, join paths and return content as dict
 
     Args:
         file_path: Path to file
+        use_relaxed: Boolean indicator if relaxed pdb should be used
 
     Returns:
         Dict: Modified content of yaml file
@@ -23,8 +24,8 @@ def read_config(file_path: str) -> Dict:
     config['PROJECT_ROOT'] = folder_path
 
     if folder_path is not None:
+        config["DATASETS"]["path"] = os.path.join(folder_path, config["DATASETS"]["path"])
         config["RESOURCES"]["path"] = os.path.join(folder_path, config["RESOURCES"]["path"])
-        config["DATA"]["path"] = os.path.join(folder_path, config["DATA"]["path"])
 
     config["plot_path"] = os.path.join(folder_path, config["RESULTS"]["path"], config["RESULTS"]["plot_path"])
     config["processed_graph_path"] = os.path.join(folder_path, config["RESULTS"]["path"], config["RESULTS"]["processed_graph_path"])
@@ -32,6 +33,15 @@ def read_config(file_path: str) -> Dict:
 
     for model in config["MODELS"].keys():
         config["MODELS"][model]["model_path"] = os.path.join(folder_path, config["MODELS"][model]["model_path"])
+
+    if use_relaxed:
+        for dataset in config["DATASETS"].keys():
+            if "relaxed_pdb_path" in config["DATASETS"][dataset]:
+                config["DATASETS"][dataset]["pdb_path"] = config["DATASETS"][dataset]["relaxed_pdb_path"]
+            elif "relaxed_mutated_pdb_path" in config["DATASETS"][dataset]:
+                config["DATASETS"][dataset]["mutated_pdb_path"] = config["DATASETS"][dataset]["relaxed_mutated_pdb_path"]
+
+        config["cleaned_pdbs"] = os.path.join(folder_path, config["RESULTS"]["path"], config["RESULTS"]["cleaned_pdbs"], "relaxed")
 
     return config
 
@@ -47,14 +57,14 @@ def get_data_paths(config: dict, dataset: str) -> Tuple[str, List[str]]:
         str: Path to summary file
         List: Paths to the pdb folders
     """
-    path = os.path.join(config["DATA"]["path"], config["DATA"][dataset]["folder_path"])
-    if "summary" in config["DATA"][dataset]:
-        summary = os.path.join(path, config["DATA"][dataset]["summary"])
+    path = os.path.join(config["DATASETS"]["path"], config["DATASETS"][dataset]["folder_path"])
+    if "summary" in config["DATASETS"][dataset]:
+        summary = os.path.join(path, config["DATASETS"][dataset]["summary"])
     else:
         summary = ""
-    if "pdb_path" in config["DATA"][dataset]:
-        pdb_paths = [os.path.join(path, config["DATA"][dataset]["pdb_path"])]
-    elif "pdb_paths" in config["DATA"][dataset]:
+    if "pdb_path" in config["DATASETS"][dataset]:
+        pdb_paths = [os.path.join(path, config["DATASETS"][dataset]["pdb_path"])]
+    elif "pdb_paths" in config["DATASETS"][dataset]:
         pdb_paths = [os.path.join(path, folder) for folder in config["DATA"][dataset]["pdb_paths"]]
     else:
         pdb_paths = []

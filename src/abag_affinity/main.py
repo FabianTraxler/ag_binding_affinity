@@ -15,8 +15,7 @@ from abag_affinity.train import (bucket_train, cross_validation, model_train,
 training = {
     "bucket_train": bucket_train,
     "pretrain_model": pretrain_model,
-    "model_train": model_train,
-    "cross_validation": cross_validation
+    "model_train": model_train
 }
 
 
@@ -65,9 +64,9 @@ def run_sweep(args: Namespace, logger):
                 else:
                     param_value = config[param]
 
-                if param == "max_num_nodes" and param_value is None and config["aggregation_method"] == "fixed_size":
+                if param == "max_num_nodes" and param_value is None and "aggregation_method" in config and config["aggregation_method"] == "fixed_size":
                     continue # ignore since it is manually overwritten below
-                if param == "node_type" and config["pretrained_model"] in enforced_node_type:
+                if param == "node_type" and "pretrained_model" in config and config["pretrained_model"] in enforced_node_type:
                     continue # ignore since it is manually overwritten below
 
                 args.__dict__[param] = param_value
@@ -77,7 +76,7 @@ def run_sweep(args: Namespace, logger):
                         config["node_type"] = enforced_node_type[config[param]]
 
                 if param == 'aggregation_method':
-                    if param_value == "fixed_size" and config["max_num_nodes"] == "None":
+                    if param_value == "fixed_size" and "max_num_nodes" in config and config["max_num_nodes"] == "None":
                         max_num_nodes_values = [ int(value) for value in args.config["HYPERPARAMETER_SEARCH"]["parameters"]["max_num_nodes"]["values"] if value != "None"]
                         args.max_num_nodes = random.choice(max_num_nodes_values)
                         config["max_num_nodes"] = args.max_num_nodes
@@ -133,7 +132,10 @@ def main() -> Dict:
         run_sweep(args, logger)
     else:
         logger.info(f"Performing {args.train_strategy}")
-        results = training[args.train_strategy](args)
+        if args.cross_validation:
+            results = cross_validation(args)
+        else:
+            results = training[args.train_strategy](args)
 
         return results
 

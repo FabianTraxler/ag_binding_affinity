@@ -13,7 +13,8 @@ class AffinityGNN(torch.nn.Module):
                  num_nodes: int = None,
                  pretrained_model: str = "", pretrained_model_path: str = "",
                  gnn_type: str = "5A-proximity",
-                 layer_type: str = "GAT", num_gnn_layers: int = 3, size_halving: bool = True,
+                 layer_type: str = "GAT", num_gat_heads: int = 3, num_gnn_layers: int = 3,
+                 channel_halving: bool = True, channel_doubling: bool = False,
                  node_type: str = "residue",
                  aggregation_method: str = "sum",
                  nonlinearity: str = "relu",
@@ -30,11 +31,20 @@ class AffinityGNN(torch.nn.Module):
 
         # define GNN Layers
         if gnn_type == "guided":
-            self.graph_conv = GuidedGraphConv(node_feat_dim, edge_feat_dim, node_type, layer_type, num_gnn_layers, size_halving,
-                                             nonlinearity)
+            self.graph_conv = GuidedGraphConv(node_feat_dim=node_feat_dim,
+                                              edge_feat_dim=edge_feat_dim,
+                                              node_type=node_type,
+                                              layer_type=layer_type, num_gat_heads=num_gat_heads,
+                                              num_gnn_layers=num_gnn_layers,
+                                              channel_halving=channel_halving, channel_doubling=channel_doubling,
+                                              nonlinearity=nonlinearity)
         elif "proximity" in gnn_type:
-            self.graph_conv = NaiveGraphConv(node_feat_dim, edge_feat_dim, layer_type, num_gnn_layers, size_halving,
-                                             nonlinearity)
+            self.graph_conv = NaiveGraphConv(node_feat_dim=node_feat_dim,
+                                             edge_feat_dim=edge_feat_dim,
+                                             layer_type=layer_type, num_gat_heads=num_gat_heads,
+                                             num_gnn_layers=num_gnn_layers,
+                                             channel_halving=channel_halving, channel_doubling=channel_doubling,
+                                             nonlinearity=nonlinearity)
         else:
             raise ValueError(f"Invalid gnn_type given: Got {gnn_type} but expected one of ('guided', 'proximity')")
         # define regression head
