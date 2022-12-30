@@ -5,17 +5,18 @@ channels:
   - bioconda
   - defaults
 dependencies:
-  - python=3.8
-  - python-blosc=1.8.3
-  - python_abi=3.8
-  - pip=22.1.2
-  - pyrosetta
+  - python=3.7.12=hf930737_100_cpython
+  - python-blosc=1.8.3=py37hb3f55d8_0
+  - python_abi=3.7=2_cp37m
+  - pip=22.1.2=pyhd8ed1ab_0
+  - pyrosetta=2020.10+release.46415fa=py37_0
   - pip:
-      - pandas==1.5.1
+      - pandas==1.3.5
       - tqdm==4.62.2
       - pyyaml==5.4.1
       - biopython==1.79
       - biopandas
+      - pdb_tools
       - biopython
       - easy-parallel-py3==0.1.6.4
 

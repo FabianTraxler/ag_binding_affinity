@@ -16,6 +16,5 @@ dependencies:
       - tqdm==4.62.2
       - pyyaml==5.4.1
       - biopython==1.79
-      - easy-parallel-py3==0.1.6.4
-      - biopandas==0.4.1
-      - scipy==1.6.3
+      - biopandas
+
