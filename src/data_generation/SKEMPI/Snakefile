@@ -103,7 +103,7 @@ rule relax_mutated:
     resources:
         mem_mb=4000
     script:
-        "scripts/relax.py"
+        "../scripts/relax.py"
 
 
 # use relaxed wiltype for mutation
@@ -117,7 +117,7 @@ rule relax_wildtype:
     resources:
         mem_mb=4000
     script:
-        "scripts/relax.py"
+        "../scripts/relax.py"
 
 
 rule mutate_relaxed_wildtype:
@@ -128,28 +128,6 @@ rule mutate_relaxed_wildtype:
     conda:
         join(project_root,"envs/generation_environment.yml")
     script:
-        "scripts/mutate.py"
+        "../scripts/mutate.py"
 
 
-rule rerelax_mutated:
-    input:
-        join(dataset_results_folder,"relaxed_mutated", "{pdb_id}/{mutation}.pdb")
-    output:
-        join(dataset_results_folder, "relaxed_mutated_relaxed", "{pdb_id}/{mutation}.pdb")
-    conda:
-        join(project_root,"envs/generation_environment.yml")
-    resources:
-        mem_mb=4000
-    script:
-        "scripts/relax.py"
-
-
-rule calculate_change_in_binding_affinity:
-    input:
-
-    output:
-        join(dataset_results_folder, "/skempi_generation_summary.csv")
-    conda:
-        join(project_root,"envs/generation_environment.yml")
-    script:
-        "scripts/calculate_affinity_changes.py"
