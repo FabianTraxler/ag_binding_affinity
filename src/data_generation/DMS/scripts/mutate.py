@@ -24,7 +24,6 @@ if "snakemake" not in globals(): # use fake snakemake object for debugging
     folder_path = os.path.join(project_root, "data/DMS")
 
     publication = "phillips21_bindin"
-    sample_pdb_id = "cr6261_h1newcal99"
 
     snakemake = type('', (), {})()
     snakemake.input = [os.path.join(folder_path, "interface_hull_pdbs", publication, sample_pdb_id + ".pdb")]
@@ -36,7 +35,7 @@ if "snakemake" not in globals(): # use fake snakemake object for debugging
     # limit to 5 mutations
     antibody, antigen = sample_pdb_id.split("_")
     groups = info_df.groupby(["publication", "antibody", "antigen"]).groups
-    info_df = info_df.iloc[groups[(publication, antibody, antigen)]][:100].reset_index()
+    #info_df = info_df.iloc[groups[(publication, antibody, antigen)]][:100].reset_index()
 
     snakemake.params["info_df"] = info_df
     snakemake.params["mutation_out_folder"] = folder_path + "/mutated"
@@ -84,7 +83,7 @@ def load_pose(pdb_path: str) -> pyrosetta.Pose:
 
 
 def convert_mutations(mutation_code: str):
-    if len(mutation_code) == 0 or mutation_code == "original":
+    if len(mutation_code) == 0 or mutation_code == "original" or mutation_code == "WT":
         return []
 
     mutation_codes = mutation_code.split(";")
@@ -114,7 +113,7 @@ def mutate(pose: Pose, mutations: List[Dict]) -> str:
         original_residue_name = original_residue.name()
 
         # check if mutation is correct
-        assert three2one_code[original_residue_name.upper()] == mutation["original_amino_acid"], \
+        assert three2one_code[original_residue_name.upper()[:3]] == mutation["original_amino_acid"], \
             f"Residue {mutation['original_amino_acid']} at chain {mutation['chain']} and index {mutation['index']} is " \
             f"different from found residue {three2one_code[original_residue.upper()]}"
 
@@ -134,9 +133,8 @@ def perform_mutation(mutation_code: str):
     try:
         pose = pyrosetta.Pose()
         pose.detached_copy(original_pose)
-
-        if not isinstance(mutation_code, str) and np.isnan(mutation_code):
-            mutation_code = "original"
+        if mutation_code == "original" or mutation_code == "WT" or (not isinstance(mutation_code, str) and np.isnan(mutation_code)):
+            mutation_code = "WT"
             pdb_out_path = os.path.join(mutated_pdb_folder, mutation_code + ".pdb")
             performed_mutations = []
         else:
@@ -160,6 +158,8 @@ def perform_mutation(mutation_code: str):
 
 
 def get_existing_mutations(existing_mutations: set, given_mutations: str):
+    if not isinstance(given_mutations, str):
+        return ""
     mutations = given_mutations.split(";")
 
     remaining_mutations = []
@@ -186,6 +186,7 @@ Path(mutated_pdb_folder).mkdir(parents=True, exist_ok=True)
 if os.path.exists(file_path.replace("interface_hull_pdbs", "prepared_pdbs").replace(".pdb", ".err")):
     # do not perform mutations if data generation process has thrown an error
     results = []
+    mutation_mapping = {}
 else:
     info_df = snakemake.params["info_df"]
     groups = info_df.groupby(["publication", "antibody", "antigen"]).groups
@@ -195,7 +196,9 @@ else:
 
     all_resi = set()
     for mutation in mutations:
-        all_resi.update([mut[1:-1] for mut in mutation.split(";")])
+        if not isinstance(mutation, str):
+            continue
+        all_resi.update([mut[1:-1] for mut in mutation.split(";") if mut != "WT" and isinstance(mut, str)])
 
     existing_resi = set()
     for resi in all_resi:
@@ -211,31 +214,43 @@ else:
 
     mutations2perform = info_df.iloc[groups[(publication, antibody, antigen)]]["mutation_code"].apply(lambda x: get_existing_mutations(existing_resi, x)).values.tolist()
 
+    mutation_mapping = { mut: performed for mut, performed in zip(info_df.iloc[groups[(publication, antibody, antigen)]]["mutation_code"].tolist(), mutations2perform)}
+
+    mutations2perform.append("WT") # add original pdb without mutation
+    mutations.append("WT") # add original pdb without mutation
+
     # skip existing mutations
     existing_mutations = set( [ code.split(".")[0] for code in os.listdir(mutated_pdb_folder) ])
     #existing_mutations = set()
 
-    print(len(existing_mutations))
-    print(len(mutations2perform))
+    #print(len(existing_mutations))
+    #print(len(mutations2perform))
 
     mutations = [(mutation_code, ) for mutation_code, mutation2perform in zip(mutations, mutations2perform) if mutation2perform not in existing_mutations]
-    print(len(mutations))
+    #print(len(mutations))
 
     print(f"Performing {len(mutations)} mutations with {snakemake.threads} number of threads")
 
     results = submit_jobs(perform_mutation, mutations, snakemake.threads)
     #results = Parallel(n_jobs=snakemake.threads)(delayed(perform_mutation)(mutation) for mutation in tqdm(mutations))
 
-mutation_mapping = {}
+all_mutations = set(mutation_mapping.keys())
+
 with open(log_path, "w") as f:
     f.write("mutation_code,performed_mutations,status,error_msg\n")
-    for result in results:
-        error, error_msg, mutation_code, performed_mutations = result
-        mutation_mapping[mutation_code] = performed_mutations
-        if error:
-            f.write(f"{mutation_code},{performed_mutations},error,{error_msg}\n")
-        else:
-            f.write(f"{mutation_code},{performed_mutations},processed,\n")
+    if results is not None:
+        for result in results:
+            error, error_msg, mutation_code, performed_mutations = result
+            mutation_mapping[mutation_code] = performed_mutations
+            if error:
+                f.write(f"{mutation_code},{performed_mutations},error,{error_msg}\n")
+            else:
+                f.write(f"{mutation_code},{performed_mutations},processed,\n")
+            if mutation_code in all_mutations:
+                all_mutations.remove(mutation_code)
+
+    for mutation_code in all_mutations:
+        f.write(f"{mutation_code},{mutation_mapping[mutation_code]},already_processed,\n")
 
 with open(mutation_mapping_path, "w") as f:
     json.dump(mutation_mapping, f)

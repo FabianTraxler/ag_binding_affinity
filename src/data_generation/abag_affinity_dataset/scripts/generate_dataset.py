@@ -8,7 +8,7 @@ from biopandas.pdb import PandasPdb
 from tqdm import tqdm
 import shutil
 
-np.random.seed(111)
+np.random.seed(123456)
 tqdm.pandas()
 
 

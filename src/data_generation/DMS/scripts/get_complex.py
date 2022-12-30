@@ -1,5 +1,6 @@
 # Inspiration from PyRosetta tutorial notebooks
 # https://nbviewer.org/github/RosettaCommons/PyRosetta.notebooks/blob/master/notebooks/06.08-Point-Mutation-Scan.ipynb
+import sys
 from pathlib import Path
 from typing import Dict, List, Tuple
 import pyrosetta
@@ -14,6 +15,7 @@ import os
 import yaml
 import tarfile
 import shutil
+import subprocess
 
 
 three2one_code = {'CYS': 'C', 'ASP': 'D', 'SER': 'S', 'GLN': 'Q', 'LYS': 'K',
@@ -26,7 +28,7 @@ if "snakemake" not in globals(): # use fake snakemake object for debugging
     project_root = (Path(__file__).parents[4]).resolve()
     out_folder = os.path.join(project_root, "data/DMS/")
 
-    complexes = [("wu17_in","c05", "h3perth09")] #("starr21_prosp_covid","lycov016", "cov2rbd")
+    complexes = [("wu17_in","c05", "h1solisl06")]#[("madan21_mutat_hiv","vfp1602", "fp8v1")] #("starr21_prosp_covid","lycov016", "cov2rbd")
 
     file = out_folder + "prepared_pdbs/{}/{}_{}.pdb"
 
@@ -60,38 +62,58 @@ def get_complex_metadata(publication:str, antibody: str, antigen: str, metadata:
     raise RuntimeError(f"Complex not found in Metadata: {publication}, {antibody}, {antigen}")
 
 
-def load_large_file(pdb_id: str):
-    filename = PDBList().retrieve_pdb_file(pdb_id, pdir="./download", file_format="bundle")
+def load_large_file(pdb_id: str, download_fodler: str):
+    filename = PDBList().retrieve_pdb_file(pdb_id, pdir=download_fodler, file_format="bundle")
     tar_file = tarfile.open(filename)
-    tar_file.extractall(path=f"./download/{pdb_id}")
+    tar_file.extractall(path=f"./{download_fodler}/{pdb_id}")
     tar_file.close()
     complete_file = ""
     i = 1
-    filename_part = f"./download/{pdb_id}/{pdb_id}-pdb-bundle{i}.pdb"
+    filename_part = f"./{download_fodler}/{pdb_id}/{pdb_id}-pdb-bundle{i}.pdb"
     while os.path.exists(filename_part):
         with open(filename_part) as f:
             complete_file += f.read()
 
         i += 1
-        filename_part = f"./download/{pdb_id}/{pdb_id}-pdb-bundle{i}.pdb"
+        filename_part = f"./{download_fodler}/{pdb_id}/{pdb_id}-pdb-bundle{i}.pdb"
 
-    shutil.rmtree(f"./download/{pdb_id}")
+    shutil.rmtree(f"./{download_fodler}")
 
-    filename = f"./download/{pdb_id}.pdb"
+    filename = f"./{download_fodler}.pdb"
     with open(filename, "w") as f:
         f.write(complete_file)
 
     return filename
 
+
+def clean_tidy_pdb(pdb_file: str, out_file: str):
+    # Clean temporary PDB file and then save its cleaned version as the original PDB file
+    # retry 3 times because these commands sometimes do not properly write to disc
+    retries = 0
+    while not os.path.exists(out_file):
+        command = f'pdb_sort "{pdb_file}" | pdb_tidy | pdb_fixinsert | pdb_delhetatm > "{out_file}"'
+        print(command)
+        subprocess.run(command, shell=True)
+        retries += 1
+        if retries >= 3:
+            raise RuntimeError(f"Error in PDB Utils commands to clean PDB {out_file}")
+
+    return out_file
+
+
+
 def get_pdb(publication:str, antibody: str, antigen: str, metadata: Dict, project_root: str) -> Tuple[pyrosetta.Pose, str]:
     complex_metadata = get_complex_metadata(publication, antibody, antigen, metadata)
+    #keep_chains = complex_metadata["chains"]["antibody"] + complex_metadata["chains"]["antigen"]
     if "id" in complex_metadata:
         # load file from Protein Data Bank and perform mutations
         filename = PDBList().retrieve_pdb_file(complex_metadata["id"], file_format="pdb")
         if not os.path.exists(filename): # download did not work in pdb Format
-            filename = load_large_file(complex_metadata["id"].lower())
+            filename = load_large_file(complex_metadata["id"].lower(), f"{publication}:{antibody}:{antigen}")
         # remove irrelevant chains
-        pose = remove_chains(filename, complex_metadata["chains"])
+        #filename = clean_tidy_pdb(filename, keep_chains)
+        filename = remove_chains(filename, complex_metadata["chains"])
+        pose = load_pose(filename)
         mutations = ""
         if "mutations" in complex_metadata:
             mutations = complex_metadata["mutations"]
@@ -99,6 +121,7 @@ def get_pdb(publication:str, antibody: str, antigen: str, metadata: Dict, projec
     elif "file" in complex_metadata:
         # load pdb from disc and return
         filepath = os.path.join(project_root, complex_metadata["file"])
+        #filename = clean_tidy_pdb(filepath, keep_chains)
         pose = load_pose(filepath)
 
         return pose, ""
@@ -134,8 +157,7 @@ def remove_chains(filename: str, keep_chains: Dict) -> Pose:
     io.save(filename, ModelSelect())
 
     pose = load_pose(filename)
-    if os.path.exists(filename):
-        os.remove(filename)
+
     return pose
 
 
@@ -157,7 +179,7 @@ def load_pose_without_header(pdb_path: str):
 
     pose = pyrosetta.pose_from_pdb(new_path)
 
-    os.remove(new_path)
+    #os.remove(new_path)
 
     return pose
 
@@ -194,25 +216,26 @@ def convert_mutations(mutation_code: str):
 
 def mutate(pose: Pose, mutations: List[Dict]):
     errors = []
+    warnings = []
     for mutation in mutations:
         original_residue = pose.pdb_rsd((mutation["chain"], mutation["index"]))
         if original_residue is None:
-            errors.append(f"Residue in chain {mutation['chain']} at index {mutation['index']} not found")
+            warnings.append(f"Residue in chain {mutation['chain']} at index {mutation['index']} not found")
             continue
         original_residue_name = original_residue.name()
-        if original_residue_name.upper() not in three2one_code:
+        if original_residue_name.upper()[:3] not in three2one_code:
             # check if mutation is correct
             errors.append(f"Residue name in chain {mutation['chain']} at index {mutation['index']} with name "
                           f"{original_residue_name.upper()} cannot be converted to one-letter-code")
             continue
-        if three2one_code[original_residue_name.upper()] != mutation["original_amino_acid"]:
+        if three2one_code[original_residue_name.upper()[:3]] != mutation["original_amino_acid"]:
             # check if mutation is correct
             errors.append(f"Original residue in chain {mutation['chain']} at index {mutation['index']} does not match "
-                          f"found residue {three2one_code[original_residue_name.upper()]} != {mutation['original_amino_acid']}")
+                          f"found residue {three2one_code[original_residue_name.upper()[:3]]} != {mutation['original_amino_acid']}")
             continue
 
         mutate_residue(pose, pose.pdb_info().pdb2pose(mutation["chain"], mutation["index"]), mutation["new_amino_acid"], pack_radius=10, pack_scorefxn=pyrosetta.get_fa_scorefxn())
-    return errors
+    return errors, warnings
 
 out_path = snakemake.output[0]
 Path(out_path).parent.mkdir(parents=True, exist_ok=True)
@@ -232,11 +255,12 @@ project_root = snakemake.params["project_root"]
 pose, mutation_code = get_pdb(publication, antibody, antigen, metadata, project_root)
 
 errors = []
+warnings= []
 
 if mutation_code != "": # mutate and relax
     # mutation
     decoded_mutation = convert_mutations(mutation_code)
-    errors = mutate(pose, decoded_mutation)
+    errors, warnings = mutate(pose, decoded_mutation)
 
     if len(errors) == 0:
         # only relax pose if there are no errors before
@@ -245,5 +269,11 @@ if mutation_code != "": # mutate and relax
 if len(errors) > 0:
     with open(out_path.replace(".pdb", ".err"), "w") as f:
         f.write("\n".join(errors))
+
+if len(warnings) > 0:
+    with open(out_path.replace(".pdb", ".warn"), "w") as f:
+        f.write("\n".join(warnings))
 # save to disc to let snakemake process continue
-dump_comment_pdb(out_path, pose)
+dump_comment_pdb(out_path + ".tmp", pose)
+clean_tidy_pdb(out_path + ".tmp", out_path)
+

@@ -83,6 +83,5 @@ rule relax_structures:
         join(dataset_results_folder, "pdbs_relaxed/{pdb_id}.pdb")
     conda:
         join(project_root, "envs/generation_environment.yml")
-    threads: 10
     script:
         "../scripts/relax.py"

@@ -1,5 +1,6 @@
 import os.path
 import pandas as pd
+from collections import defaultdict
 from pathlib import Path
 
 INTERFACE_SIZE = 5
@@ -7,24 +8,34 @@ INTERFACE_HULL_SIZE = 10
 
 
 project_root = Path(workflow.basedir).parents[2] # two directories above - absolute paths not working
-out_folder = os.path.join(project_root, "data/DMS/")
+out_folder = os.path.join(project_root, "results/DMS/")
 
 metadata_file = os.path.join(project_root, "data/metadata_dms_studies.yaml")
-dms_out_summary_file = os.path.join(project_root, "data/DMS/dms_infos.csv")
+dms_out_summary_file = os.path.join(project_root, "results/DMS/dms_infos.csv")
 
 dms_info_file = os.path.join(project_root, "data/DMS/dms_curated.csv")
 info_df = pd.read_csv(dms_info_file)
 
-# filter mason21 data
+# filter  data
 #info_df = info_df[info_df["publication"].str[:7] != "mason21"]
-#info_df = info_df[info_df["publication"].isin(["wu17_in"])]
+info_df = info_df[~info_df["publication"].isin(["taft22_deep_mutat_learn_predic_ace2"])]
+#info_df = info_df[info_df["antibody"].isin(["regn10933"])]
+info_df = info_df.reset_index(drop=True)
 
 complexes = info_df.groupby(["publication", "antibody", "antigen"]).groups.keys()
 publications, antibodies, antigens = list(zip(*complexes))
 
+publication2antibodies = defaultdict(list)
+publication2antigens = defaultdict(list)
+
+for publication, antibody, antigen in zip(publications, antibodies, antigens):
+    publication2antibodies[publication] = antibody
+    publication2antigens[publication] = antigen
+
+
 rule all:
     input:
-        dms_out_summary_file
+        expand(out_folder + "{publication}.csv", publication=publications)
 
 rule get_complex:
     output:
@@ -32,8 +43,8 @@ rule get_complex:
     params:
         metadata_file=metadata_file,
         project_root=project_root
-    conda: "../../../envs/rosetta_environment.yml"
-    threads: 5
+    conda: "../../../envs/generation_environment.yml"
+    threads: 50
     script: "scripts/get_complex.py"
 
 rule reduce2interface_hull:
@@ -46,7 +57,7 @@ rule reduce2interface_hull:
         project_root=project_root,
         interface_size=INTERFACE_SIZE,
         interface_hull_size=INTERFACE_HULL_SIZE
-    conda: "../../../envs/rosetta_environment.yml"
+    conda: "../../../envs/generation_environment.yml"
     resources:
         mem_mb=50000
     script: "scripts/reduce2interface_hull.py"
@@ -59,7 +70,7 @@ rule mutate_complex:
         out_folder + "mutated/{publication}/{antibody}_{antigen}.logs",
         out_folder + "mutated/{publication}/{antibody}_{antigen}.json"
         #out_folder + "mutated/{publication}/{antibody}_{antigen}/{mutation_code}.pdb"
-    conda: "../../../envs/rosetta_environment.yml"
+    conda: "../../../envs/generation_environment.yml"
     resources:
         mem_mb=50000
     threads: 100
@@ -71,14 +82,10 @@ rule mutate_complex:
 
 rule generate_summary_df:
     input:
-        expand(out_folder + "mutated/{publication}/{antibody}_{antigen}.logs", zip,
-            publication=publications,
-            antibody=antibodies,
-            antigen=antigens
-        )
+        expand(out_folder + "mutated/{publication}/{antibody}_{antigen}.logs", zip, antibody=publication2antibodies[publication], antigen=publication2antigens[publication])
     output:
-        dms_out_summary_file
-    conda: "../../../envs/rosetta_environment.yml"
+        out_folder + "{publication}.csv"
+    conda: "../../../envs/generation_environment.yml"
     resources:
         mem_mb=10000
     params:

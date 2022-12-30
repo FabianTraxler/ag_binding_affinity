@@ -10,9 +10,17 @@ from typing import Dict
 
 if "snakemake" not in globals(): # use fake snakemake object for debugging
     project_root = (Path(__file__).parents[4]).resolve()
-    out_folder = os.path.join(project_root, "data/DMS/")
+    out_folder = os.path.join(project_root, "results/DMS/")
 
-    complexes = [("phillips21_bindin","cr9114", "h1newcal99")] #("starr21_prosp_covid","lycov016", "cov2rbd")
+    publication = "phillips21_bindin"
+    complexes = [("phillips21_bindin","cr9114", "h1newcal99"),
+                 ("phillips21_bindin","cr6261", "h1newcal99"),
+                 ("phillips21_bindin","cr9114", "h5ohio05"),
+                 ("phillips21_bindin","cr9114", "h1wiscon05"),
+                 ("phillips21_bindin","cr6261", "h9hk99")] #("starr21_prosp_covid","lycov016", "cov2rbd")
+
+    #publication = "mason21_optim_therap_antib_by_predic_dms_H"
+    #complexes = [("mason21_optim_therap_antib_by_predic_dms_H","trastuzumab", "her2")] #("starr21_prosp_covid","lycov016", "cov2rbd")
 
     file = out_folder + "mutated/{}/{}_{}.logs"
 
@@ -21,7 +29,7 @@ if "snakemake" not in globals(): # use fake snakemake object for debugging
 
     snakemake = type('', (), {})()
     snakemake.input = [file.format(complex, antibody, antigen) for (complex, antibody, antigen) in complexes ]
-    snakemake.output = [os.path.join(out_folder, "dms_infos.csv")]
+    snakemake.output = [os.path.join(out_folder, f"{publication}.csv")]
     snakemake.params = {}
     dms_info_file = os.path.join(project_root, "data/DMS/dms_curated.csv")
     info_df = pd.read_csv(dms_info_file)
@@ -31,6 +39,8 @@ if "snakemake" not in globals(): # use fake snakemake object for debugging
 
 
 def get_complex_metadata(publication:str, antibody: str, antigen: str, metadata: Dict) -> Dict:
+    if "mason21" in publication:
+        publication = "mason21_optim_therap_antib_by_predic"
     publication_data = metadata[publication]
     for complex in publication_data["complexes"]:
         if complex["antigen"]["name"] == antigen and complex["antibody"]["name"] == antibody:
@@ -65,9 +75,6 @@ def get_extended_df(complex_log: str, full_df: pd.DataFrame):
     antibody, antigen = path_components[-1].split(".")[0].split("_")
     publication = path_components[-2]
 
-    if "mason21" in publication:
-        publication = "mason21_optim_therap_antib_by_predic"
-
     mutation_mapping_path = complex_log.replace(".logs", ".json")
     with open(mutation_mapping_path) as f:
         mutation_mapping = json.load(f)
@@ -86,6 +93,8 @@ def get_extended_df(complex_log: str, full_df: pd.DataFrame):
     complex_metadata = get_complex_metadata(publication, antibody, antigen, metadata)
     chain_infos = get_chain_infos(complex_metadata)
     complex_df["chain_infos"] = str(chain_infos)
+
+    complex_df["mutation_code"] = complex_df["mutation_code"].fillna("original")
 
     complex_df["filename"] = complex_df.apply(lambda row:
                                               os.path.join(row["publication"],
@@ -108,6 +117,8 @@ def get_extended_df(complex_log: str, full_df: pd.DataFrame):
 out_path = snakemake.output[0]
 Path(out_path).parent.mkdir(parents=True, exist_ok=True)
 
+publication = ".".join(os.path.split(out_path)[1].split(".")[:-1])
+
 with open(snakemake.params["metadata_file"]) as f:
     metadata = yaml.safe_load(f)
 
@@ -121,9 +132,12 @@ data_df["pdb"] = data_df.apply(lambda row: ":".join([row["publication"], row["an
 all_dataset_slices = []
 
 for complex_log in snakemake.input:
-    complex_df = get_extended_df(complex_log, data_df)
-    all_dataset_slices.append(complex_df)
+    if publication in complex_log:
+        complex_df = get_extended_df(complex_log, data_df)
+        all_dataset_slices.append(complex_df)
 
 final_df = pd.concat(all_dataset_slices)
+
+final_df = final_df[~final_df.index.duplicated(keep='first')]
 
 final_df.to_csv(out_path)

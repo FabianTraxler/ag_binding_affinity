@@ -19,10 +19,10 @@ if "snakemake" not in globals(): # use fake snakemake object for debugging
     import pandas as pd
 
     project_root =  "../../../../" # three directories above
-    folder_path = os.path.join(project_root, "data/DMS")
+    folder_path = os.path.join(project_root, "results/DMS")
 
     publication = "madan21_mutat_hiv"
-    sample_pdb_id = "vfp1602_fp8v2"
+    sample_pdb_id = "vfp1602_fp8v1"
 
     snakemake = type('', (), {})()
     snakemake.input = [os.path.join(folder_path, "prepared_pdbs", publication, sample_pdb_id + ".pdb")]
@@ -80,7 +80,7 @@ def reduce2interface_hull(pdb_filepath: str, out_path: str,
     pdb = PandasPdb().read_pdb(pdb_filepath)
     atom_df = pdb.df['ATOM']
 
-    atom_df["chain_id"] = atom_df["chain_id"].str.upper()
+    #atom_df["chain_id"] = atom_df["chain_id"].str.upper()
 
     # calcualte distances
     coords = atom_df[["x_coord", "y_coord", "z_coord"]].to_numpy()
