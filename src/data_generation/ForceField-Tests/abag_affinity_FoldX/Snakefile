@@ -15,7 +15,7 @@ pdb_path = os.path.join(dataset_results_folder, "pdbs")
 pdb_files = os.listdir(pdb_path)
 pdb_ids = [ pdb_file.split(".")[0] for pdb_file in pdb_files ]
 
-out_folder = join(dataset_results_folder, "force_field_tests", "FoldX")
+out_folder = join(results_folder, "force_field_tests", "abag_affinity", "FoldX")
 
 
 rule all:
@@ -39,5 +39,5 @@ rule aggregate_results:
     input: expand(out_folder + "/Summary_{pdb_id}_AC.fxout", pdb_id=pdb_ids),
     output:
         join(out_folder, "foldx_results.csv")
-    conda: join(project_root, "envs", "rosetta_environment.yml")
+    conda:  join(project_root, "envs", "generation_environment.yml")
     script: "scripts/aggregate_energy_results.py"

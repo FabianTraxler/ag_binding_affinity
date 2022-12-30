@@ -1,52 +1,66 @@
-import os
-import pandas as pd
-from abag_affinity.utils.config import read_config, get_resources_paths, get_data_paths
+"""This pipeline assumes that the files of the antibody benchmark are already downloaded"""
 
-config = read_config("../../config.yaml")
-benchmark_df_path, pdb_path = get_resources_paths(config, "AntibodyBenchmark")
+from pathlib import Path
+from os.path import join
+import pandas as pd
+
+DATASET_NAME = "antibody_benchmark"
+
+project_root = Path(workflow.basedir).parents[3] # two directories above - absolute paths not working
+resource_folder = join(project_root, "resources")
+results_folder = join(project_root, "results")
+
+dataset_resource_folder = join(resource_folder, DATASET_NAME)
+dataset_results_folder = join(results_folder, DATASET_NAME)
+
+pdb_folder = join(dataset_resource_folder, "pdbs")
+
+relaxed_pdbs = join(dataset_results_folder, "force_field_tests", "ab_benchmark", "pdbs_relaxed")
+unrelaxed_pdbs = join(dataset_results_folder, "force_field_tests", "ab_benchmark", "pdbs_unrelaxed")
+benchmark_scores_path = join(dataset_results_folder, "force_field_tests", "ab_benchmark", "rosetta_benchmark_scores.csv")
+
+benchmark_df_path = join(dataset_resource_folder, "antibody_benchmark_cases.xlsx")
 df = pd.read_excel(benchmark_df_path)
 
 pdb_ids = set([ complex_id.split("_")[0] for complex_id in df["Complex PDB"].values ])
-pdb_ids.remove("3EOA") # this file cannot be parsed with pyrosetta
 
-benchmark_data_path = os.path.join(config["DATA"]["path"], config["DATA"]["AntibodyBenchmark"]["folder_path"])
-benchmark_scores_path, relaxed_pdbs = get_data_paths(config, "AntibodyBenchmark")
 
-relaxed_pdbs = relaxed_pdbs[0]
-unrelaxed_pdbs = relaxed_pdbs[1]
-
-rule final_output:
+rule all:
     input:
         benchmark_scores_path
 
+
 rule bind_relax_bound:
     input:
-        pdb_path + "/{pdb_id}_r_b.pdb",
-        pdb_path + "/{pdb_id}_l_b.pdb"
+        pdb_folder + "/{pdb_id}_r_b.pdb",
+        pdb_folder + "/{pdb_id}_l_b.pdb"
     output:
         relaxed_pdbs + "/{pdb_id}_b.pdb",
         unrelaxed_pdbs + "/{pdb_id}_b.pdb",
 
-    conda: "../../envs/rosetta_environment.yml"
+    conda: join(project_root, "envs", "generation_environment.yml")
     script: "scripts/bind_relax_bound.py"
+
 
 rule relax_unbound_ligand:
     input:
-        pdb_path + "/{pdb_id}_l_u.pdb"
+        pdb_folder + "/{pdb_id}_l_u.pdb"
     output:
         relaxed_pdbs + "/{pdb_id}_l_u.pdb",
         unrelaxed_pdbs + "/{pdb_id}_l_u.pdb",
-    conda: "../../envs/rosetta_environment.yml"
+    conda: join(project_root, "envs", "generation_environment.yml")
     script: "scripts/relax_unbound.py"
+
 
 rule relax_unbound_receptor:
     input:
-        pdb_path + "/{pdb_id}_r_u.pdb",
+        pdb_folder + "/{pdb_id}_r_u.pdb",
     output:
         relaxed_pdbs + "/{pdb_id}_r_u.pdb",
         unrelaxed_pdbs+ "/{pdb_id}_r_u.pdb",
-    conda: "../../envs/rosetta_environment.yml"
+    conda: join(project_root, "envs", "generation_environment.yml")
     script: "scripts/relax_unbound.py"
+
 
 rule score:
     input:
@@ -62,5 +76,5 @@ rule score:
         pdb_ids=pdb_ids,
         relaxed_pdb_path=relaxed_pdbs,
         unrelaxed_pdb_path=unrelaxed_pdbs
-    conda: "../../envs/rosetta_environment.yml"
+    conda: join(project_root, "envs", "generation_environment.yml")
     script: "scripts/score.py"

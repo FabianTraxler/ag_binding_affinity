@@ -1,0 +1,44 @@
+from os.path import join
+import os
+from pathlib import Path
+
+DATASET_NAME = "antibody_benchmark"
+
+ROSETTA_DIR = "~/rosetta/rosetta_bin_linux_2017.29.59598_bundle"
+
+project_root = Path(workflow.basedir).parents[4] # two directories above - absolute paths not working
+resource_folder = join(project_root, "resources")
+results_folder = join(project_root, "results")
+
+dataset_resource_folder = join(resource_folder, DATASET_NAME)
+dataset_results_folder = join(results_folder, DATASET_NAME)
+
+pdb_path = os.path.join(dataset_results_folder, "pdbs_bound")
+benchmark_df = os.path.join(dataset_results_folder, "benchmark.csv")
+out_folder = join(results_folder, "force_field_tests", "guest_REF15", DATASET_NAME)
+
+rule all:
+    input:
+        join(out_folder, "results.txt")
+
+rule get_data_points:
+    input:
+        benchmark_df
+    output:
+        join(out_folder, "data_points.txt")
+    params:
+        pdb_path=pdb_path
+    conda: join(project_root, "envs", "generation_environment.yml")
+    script: "../scripts/get_data_points.py"
+
+rule get_scores:
+    input:
+        pdb_path,
+        join(out_folder, "data_points.txt")
+    output:
+        join(out_folder, "results.txt")
+    conda: join(project_root, "envs", "generation_environment.yml")
+    params:
+        rosetta_dir=ROSETTA_DIR
+    shell:
+        "../scripts/get_scores.sh {input} {params.rosetta_dir} > {output}"

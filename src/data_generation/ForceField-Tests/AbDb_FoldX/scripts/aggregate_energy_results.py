@@ -7,7 +7,7 @@ import os
 
 
 if "snakemake" not in globals(): # use fake snakemake object for debugging
-    out_folder = "/msc/home/ftraxl96/projects/ag_binding_affinity/data/AbDb/FoldX_results"
+    out_folder = "/msc/home/ftraxl96/projects/ag_binding_affinity/data/AbDb_REF15/FoldX_results"
     all_pdb_ids = ["6B0S_1"]
 
     snakemake = type('', (), {})()

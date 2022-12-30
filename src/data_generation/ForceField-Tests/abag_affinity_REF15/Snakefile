@@ -15,10 +15,10 @@ pdb_path = os.path.join(dataset_results_folder, "pdbs")
 pdb_files = os.listdir(pdb_path)
 pdb_ids = [ pdb_file.split(".")[0] for pdb_file in pdb_files ]
 
-out_folder = join(dataset_results_folder, "force_field_tests", "REF15")
+out_folder = join(results_folder, "force_field_tests", "abag_affinity", "REF15")
 
 
-rule final_output:
+rule all:
     input:
         join(out_folder, "abag_affinity_summary.csv")
 

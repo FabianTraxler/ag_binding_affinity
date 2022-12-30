@@ -12,7 +12,7 @@ from pyrosetta.rosetta.protocols import docking, rigid
 from tqdm import tqdm
 
 # init logger
-logger = logging.getLogger("AbDb-Affinity-Generation")
+logger = logging.getLogger("AbDb_REF15-Affinity-Generation")
 logger.setLevel(logging.DEBUG)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 log_file = logging.FileHandler("logs/data_generation_scripts.log")
@@ -61,7 +61,7 @@ def unbind(pose, partners):
 
 
 def calculate_affinities(config: Dict):
-    summary_path, pdb_folder = get_data_paths(config, "AbDb")
+    summary_path, pdb_folder = get_data_paths(config, "AbDb_REF15")
     summary_df = pd.read_csv(summary_path)
 
     relax, scorefxn = load_relax_and_score_function()
