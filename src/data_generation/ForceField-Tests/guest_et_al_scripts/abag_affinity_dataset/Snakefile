@@ -43,4 +43,4 @@ rule get_scores:
     params:
         rosetta_dir=ROSETTA_DIR
     shell:
-        "../scripts/get_scores.sh {input} > {output}"
+        "../scripts/get_scores.sh {input} {params.rosetta_dir} > {output}"
