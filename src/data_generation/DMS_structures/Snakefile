@@ -1,21 +1,35 @@
 import glob
 
-# several things to do:
-# [X] test the other fasta's I tried before 
-# [X] check the templates
-# try to manually provide the templates!
-# [X] run 4 processes in parallel
 
-rule all:  # TODO scores
+rule all:
     input:
         # all
         # [d.replace('input_pdb', 'output_pdb').replace('.pdb', f'_{i}.pdb') for d in glob.glob('input_pdb/*/*.pdb') for i in range(1, 6)]
         # scores
-        [d.replace('input_pdb', 'scores').replace('.pdb', f'_{i}.score') for d in glob.glob('input_pdb/*/*.pdb') for i in range(1, 6)]
+        'scores/all.csv'
         # scores/{publication}/{complex}_{rank}.score
 
         # [d.replace('input_pdb', 'output_pdb') for d in glob.glob('input_pdb/*/*.pdb')]
         # [d.replace('input_pdb', 'input_fasta').replace('.pdb', '.fasta') for d in glob.glob('input_pdb/*/*.pdb')]
+
+rule import_manual_complexes:  # call this to manually import structures (TODO just copy the prepared PDBs from fabian)
+    # /msc/home/ftraxl96/projects/ag_binding_affinity/results/DMS/prepared_pdbs
+
+rule import_mutations:  # call this manually using snakemake to import mutations into PDB
+    output:
+        wu17_5umn='input_pdb/wu17_in/c05_h3perth09:5UMN_VPGSGW_clean.pdb',
+        madan21_6wwc='input_pdb/madan21_mutat_hiv/vfp1602_fp8v1:6WWC_S48K_clean.pdb',
+        madan21_6wx2='input_pdb/madan21_mutat_hiv/vfp1602_fp8v1:6WX2_F60P_clean.pdb',
+        # wu20_6np='input_pdb/wu20_differ_ha_h3_h1/cr9114_h3hk68/'
+    shell: '''
+        pdb_fetch 5UMN | pdb_tidy | pdb_selchain -A,E,F | pdb_fixinsert | pdb_delhetatm | pdb_seg | pdb_chainbows > {output.wu17_5umn}
+        pdb_fetch 6WWC | pdb_tidy | pdb_selchain -A,B,C | pdb_fixinsert | pdb_delhetatm | pdb_seg | pdb_chainbows > {output.madan21_6wwc}
+        pdb_fetch 6WX2 | pdb_tidy | pdb_selchain -A,B,C | pdb_fixinsert | pdb_delhetatm | pdb_seg | pdb_chainbows > {output.madan21_6wx2}
+    '''
+    # pdb_fetch 6NHP | pdb_tidy | pdb_selchain -TODO | pdb_fixinsert | pdb_delhetatm | pdb_seg | pdb_chainbows > {output.wu20_6nhp}
+    # pdb_fetch 6NHQ | pdb_tidy | pdb_selchain -TODO | pdb_fixinsert | pdb_delhetatm | pdb_seg | pdb_chainbows > {output.wu20_6nhq}
+    # pdb_fetch 6NHR | pdb_tidy | pdb_selchain -TODO | pdb_fixinsert | pdb_delhetatm | pdb_seg | pdb_chainbows > {output.wu20_6nhr}
+
 
 rule input_pdb_to_fasta:
     input:
@@ -33,37 +47,48 @@ rule input_pdb_to_fasta:
                 fasta_file.write(str(record.seq))
 
 rule get_template:
+    """
+    if complex contains :, trim it (to allow for mutations)
+    """
     input:
         'metadata_dms_studies.yaml'
     output:
         directory('templates/{publication}/{complex}/')
     run:
-        import yaml, subprocess
+        import yaml, subprocess, random
         with open(input[0]) as f:
             if wildcards.publication.startswith('mason21_'):
                 publication = yaml.safe_load(f.read())['mason21_optim_therap_antib_by_predic']
             else:
                 publication = yaml.safe_load(f.read())[wildcards.publication]
+        target_complex = wildcards.complex.split(':')[0]
         for complex in publication['complexes']:
-            if complex['antibody']['name'] == wildcards.complex.split('_')[0] and complex['antigen']['name'] == wildcards.complex.split('_')[1]:
+            if complex['antibody']['name'] == target_complex.split('_')[0] and complex['antigen']['name'] == target_complex.split('_')[1]:
                 break
         else:
-            raise ValueError(f'{wildcards.complex.split("_")} does not exist in metadata for publication {wildcards.publication}')
+            raise ValueError(f'{target_complex.split("_")} does not exist in metadata for publication {wildcards.publication}')
 
         key = 'template' if 'template' in complex else 'pdb'
 
         pdb_id = complex[key]['id'].lower()
         chains = ','.join(complex[key]['chains']['antigen'] + complex[key]['chains']['antibody'])
-        print(pdb_id)
         # TODO use pdb_fetch {pdb_id} --output {pdb_id}.unprep --add-atoms=none --replace-nonstandard <- if they become an issue
-        subprocess.run(f'''mkdir {output[0]} && pdb_fetch {pdb_id} | \
-            pdb_sort | \
+        tmp_id = random.randint(0, 1e12)
+
+        subprocess.run(f'''mkdir {output[0]} && pdb_fetch {pdb_id} > {tmp_id}.pdb 2> {tmp_id}.error''', shell=True)
+        # for 6cdi, because it's too large, manually download https://files.rcsb.org/pub/pdb/compatible/pdb_bundle/cd/6cdi/6cdi-pdb-bundle.tar.gz, unzip and keep bundle1. Then manually run sort, tidy etc
+        if subprocess.run(f'grep Error {tmp_id}.error', shell=True).returncode == 0:
+            subprocess.run(f'wget https://files.rcsb.org/pub/pdb/compatible/pdb_bundle/cd/{pdb_id}/{pdb_id}-pdb-bundle.tar.gz && tar xzf {pdb_id}-pdb-bundle.tar.gz && mv {pdb_id}-pdb-bundle1.pdb {tmp_id}.pdb', shell=True)
+
+        subprocess.run(f'''pdb_sort {tmp_id}.pdb | \
             pdb_tidy | \
             pdb_selchain -{chains} | \
             pdb_fixinsert | \
             pdb_delhetatm | \
             pdb_seg | \
             pdb_chainbows > {output[0]}/{pdb_id}.pdb''', shell=True)
+        os.remove(f'{tmp_id}.pdb')
+        os.remove(f'{tmp_id}.error')
 
 
 rule predict_structures:
@@ -72,11 +97,14 @@ rule predict_structures:
         template_dir='templates/{publication}/{complex}/'
     output:
         expand('output_pdb/{{publication}}/{{complex}}_{rank}.pdb', rank=list(range(1, 6)))
+    threads: 10  # make use of 1 structure only
     shell:
         '''
-        colabfold_batch --rank multimer --templates --custom-template-path {input.template_dir} {input.fasta} output_pdb/{wildcards.publication}/{wildcards.complex}/
+        # --overwrite-existing-results <- insert later
+        colabfold_batch --msa-mode single_sequence --rank multimer --templates --custom-template-path {input.template_dir} {input.fasta} output_pdb/{wildcards.publication}/{wildcards.complex}/
+        cd output_pdb/{wildcards.publication}
         for rank in `seq 1 5`; do
-            cp output_pdb/{wildcards.publication}/{wildcards.complex}/*_unrelaxed_rank_${{rank}}_model_?.pdb output_pdb/{wildcards.publication}/{wildcards.complex}_${{rank}}.pdb
+            ln -s -f {wildcards.complex}/*_unrelaxed_rank_${{rank}}_model_?.pdb {wildcards.complex}_${{rank}}.pdb
         done
         '''
 
@@ -87,10 +115,48 @@ rule match_scores:
     output:
         output='scores/{publication}/{complex}_{rank}.score'
     run:
-        from pymol import cmd
+        from Bio.PDB.PDBParser import PDBParser
+        from Bio.PDB.Superimposer import Superimposer
 
-        cmd.load(input.input, 'F1')
-        cmd.load(input.output, 'F2')
-        rmsd = round(cmd.align('F1','F2')[0], 3)
+        # Parse the PDB files
+        parser = PDBParser(PERMISSIVE=1)
+        structure1 = parser.get_structure("input", input.input)
+        structure2 = parser.get_structure("output", input.output)
+
+        # Align the structures using the alpha-carbon atoms
+        model1 = structure1[0]
+        model2 = structure2[0]
+        atoms1 = [atom for atom in model1.get_atoms() if atom.name == "CA"]
+        atoms2 = [atom for atom in model2.get_atoms() if atom.name == "CA"]
+
+        # Calculate the RMSD
+        superimposer = Superimposer()
+        superimposer.set_atoms(atoms1, atoms2)
+        superimposer.apply(model2)
+
         with open(output[0], 'w') as f:
-            f.write(str(rmsd))
+            f.write(str(superimposer.rms))
+
+rule combine_scores:
+    input:
+        scores=[d.replace('input_pdb', 'scores').replace('.pdb', f'_{i}.score') for d in glob.glob('input_pdb/*/*.pdb') for i in range(1, 6)],
+        models=[d.replace('input_pdb', 'output_pdb').replace('.pdb', f'_{i}.pdb') for d in glob.glob('input_pdb/*/*.pdb') for i in range(1, 6)]
+    output:
+        'scores/all.csv'
+    run:
+        from pathlib import Path
+        import pandas as pd
+        df = []
+        for score_f, model_f in zip(input.scores, input.models):
+            # Get the underlying model
+            path = Path(score_f)
+            df.append(dict(
+                publication=path.parent.name,
+                complex=path.stem.rsplit('_', maxsplit=1)[0],
+                model_i=int(subprocess.run(f'realpath {model_f} | grep -o model_.', shell=True, capture_output=True).stdout.strip().decode('utf-8')[-1]),
+                rank=path.stem.rsplit('_', maxsplit=1)[1],
+                score=float(path.read_text())
+            ))
+        df = pd.DataFrame(df)
+        df.to_csv(output[0])
+
