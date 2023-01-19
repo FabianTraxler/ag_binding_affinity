@@ -128,6 +128,6 @@ rule mutate_relaxed_wildtype:
     conda:
         join(project_root,"envs/generation_environment.yml")
     script:
-        "../scripts/mutate.py"
+        "scripts/mutate.py"
 
 

@@ -12,12 +12,13 @@ dataset_resource_folder = os.path.join(resource_folder, DATASET_NAME)
 dataset_results_folder = os.path.join(results_folder, DATASET_NAME)
 
 pdb_relaxed_folder = os.path.join(dataset_results_folder, "pdbs_relaxed")
+pdb_bound_folder = os.path.join(dataset_results_folder, "pdbs_bound")
 pdb_folder = os.path.join(dataset_resource_folder, "pdbs")
 
 def gater_pdb_ids(wildcards):
     folder = checkpoints.download_repo.get(**wildcards).output[0]
     pdb_id = glob_wildcards(f"{pdb_folder}/{{pdb_id}}_r_b.pdb").pdb_id
-    return expand(f"{pdb_relaxed_folder}/{{pdb_id}}.pdb", pdb_id=pdb_id)
+    return expand(f"{pdb_bound_folder}/{{pdb_id}}.pdb", pdb_id=pdb_id)
 
 
 rule all:
@@ -59,14 +60,14 @@ rule bind_structures:
         join(dataset_resource_folder, "pdbs/{pdb_id}_r_b.pdb"),
         join(dataset_resource_folder, "pdbs/{pdb_id}_l_b.pdb"),
     output:
-        join(dataset_results_folder, "pdbs_bound/{pdb_id}.pdb")
+        join(pdb_bound_folder, "{pdb_id}.pdb")
     shell:
         "cat {input} > {output}"
 
 
 rule relax_structures:
     input:
-        join(dataset_results_folder, "pdbs_bound/{pdb_id}.pdb")
+        join(pdb_bound_folder, "{pdb_id}.pdb")
     output:
         join(pdb_relaxed_folder, "{pdb_id}.pdb")
     conda:

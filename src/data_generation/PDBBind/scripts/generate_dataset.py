@@ -203,7 +203,7 @@ for i in range(1, num_splits + 1):
     pdb_paths = abag_affinity_df[abag_affinity_df["validation"].isin([0,i])]["filename"]
     valset_count = 0
     valset_ids = set()
-    cleaned_summary = cleaned_summary.sample(frac=1, random_state=123)
+    cleaned_summary = cleaned_summary.sample(frac=1, random_state=123) # shuffle
     for idx, row in cleaned_summary.iterrows():
         redundant, own_chain, pdb_id, chain, score = is_redundant(row['filename'], val_pdbs, pdb_paths,
                                                                   redudancy_cutoff=snakemake.params["redundancy_cutoff"])

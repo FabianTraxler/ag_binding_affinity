@@ -1,17 +1,13 @@
 import random
-
 import pandas as pd
 from pathlib import Path
 import numpy as np
-from typing import Dict, Union, Tuple, List
+from typing import List
 import os
 from Bio.SeqUtils import seq1
 from Bio.Seq import Seq
 from Bio import pairwise2
-from tqdm.auto import tqdm
 from Bio.PDB.PDBParser import PDBParser
-from Bio.PDB.Structure import Structure
-from collections import  defaultdict
 import warnings
 warnings.filterwarnings("ignore")
 

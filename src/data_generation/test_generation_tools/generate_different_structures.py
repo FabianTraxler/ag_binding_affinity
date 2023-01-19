@@ -37,6 +37,7 @@ relax.set_scorefxn(scorefxn)
 relax.constrain_relax_to_start_coords(True)
 
 
+
 def load_large_file(pdb_id: str, download_fodler: str, out_path: str):
     filename = PDBList().retrieve_pdb_file(pdb_id, pdir=download_fodler, file_format="bundle")
     tar_file = tarfile.open(filename)
@@ -58,6 +59,7 @@ def load_large_file(pdb_id: str, download_fodler: str, out_path: str):
         f.write(complete_file)
 
     return out_path
+
 
 
 def remove_chains(filename: str, keep_chains: Dict) -> Pose:
@@ -281,17 +283,18 @@ def get_atom_postfixes(atom_name: str):
 
 
 if __name__ == "__main__":
-    filename = "madan21_mutat_hiv-vfp1602-fp8v1_cleaned_refined.pdb"
-    pdb_id = "6CDI"
+    filename = "wu17_in-c05-h3perth09"
+    pdb_id = "4FP8" #"6CDI"
     start_structure_folder = "./pdbs"
     start_structure_path = os.path.join(start_structure_folder, pdb_id + ".pdb")
     out_path = "./pdbs"
-    mutation_code = "Sl43K" #"Lc520C;Fl55P" # "Lc520C;Sl43K" #"Lc520C"
-    perfrom_relax = False
+    mutation_code = "KA50E;NA53D;NA54S;RA57Q;IA62K;DA63N;HA75Q;VA78G;EA82K;TA83K;FA94Y;IA121N;TA122N;GA124S;TA126N;GA135T;NA137S;KA140I;GA142R;PA143S;GA144K;SA145N;GA146S;KA156H;SA157L;GA158N;SA159F;TA160K;VA163A;DA172E;NA173Q;SA186G;NA188D;QA189K;EA190D;TA192I;SA193F;VA196A;VA202I;RA207K;IA213V;IA214S;WA222R;GA225N;LA226I;SA227P;VA242I;VA244L;NA248T;MA260I;TA262S;DA275G;TA276K;IA278N;KA299R;KA307R;GA310K;HA311Q;HA312N" #Lc520C;Fl55P" # "Lc520C;Sl43K" #"Lc520C"
+    extra_mutations = "VH111P;SH112G;AH113S"
+    perfrom_relax = True
     perfrom_deeprefine = True
     keep_chains = {
-        "antibody": {"l", "h"},
-        "antigen": {"c"}
+        "antibody": {"L", "H"},
+        "antigen": {"A"}
     }
 
     if not os.path.exists(start_structure_path) and pdb_id != "":
@@ -303,8 +306,26 @@ if __name__ == "__main__":
         remove_chains(start_structure_path, keep_chains)
     pose = load_pose(start_structure_path)
 
-    mut_out_path = os.path.join(out_path, filename + f":{mutation_code}.pdb")
+    mut_out_path = os.path.join(out_path, filename + "initial_mutations.pdb")
     error, error_msg, mutation_code, performed_mutations, pdb_out_path = perform_mutation(mutation_code, pose, mut_out_path)
+
+    if extra_mutations != "":
+        # Clean temporary PDB file and then save its cleaned version as the original PDB file
+        # retry 3 times because these commands sometimes do not properly write to disc
+        retries = 0
+        cleaned = os.path.join(out_path, filename + "initial_mutations_cleaned.pdb")
+        while not os.path.exists(cleaned):
+            command = f'pdb_sort {mut_out_path} | pdb_tidy | pdb_fixinsert | pdb_delhetatm  > {cleaned}'
+            subprocess.run(command, shell=True)
+            retries += 1
+            if retries >= 3:
+                raise RuntimeError(f"Error in PDB Utils commands to clean PDB {mut_out_path}")
+
+        pose = load_pose(cleaned)
+        mut_out_path = os.path.join(out_path, "4FP8to5UMN_all_mutations.pdb")
+        error, error_msg, mutation_code, performed_mutations, pdb_out_path = perform_mutation(extra_mutations, pose,
+                                                                                              mut_out_path)
+        pose = load_pose(mut_out_path)
 
     if perfrom_relax:
         relax_out_path = os.path.join(out_path, filename + "_relax.pdb")
@@ -312,5 +333,5 @@ if __name__ == "__main__":
         dump_comment_pdb(relax_out_path, pose)
 
     if perfrom_deeprefine:
-        deeprefine_out_path = os.path.join(out_path, filename + "_cleaned.pdb")
+        deeprefine_out_path = os.path.join(out_path, "4FP8to5UMN_all_mutations_cleaned.pdb")
         clean_and_tidy_pdb(filename, mut_out_path, deeprefine_out_path)

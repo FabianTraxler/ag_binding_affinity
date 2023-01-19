@@ -3,7 +3,9 @@ from os.path import join
 from pathlib import Path
 
 DATASET_NAME = "abag_affinity_dataset"
-NUM_VALIDATION_SPLITS = 3
+NUM_VALIDATION_SPLITS = 4
+TESTSET_SIZE = 50
+REDUNDANCY_CUTOFF = 0.8
 
 # link changes every day - please copy link for "summary file" from  http://opig.stats.ox.ac.uk/webapps/newsabdab/sabdab/search/?ABtype=All&method=All&species=All&resolution=&rfactor=&antigen=All&ltype=All&constantregion=All&affinity=True&isin_covabdab=All&isin_therasabdab=All&chothiapos=&restype=ALA&field_0=Antigens&keyword_0=#downloads
 sabdab_link = "http://opig.stats.ox.ac.uk/webapps/newsabdab/sabdab/summary/20221216_0262929/"
@@ -17,6 +19,7 @@ resource_folder = os.path.join(project_root, "resources")
 results_folder = os.path.join(project_root, "results")
 
 benchmark_dataset_file = join(results_folder, "antibody_benchmark", "benchmark.csv")
+benchmark_pdb_path = join(results_folder, "antibody_benchmark", "pdbs_bound")
 
 dataset_results_folder = os.path.join(results_folder, DATASET_NAME)
 
@@ -68,7 +71,10 @@ checkpoint generate_dataset:
         abdb_pdb_folder=join(resource_folder, "AbDb", pdb_folder_name),
         redundancy_file=join(resource_folder, "AbDb", redundancy_file),
         benchmark_dataset_file=benchmark_dataset_file,
-        n_val_splits=NUM_VALIDATION_SPLITS
+        benchmark_pdb_path=benchmark_pdb_path,
+        n_val_splits=NUM_VALIDATION_SPLITS,
+        test_size=TESTSET_SIZE,
+        redundancy_cutoff=REDUNDANCY_CUTOFF
     conda:
         join(project_root, "envs/generation_environment.yml")
     threads: 10
