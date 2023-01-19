@@ -39,12 +39,12 @@ def get_node_batches(data: HeteroData):
 class EdgeRegressionHead(torch.nn.Module):
     """Calculate binding affinity based on interface edges"""
 
-    def __init__(self, node_dim: int, num_layers: int = 3, nonlinearity: str = "relu",
+    def __init__(self, node_dim: int, num_layers: int = 3, nonlinearity: str = "relu", size_halving: bool = True,
                  device: torch.device = torch.device("cpu")):
         super(EdgeRegressionHead, self).__init__()
         # embed each interface edge
         input_dim = 2 * node_dim + 1  # 2x node + distance
-        step_size = int(input_dim / num_layers)
+        step_size = int(input_dim / num_layers) if size_halving else 0
         out_dim = input_dim - step_size
 
         self.layers = []
@@ -85,7 +85,7 @@ class EdgeRegressionHead(torch.nn.Module):
 
 class RegressionHead(torch.nn.Module):
     def __init__(self, node_feat_dim: int, num_nodes: int = None, aggregation_method: str = "sum",
-                 nonlinearity: str = "relu",
+                 nonlinearity: str = "relu", size_halving: bool = True,
                  num_fc_layers: int = 3, device: torch.device = torch.device("cpu")):
         super(RegressionHead, self).__init__()
 
@@ -104,7 +104,7 @@ class RegressionHead(torch.nn.Module):
             in_dim = node_feat_dim * num_nodes
         else:
             in_dim = node_feat_dim
-        step_size = int(in_dim / num_fc_layers)
+        step_size = int(in_dim / num_fc_layers) if size_halving else 0
         out_dim = in_dim - step_size
         for i in range(num_fc_layers):
             if i == num_fc_layers - 1:  # last layer

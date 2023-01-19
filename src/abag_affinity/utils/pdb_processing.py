@@ -266,9 +266,7 @@ def get_residue_edge_encodings(distance_matrix: np.ndarray, residue_infos: List,
     contact_map = distance_matrix < distance_cutoff
 
     # scale distances
-    distance_matrix = distance_matrix / distance_cutoff
-
-    A[0, contact_map] = distance_matrix[contact_map] # 1 / (distance_matrix[contact_map] + 1)
+    A[0, contact_map] = distance_matrix[contact_map] / distance_cutoff
     for i, res_info in enumerate(residue_infos):
         for j, other_res_info in enumerate(residue_infos[i:]):
             j += i
@@ -370,7 +368,7 @@ def get_atom_edge_encodings(distance_matrix: np.ndarray, atom_encodings: np.ndar
     # same residue index
     A[1, :, :] = (atom_encodings[:, -1, None] == atom_encodings[:, -1]).astype(float)
     # same protein
-    A[2, :, :] = (atom_encodings[:, 20, None] == atom_encodings[:, 20]).astype(float)
+    A[2, :, :] = (atom_encodings[:, 54, None] == atom_encodings[:, 54]).astype(float)
 
     A[3, :, :] = distance_matrix
     return A

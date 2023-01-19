@@ -33,6 +33,11 @@ def plot_correlation(x: np.ndarray, y: np.ndarray, path: str, show_corr: bool = 
         error = np.sqrt(np.mean((x-y)**2))
         legend += 'rmse={:f}, '.format(error)
 
+    #min_affinity = np.min(np.concatenate([x, y]))
+    #max_affinity = np.max(np.concatenate([x, y]))
+    #plt.xlim([min_affinity, max_affinity])
+    #plt.ylim([min_affinity, max_affinity])
+
     legend = legend[:-2]
     phantom, = plot.ax_joint.plot([], [], linestyle="", alpha=0)
     plot.ax_joint.legend([phantom], [legend])

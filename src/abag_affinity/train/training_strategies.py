@@ -2,7 +2,7 @@
 
 import logging
 import os
-
+from pathlib import Path
 import torch
 from argparse import Namespace
 import numpy as np
@@ -10,8 +10,10 @@ from typing import Dict, Tuple
 import random
 from collections import Counter
 
-from ..utils.config import read_config
-from .utils import load_model, load_datasets, train_loop, finetune_pretrained, bucket_learning, get_benchmark_score
+from ..utils.config import read_config, get_data_paths
+from .utils import load_model, load_datasets, train_loop, finetune_pretrained, bucket_learning, get_benchmark_score, \
+    get_abag_test_score
+from ..model.gnn_model import AffinityGNN
 
 # TODO: create global seeding mechanism
 random.seed(123)
@@ -22,7 +24,7 @@ torch.multiprocessing.set_sharing_strategy('file_system') # cluster mulitple dat
 logger = logging.getLogger(__name__) # setup module logger
 
 
-def model_train(args:Namespace, validation_set: int = None) -> Tuple[torch.nn.Module, Dict]:
+def model_train(args:Namespace, validation_set: int = None) -> Tuple[AffinityGNN, Dict]:
     """ Model training functionality
 
     1. Get random initialized model
@@ -62,7 +64,7 @@ def model_train(args:Namespace, validation_set: int = None) -> Tuple[torch.nn.Mo
     return model, results
 
 
-def pretrain_model(args:Namespace) -> Tuple[torch.nn.Module, Dict]:
+def pretrain_model(args:Namespace) -> Tuple[AffinityGNN, Dict]:
     """ Pretrain model and then finetune model based on information in config file
 
     Args:
@@ -109,7 +111,7 @@ def pretrain_model(args:Namespace) -> Tuple[torch.nn.Module, Dict]:
     return model, all_results
 
 
-def bucket_train(args:Namespace) -> Tuple[torch.nn.Module, Dict]:
+def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
     """ Train on multiple datasets in parallel but downsample larger datasets to the smallest in ever epoch
 
     Args:
@@ -143,13 +145,16 @@ def bucket_train(args:Namespace) -> Tuple[torch.nn.Module, Dict]:
             train_data.force_recomputation = False
             val_data.force_recomputation = False
 
-        train_datasets.append(train_data)
-        val_datasets.append(val_data)
+        if len(train_data) > 0:
+            train_datasets.append(train_data)
+        if len(val_data) > 0:
+            val_datasets.append(val_data)
 
     model = load_model(train_datasets[0].num_features, train_datasets[0].num_edge_features, args, device)
     logger.debug(f"Training done on GPU = {next(model.parameters()).is_cuda}")
 
-    logger.info("Training with {} starting ...".format(datasets))
+    logger.info("Training with {}".format(", ".join([dataset.dataset_name for dataset in train_datasets])))
+    logger.info("Evaluating on {}".format(", ".join([dataset.dataset_name for dataset in val_datasets])))
     results, model = bucket_learning(model, train_datasets, val_datasets, args)
     logger.info("Training with {} completed".format(datasets))
 
@@ -169,11 +174,16 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
     Returns:
         Tuple: None and the results and statistics of training
     """
+    import pandas as pd
+
+    Path(args.config["model_path"]).mkdir(exist_ok=True, parents=True)
     losses = []
     correlations = []
     all_results = {}
-    benchmark_loss = []
+    benchmark_losses = []
     benchmark_correlation = []
+    test_losses = []
+    test_correlation = []
 
     training = {
         "bucket_train": bucket_train,
@@ -182,11 +192,16 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
     }
 
     #args.max_epochs = 1
+    summary_path, _ = get_data_paths(args.config, "abag_affinity")
+    summary_df = pd.read_csv(summary_path, index_col=0)
+    n_splits = summary_df["validation"].max() + 1
 
-    for i in range(1, 4):
-        logger.info("Validation on split {} and training with all other splits\n".format(i))
+    for i in range(1, n_splits):
+        logger.info("\nValidation on split {} and training with all other splits".format(i))
         args.validation_set = i
         model, results = training[args.train_strategy](args)
+        torch.save(model.state_dict(), os.path.join(args.config["model_path"], f"best_model_val_set_{i}.pt"))
+
         if args.target_dataset in results:
             losses.append(results[args.target_dataset]["best_loss"])
             correlations.append(results[args.target_dataset]["best_correlation"])
@@ -198,12 +213,28 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
 
         all_results[i] = results
 
-        benchmark_plot_path = os.path.join(args.config["plot_path"], args.node_type, args.train_strategy,
-                                           f"val_set_{args.validation_set}", "benchmark.png")
-        pearson, loss = get_benchmark_score(model, args, tqdm_output=args.tqdm_output, plot_path=benchmark_plot_path)
-        benchmark_loss.append(loss)
-        benchmark_correlation.append(pearson)
-        logger.info(f"Benchmark results >>> {pearson}")
+        benchmark_plot_path = os.path.join(args.config["plot_path"], "CV_experiment",
+                                           f"benchmark_cv{args.validation_set}.png")
+        benchmark_results_path = os.path.join(args.config["prediction_path"], "CV_experiment",
+                                           f"benchmark_cv{args.validation_set}.csv")
+        benchmark_pearson, benchmark_loss = get_benchmark_score(model, args, tqdm_output=args.tqdm_output,
+                                                                plot_path=benchmark_plot_path,
+                                                                results_path=benchmark_results_path)
+
+        benchmark_losses.append(benchmark_loss)
+        benchmark_correlation.append(benchmark_pearson)
+        logger.info(f"Benchmark results >>> {benchmark_pearson}")
+
+        abag_test_plot_path = os.path.join(args.config["plot_path"], "CV_experiment",
+                                           f"abag_affinity_test_cv{args.validation_set}.png")
+        abag_test_results_path = os.path.join(args.config["prediction_path"], "CV_experiment",
+                                              f"abag_affinity_test_cv{args.validation_set}.csv")
+        test_pearson, test_loss = get_abag_test_score(model, args, tqdm_output=args.tqdm_output,
+                                                      plot_path=abag_test_plot_path,
+                                                      results_path=abag_test_results_path)
+        test_losses.append(test_loss)
+        test_correlation.append(test_pearson)
+        logger.info(f"AbAg-Affinity testset results >>> {test_pearson}")
 
     logger.info("Average Loss: {} ({})".format(np.mean(losses), np.std(losses)))
     logger.info("Losses: {}".format(" - ".join([ str(loss) for loss in losses ])))
@@ -212,6 +243,9 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
 
     logger.info("Average Pearson Correlation Benchmark: {} ({})".format(np.mean(benchmark_correlation), np.std(benchmark_correlation)))
     logger.info("Benchmark Correlations: {}".format(" - ".join([ str(corr) for corr in benchmark_correlation ])))
+
+    logger.info("Average Pearson Correlation AbAg testset: {} ({})".format(np.mean(test_correlation), np.std(test_correlation)))
+    logger.info("AbAg testset Correlations: {}".format(" - ".join([ str(corr) for corr in test_correlation ])))
 
     return None, all_results
 

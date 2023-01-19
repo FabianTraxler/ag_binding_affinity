@@ -15,7 +15,7 @@ from abag_affinity.train import (bucket_train, cross_validation, model_train,
 training = {
     "bucket_train": bucket_train,
     "pretrain_model": pretrain_model,
-    "model_train": model_train
+    "model_train": model_train,
 }
 
 

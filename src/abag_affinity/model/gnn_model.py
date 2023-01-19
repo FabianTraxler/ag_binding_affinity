@@ -18,7 +18,7 @@ class AffinityGNN(torch.nn.Module):
                  node_type: str = "residue",
                  aggregation_method: str = "sum",
                  nonlinearity: str = "relu",
-                 num_fc_layers: int = 3,
+                 num_fc_layers: int = 3, fc_size_halving: bool = True,
                  device: torch.device = torch.device("cpu")):
         super(AffinityGNN, self).__init__()
 
@@ -49,10 +49,13 @@ class AffinityGNN(torch.nn.Module):
             raise ValueError(f"Invalid gnn_type given: Got {gnn_type} but expected one of ('guided', 'proximity')")
         # define regression head
         if aggregation_method == "edge":
-            self.regression_head = EdgeRegressionHead(self.graph_conv.embedding_dim, num_fc_layers, nonlinearity, device)
+            self.regression_head = EdgeRegressionHead(self.graph_conv.embedding_dim, num_layers=num_fc_layers,
+                                                      size_halving=fc_size_halving, nonlinearity=nonlinearity,
+                                                      device=device)
         else:
-            self.regression_head = RegressionHead(self.graph_conv.embedding_dim, num_nodes, aggregation_method,
-                                                  nonlinearity, num_fc_layers, device)
+            self.regression_head = RegressionHead(self.graph_conv.embedding_dim, num_nodes=num_nodes,
+                                                  aggregation_method=aggregation_method, size_halving=fc_size_halving,
+                                                  nonlinearity=nonlinearity,  num_fc_layers=num_fc_layers, device=device)
 
         self.float()
 

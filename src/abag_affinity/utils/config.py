@@ -28,8 +28,11 @@ def read_config(file_path: str, use_relaxed: bool = False) -> Dict:
         config["RESOURCES"]["path"] = os.path.join(folder_path, config["RESOURCES"]["path"])
 
     config["plot_path"] = os.path.join(folder_path, config["RESULTS"]["path"], config["RESULTS"]["plot_path"])
+    config["prediction_path"] = os.path.join(folder_path, config["RESULTS"]["path"], config["RESULTS"]["prediction_path"])
+    config["model_path"] = os.path.join(folder_path, config["RESULTS"]["path"], config["RESULTS"]["model_path"])
     config["processed_graph_path"] = os.path.join(folder_path, config["RESULTS"]["path"], config["RESULTS"]["processed_graph_path"])
     config["cleaned_pdbs"] = os.path.join(folder_path, config["RESULTS"]["path"], config["RESULTS"]["cleaned_pdbs"])
+    config["force_field_results"] = os.path.join(folder_path, config["RESULTS"]["path"], config["RESULTS"]["force_field_results"])
 
     for model in config["MODELS"].keys():
         config["MODELS"][model]["model_path"] = os.path.join(folder_path, config["MODELS"][model]["model_path"])

@@ -368,7 +368,7 @@ def load_model(num_node_features: int, num_edge_features: int, args: Namespace,
                         node_type=args.node_type,
                         aggregation_method=args.aggregation_method,
                         nonlinearity=args.nonlinearity,
-                        num_fc_layers=args.num_fc_layers,
+                        num_fc_layers=args.num_fc_layers, fc_size_halving=args.fc_size_halving,
                         device=device)
 
     return model
@@ -402,7 +402,7 @@ def get_dataloader(args: Namespace, train_dataset: AffinityDataset, val_dataset:
     return train_dataloader, val_dataloader
 
 
-def train_val_split(config: Dict, dataset_name: str, validation_set: int) -> Tuple[List, List]:
+def train_val_split(config: Dict, dataset_name: str, validation_set: int, validation_size: int = 20) -> Tuple[List, List]:
     """ Split data in a train and a validation subset
 
     For Dataset_v1 use the predefined split given in the csv, otherwise use random split
@@ -415,6 +415,8 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int) -> Tup
     Returns:
         Tuple: List with indices for train and validation set
     """
+    train_size = (100 - validation_size) / 100
+
     if "-" in dataset_name:
         # DMS data
         dataset_name, publication = dataset_name.split("-")
@@ -443,13 +445,30 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int) -> Tup
         if affinity_type == "E":
             summary_df = summary_df[~summary_df.index.duplicated(keep='first')]
 
-            e_values = summary_df["E"].values.reshape(-1,1)
+            e_values = summary_df["E"].values.reshape(-1,1).astype(np.float32)
             nll_values = summary_df["NLL"].values
-            e_dists = sp.distance.cdist(e_values, e_values)
-            nll_avg = (nll_values[:, None] + nll_values) / 2
 
-            valid_pairs = (e_dists - nll_avg) >= 0
-            has_valid_partner = np.where(np.sum(valid_pairs, axis=1) > 0)[0]
+            if len(e_values) > 50000:
+                n_splits = int(len(e_values) / 50000) + 1
+                has_valid_partner = set()
+                e_splits = np.array_split(e_values, n_splits)
+                nll_splits = np.array_split(nll_values, n_splits)
+                total_elements = 0
+                for i in range(len(e_splits)):
+                    for j in range(i, len(e_splits)):
+                        split_e_dists = sp.distance.cdist(e_splits[i], e_splits[j])
+                        split_nll_avg = (nll_splits[i][:, None] + nll_splits[j]) / 2
+                        valid_pairs = (split_e_dists - split_nll_avg) >= 0
+                        has_valid_partner_id = np.where(np.sum(valid_pairs, axis=1) > 0)[0] + total_elements
+                        has_valid_partner.update(has_valid_partner_id)
+                    total_elements += len(e_splits[i])
+                has_valid_partner = np.fromiter(has_valid_partner, int, len(has_valid_partner))
+            else:
+                e_dists = sp.distance.cdist(e_values, e_values)
+                nll_avg = (nll_values[:, None] + nll_values) / 2
+
+                valid_pairs = (e_dists - nll_avg) >= 0
+                has_valid_partner = np.where(np.sum(valid_pairs, axis=1) > 0)[0]
 
             data_points_with_valid_partner = set(summary_df.index[has_valid_partner])
             valid_partners = { summary_df.index[idx]: set(summary_df.index[np.where(valid_pairs[idx])[0]].values.tolist()) for idx in has_valid_partner}
@@ -468,7 +487,7 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int) -> Tup
                     # chosse one randomly with the risk that this idx is already in the train data
                     other_idx = random.choice(list(possible_ids))
 
-                if i >= total_valid_data_points * 0.8:  # add to val ids
+                if i >= total_valid_data_points * train_size:  # add to val ids
                     val_ids.add(pdb_idx)
                     val_ids.add(other_idx)
                 else:
@@ -478,8 +497,8 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int) -> Tup
         elif affinity_type == "-log(Kd)":
             pdb_idx = summary_df.index.values.tolist()
             random.shuffle(pdb_idx)
-            val_ids = pdb_idx[:int(0.8*len(pdb_idx))]
-            train_ids = pdb_idx[int(0.8*len(pdb_idx)):]
+            train_ids = pdb_idx[:int(train_size*len(pdb_idx))]
+            val_ids = pdb_idx[int(train_size*len(pdb_idx)):]
         else:
             raise ValueError(
                 f"Wrong affinity type given - expected one of (-log(Kd), E) but got {affinity_type}")
@@ -493,7 +512,7 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int) -> Tup
         summary_df["validation"] = summary_df["validation"].fillna("").astype("str")
 
         val_pdbs = summary_df.loc[summary_df["validation"].str.contains(str(validation_set)), "pdb"]
-        train_pdbs = summary_df.loc[~summary_df["validation"].str.contains(str(validation_set)), "pdb"]
+        train_pdbs = summary_df.loc[(~summary_df["validation"].str.contains(str(validation_set))) & (~summary_df["test"]), "pdb"]
 
         if "mutated_pdb_path" in config["DATASETS"][dataset_name]:  # only use files that were generated
             data_path = os.path.join(config["DATASETS"]["path"],
@@ -541,7 +560,8 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
     else:
         relative_data = False
 
-    train_ids, val_ids = train_val_split(config, dataset_name, validation_set)
+    validation_size = args.validation_size if dataset == args.target_dataset else 0
+    train_ids, val_ids = train_val_split(config, dataset_name, validation_set, validation_size)
 
     if args.test:
         train_ids = train_ids[:20]
@@ -922,9 +942,12 @@ def log_gradients(model: AffinityGNN):
     return gnn_gradients, fc_gradients
 
 
-def evaluate_model(model: AffinityGNN, dataloader: DataLoader, criterion, tqdm_output: bool = True,
-                   device: torch.device = torch.device("cpu"), min_log_kd: float = 4, max_log_kd: float = 14,
-                   plot_path: str = None) -> Tuple[float, float]:
+def evaluate_model(model: AffinityGNN, dataloader: DataLoader, criterion, args: Namespace, tqdm_output: bool = True,
+                   device: torch.device = torch.device("cpu"), plot_path: str = None,
+                   results_path: str = None) -> Tuple[float, float]:
+
+    min_log_kd = 0 if args.scale_values else args.scale_min
+    max_log_kd = 1 if args.scale_values else args.scale_max
 
     total_loss_val = 0
     all_predictions = np.array([])
@@ -949,20 +972,28 @@ def evaluate_model(model: AffinityGNN, dataloader: DataLoader, criterion, tqdm_o
     pearson_corr = stats.pearsonr(all_labels, all_predictions)[0]
 
     if plot_path is not None:
+        # scale prediction back to original values
+        if args.scale_values:
+            all_labels = all_labels * (args.scale_max - args.scale_min) + args.scale_min
+            all_predictions = all_predictions * (args.scale_max - args.scale_min) + args.scale_min
+
         Path(plot_path).parent.mkdir(parents=True, exist_ok=True)
         plot_correlation(x=all_labels, y=all_predictions,
                          path=plot_path)
+    if results_path is not None:
+        Path(results_path).parent.mkdir(parents=True, exist_ok=True)
         results = pd.DataFrame({
             "pdb": all_pdbs,
             "prediction": all_predictions,
             "labels": all_labels
         })
-        results.to_csv(plot_path.split(".")[0] + ".csv")
+        results.to_csv(results_path)
 
     return pearson_corr, val_loss
 
 
-def get_benchmark_score(model: AffinityGNN, args: Namespace, tqdm_output: bool = True, plot_path: str = None) -> Tuple[float, float]:
+def get_benchmark_score(model: AffinityGNN, args: Namespace, tqdm_output: bool = True, plot_path: str = None,
+                        results_path: str = None) -> Tuple[float, float]:
 
     criterion = nn.MSELoss()
 
@@ -989,9 +1020,42 @@ def get_benchmark_score(model: AffinityGNN, args: Namespace, tqdm_output: bool =
     use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
 
-    scale_min = 0 if args.scale_values else args.scale_min
-    scale_max = 1 if args.scale_values else args.scale_max
+    return evaluate_model(model, dataloader, criterion, args=args, tqdm_output=tqdm_output, device=device,
+                          plot_path=plot_path, results_path=results_path)
 
 
-    return evaluate_model(model, dataloader, criterion, tqdm_output=tqdm_output, device=device,
-                          min_log_kd=scale_min, max_log_kd=scale_max, plot_path=plot_path)
+def get_abag_test_score(model: AffinityGNN, args: Namespace, tqdm_output: bool = True, plot_path: str = None,
+                        results_path: str = None) -> Tuple[float, float]:
+
+    criterion = nn.MSELoss()
+
+    summary_path, _ = get_data_paths(args.config, "abag_affinity")
+    summary_df = pd.read_csv(summary_path, index_col=0)
+    summary_df = summary_df[summary_df["test"]]
+    test_pdbs_ids = summary_df.index.tolist()
+
+    dataset = AffinityDataset(args.config, "abag_affinity", test_pdbs_ids,
+                              node_type=args.node_type,
+                              max_nodes=args.max_num_nodes,
+                              interface_distance_cutoff=args.interface_distance_cutoff,
+                              interface_hull_size=args.interface_hull_size,
+                              max_edge_distance=args.max_edge_distance,
+                              pretrained_model=args.pretrained_model,
+                              scale_values=args.scale_values,
+                              scale_min=args.scale_min,
+                              scale_max=args.scale_max,
+                              relative_data=False,
+                              save_graphs=args.save_graphs,
+                              force_recomputation=args.force_recomputation,
+                              preprocess_data=args.preprocess_graph,
+                              num_threads=args.num_workers
+                              )
+
+    dataloader = DL_torch(dataset, num_workers=args.num_workers, batch_size=1,
+                              collate_fn=AffinityDataset.collate)
+
+    use_cuda = args.cuda and torch.cuda.is_available()
+    device = torch.device("cuda" if use_cuda else "cpu")
+
+    return evaluate_model(model, dataloader, criterion, args=args, tqdm_output=tqdm_output, device=device,
+                          plot_path=plot_path, results_path=results_path)

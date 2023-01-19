@@ -2,10 +2,8 @@ import json
 import sys
 from argparse import Namespace, ArgumentParser, Action
 from pathlib import Path
-import torch
 
 from .config import read_config
-from ..dataset.data_loader import AffinityDataset
 
 enforced_node_type = {
     "Binding_DDG": "residue",
@@ -73,6 +71,8 @@ def parse_args() -> Namespace:
                           help='Datasets used for transfer-learning in addition to goal_dataset', default="", nargs='+')
     optional.add_argument("--relaxed_pdbs", action=BooleanOptionalAction, help="Use the relaxed pdbs for training "
                                                                                "and validation", default=False)
+    optional.add_argument("--validation_size", type=int, help="Percent of target dataset used to validate model",
+                          default=10)
     # -train strategy
     optional.add_argument("-t", "--train_strategy", type=str, help='The training strategy to use',
                           choices=["bucket_train", "pretrain_model", "model_train", "cross_validation"],
@@ -88,8 +88,8 @@ def parse_args() -> Namespace:
     optional.add_argument("-lr", "--learning_rate", type=float, help="Initial learning rate", default=1e-4)
     optional.add_argument("-p", "--patience", type=int,
                           help="Number of epochs with no improvement until end of training",
-                          default=15)
-    # model config arguments
+                          default=30)
+    # input graph config arguments
     optional.add_argument("-n", "--node_type", type=str, help="Type of nodes in the graphs", default="residue",
                           choices=["residue", "atom"])
     optional.add_argument("--max_num_nodes", type=int, help="Maximal number of nodes for fixed sized graphs",
@@ -104,13 +104,15 @@ def parse_args() -> Namespace:
                           default=2)
     optional.add_argument("--scale_max", type=int, help="The maximal affinity value -> gets mapped to 1",
                           default=19)
+    optional.add_argument("--max_edge_distance", type=int, help="Maximal distance of proximity edges", default=5)
+
+    # model config arguments
     optional.add_argument("--loss_function", type=str, help="Type of Loss Function", default="L1",
                           choices=["L1", "L2"] )
     optional.add_argument("--layer_type", type=str, help="Type of GNN Layer", default="GAT",
                           choices=["GAT", "GCN"] )
     optional.add_argument("--gnn_type", type=str, help="Type of GNN Layer", default="proximity",
                           choices=["proximity", "guided"] )
-    optional.add_argument("--max_edge_distance", type=int, help="Maximal distance of proximity edges", default=5)
     optional.add_argument("--num_gnn_layers", type=int, help="Number of GNN Layers", default=3)
     optional.add_argument("--attention_heads", type=int, help="Number of attention heads for GAT layer type",
                           default=3)
@@ -124,6 +126,9 @@ def parse_args() -> Namespace:
                           choices=["relu", "leaky", "gelu"])
     optional.add_argument("--num_fc_layers", type=int, help="Number of FullyConnected Layers in regression head",
                           default=3)
+    optional.add_argument("--fc_size_halving", action=BooleanOptionalAction,
+                          help="Indicator if after every FC layer the embedding sizeshould be halved",
+                          default=True)
 
     # weight and bias arguments
     optional.add_argument("-wdb", "--use_wandb", action=BooleanOptionalAction, help="Use Weight&Bias to log training process",
@@ -143,7 +148,7 @@ def parse_args() -> Namespace:
     optional.add_argument("-w", "--num_workers", type=int, help="Number of workers to use for data loading", default=0)
     optional.add_argument("--cross_validation", action=BooleanOptionalAction, help="Perform CV on all validation datasets", default=False)
     optional.add_argument("-v", "--validation_set", type=int, help="Which validation set to use", default=1,
-                          choices=[1, 2, 3])
+                          choices=[1, 2, 3, 4])
     optional.add_argument("-c", "--config_file", type=str,
                           help="Path to config file for datasets and training strategies",
                           default=(Path(__file__).resolve().parents[2] / "config.yaml").resolve())
@@ -166,13 +171,15 @@ def parse_args() -> Namespace:
     optional.add_argument("--cuda", action=BooleanOptionalAction,
                           help="Use cuda resources for training if available",
                           default=True)
+    optional.add_argument("--tqdm_output", action=BooleanOptionalAction,
+                          help="Use tqdm output to monitor epochs",
+                          default=True)
     optional.add_argument("--args_file", type=str,
                           help="Specify the path to a file with additional arguments",
                           default=None)
 
     args = parser.parse_args()
     args.config = read_config(args.config_file, args.relaxed_pdbs)
-    args.tqdm_output = True  # enable tqdm output
 
     if args.wandb_name == "":
         args.wandb_name = f'{args.train_strategy}' \
@@ -195,39 +202,16 @@ def parse_args() -> Namespace:
     return args
 
 
-def adapt_batch_size(args: Namespace, model: torch.nn.Module, dataset: AffinityDataset) -> int:
-    """ Get maximal batch size to use with available gpu memory
-
-    Args:
-        args:
-        model:
-        dataset:
-
-    Returns:
-
-    """
-
-    #TODO: Implement and use
-    total_memory = torch.cuda.get_device_properties(0).total_memory
-
-    model_size = sys.getsizeof(model)
-
-    available_memory = total_memory - model_size
-
-    datapoint_size = sys.getsizeof(dataset.__getitem__(0))
-
-
-    return 1
-
-
 def read_args_from_file(args: Namespace) -> Namespace:
     with open(args.args_file) as f:
         arg_dict = json.load(f)
 
+    manually_passed_args = [arg[:2].replace("-", "") + arg[2:] for arg in sys.argv if "-" == arg[0]]
+
     for key, value in arg_dict.items():
         if value["value"] == "None":
             value["value"] = None
-        if key in args.__dict__:
+        if key in args.__dict__ and key not in manually_passed_args:
             args.__dict__[key] = value["value"]
 
     return args
