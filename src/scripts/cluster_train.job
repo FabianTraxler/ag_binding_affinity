@@ -2,8 +2,8 @@
 
 #SBATCH -N 1      # nodes requested
 #SBATCH -n 1      # tasks requested
-#SBATCH -c 30      # cores requested
-#SBATCH --mem=60GB  # memory in Mb
+#SBATCH -c 10      # cores requested
+#SBATCH --mem=50GB  # memory in Mb
 #SBATCH -t 48:00:00  # max time requested in hour:minute:second
 #SBATCH -q a100
 #SBATCH --gres gpu:a100:1
