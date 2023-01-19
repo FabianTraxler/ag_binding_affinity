@@ -3,7 +3,7 @@
 PDB_PATH=$1;
 ROSETTA_DIR=$3;
 
-#rm list1.txt list2.txt list3.txt
+rm -f list1.txt list2.txt list3.txt
 for i in `cat $2`
 do
   IFS=, read -r file ab_chains ag_chains <<< $i
@@ -21,13 +21,13 @@ done
 
 echo ""
 echo "Antibody"
-awk '{print $3}' list1.txt.ros.scores.out
+awk '{print $2}' list1.txt.ros.scores.out
 echo ""
 echo "Antigen"
-awk '{print $3}' list2.txt.ros.scores.out
+awk '{print $2}' list2.txt.ros.scores.out
 echo ""
 echo "Complex"
-awk '{print $3}' list3.txt.ros.scores.out
+awk '{print $2}' list3.txt.ros.scores.out
 
 # clean up
-#rm *.rec.pdb *.comp.pdb *.lig.pdb list*.txt.ros.scores.out list*.log *.pdb
+rm -f *.rec.pdb *.comp.pdb *.lig.pdb list*.txt.ros.scores.out list*.log *.pdb

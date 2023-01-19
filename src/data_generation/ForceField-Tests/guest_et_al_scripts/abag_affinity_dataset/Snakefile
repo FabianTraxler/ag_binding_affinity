@@ -21,7 +21,7 @@ out_folder = join(results_folder, "force_field_tests", "guest_REF15", DATASET_NA
 
 rule all:
     input:
-        join(out_folder, "abag_affinity_summary.txt")
+        join(out_folder, "results.txt")
 
 rule get_data_points:
     input:
@@ -38,7 +38,7 @@ rule get_scores:
         pdb_path,
         join(out_folder, "data_points.txt")
     output:
-        join(out_folder, "abag_affinity_summary.txt")
+        join(out_folder, "results.txt")
     conda: join(project_root, "envs", "generation_environment.yml")
     params:
         rosetta_dir=ROSETTA_DIR
