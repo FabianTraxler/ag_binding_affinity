@@ -16,9 +16,13 @@ dms_out_summary_file = os.path.join(project_root, "results/DMS/dms_infos.csv")
 dms_info_file = os.path.join(project_root, "data/DMS/dms_curated.csv")
 info_df = pd.read_csv(dms_info_file)
 
+# remove this publication because they have redundant information to mason21_comb_optim_therap_antib_by_predic_combined_H3_3
+info_df = info_df[~info_df["publication"].isin(["mason21_comb_optim_therap_antib_by_predic_combined_H3_2", "mason21_comb_optim_therap_antib_by_predic_combined_H3_1"])]
+
+
 # filter  data
 #info_df = info_df[info_df["publication"].str[:7] != "mason21"]
-info_df = info_df[~info_df["publication"].isin(["taft22_deep_mutat_learn_predic_ace2"])]
+#info_df = info_df[~info_df["publication"].isin(["taft22_deep_mutat_learn_predic_ace2"])]
 #info_df = info_df[info_df["antibody"].isin(["regn10933"])]
 info_df = info_df.reset_index(drop=True)
 
@@ -28,14 +32,22 @@ publications, antibodies, antigens = list(zip(*complexes))
 publication2antibodies = defaultdict(list)
 publication2antigens = defaultdict(list)
 
-for publication, antibody, antigen in zip(publications, antibodies, antigens):
-    publication2antibodies[publication] = antibody
-    publication2antigens[publication] = antigen
+for publi, antibody, antigen in zip(publications, antibodies, antigens):
+    publication2antibodies[publi].append(antibody)
+    publication2antigens[publi].append(antigen)
 
 
 rule all:
     input:
         expand(out_folder + "{publication}.csv", publication=publications)
+    output:
+        os.path.join(out_folder, "mutated", "all_generated_files.txt")
+    params:
+        mutated_folder=os.path.join(out_folder, "mutated")
+    shell: """
+        cd {params.mutated_folder}
+        find * -type f -name *.pdb > {output}
+        """
 
 rule get_complex:
     output:
@@ -82,7 +94,7 @@ rule mutate_complex:
 
 rule generate_summary_df:
     input:
-        expand(out_folder + "mutated/{publication}/{antibody}_{antigen}.logs", zip, antibody=publication2antibodies[publication], antigen=publication2antigens[publication])
+        lambda wildcards: expand(out_folder + "mutated/{publication}/{antibody}_{antigen}.logs", zip, publication=[wildcards.publication] * len(publication2antibodies[wildcards.publication]), antibody=publication2antibodies[wildcards.publication], antigen=publication2antigens[wildcards.publication])
     output:
         out_folder + "{publication}.csv"
     conda: "../../../envs/generation_environment.yml"
