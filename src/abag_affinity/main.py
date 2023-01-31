@@ -64,10 +64,15 @@ def run_sweep(args: Namespace, logger):
                 else:
                     param_value = config[param]
 
-                if param == "max_num_nodes" and param_value is None and "aggregation_method" in config and config["aggregation_method"] == "fixed_size":
-                    continue # ignore since it is manually overwritten below
-                if param == "node_type" and "pretrained_model" in config and config["pretrained_model"] in enforced_node_type:
-                    continue # ignore since it is manually overwritten below
+                if param == "max_num_nodes" and param_value is None and "aggregation_method" in config and config[
+                    "aggregation_method"] == "fixed_size":
+                    continue  # ignore since it is manually overwritten below
+                if param == "node_type" and "pretrained_model" in config and config[
+                    "pretrained_model"] in enforced_node_type:
+                    continue  # ignore since it is manually overwritten below
+                if param == "transfer_learning_datasets" and isinstance(param_value, str):
+                    args.__dict__[param] = [param_value]
+                    continue
 
                 args.__dict__[param] = param_value
                 if param == "pretrained_model":
@@ -77,7 +82,9 @@ def run_sweep(args: Namespace, logger):
 
                 if param == 'aggregation_method':
                     if param_value == "fixed_size" and "max_num_nodes" in config and config["max_num_nodes"] == "None":
-                        max_num_nodes_values = [ int(value) for value in args.config["HYPERPARAMETER_SEARCH"]["parameters"]["max_num_nodes"]["values"] if value != "None"]
+                        max_num_nodes_values = [int(value) for value in
+                                                args.config["HYPERPARAMETER_SEARCH"]["parameters"]["max_num_nodes"][
+                                                    "values"] if value != "None"]
                         args.max_num_nodes = random.choice(max_num_nodes_values)
                         config["max_num_nodes"] = args.max_num_nodes
 
@@ -92,7 +99,7 @@ def run_sweep(args: Namespace, logger):
             # adapt learning rate bases on batch size
             args.learning_rate = args.learning_rate * args.batch_size
 
-            args.tqdm_output = False # disable tqdm output to reduce log syncing
+            args.tqdm_output = False  # disable tqdm output to reduce log syncing
 
             logger.info(f"Performing {args.train_strategy}")
             training[args.train_strategy](args)

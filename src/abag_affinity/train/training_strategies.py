@@ -57,11 +57,11 @@ def model_train(args:Namespace, validation_set: int = None) -> Tuple[AffinityGNN
     logger.debug(f"Training with  {dataset_name}")
     logger.debug(f"Training done on GPU: {next(model.parameters()).is_cuda}")
 
-    results, model = train_loop(model, train_data, val_data, args)
+    results, best_model = train_loop(model, train_data, val_data, args)
 
     if args.pretrained_model in ["Binding_DDG", "DeepRefine"]:
-        results, model = finetune_pretrained(model, train_data, val_data, args)
-    return model, results
+        results, best_model = finetune_pretrained(best_model, train_data, val_data, args)
+    return best_model, results
 
 
 def pretrain_model(args:Namespace) -> Tuple[AffinityGNN, Dict]:
@@ -199,8 +199,8 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
     for i in range(1, n_splits):
         logger.info("\nValidation on split {} and training with all other splits".format(i))
         args.validation_set = i
-        model, results = training[args.train_strategy](args)
-        torch.save(model.state_dict(), os.path.join(args.config["model_path"], f"best_model_val_set_{i}.pt"))
+        best_model, results = training[args.train_strategy](args)
+        torch.save(best_model.state_dict(), os.path.join(args.config["model_path"], f"best_model_val_set_{i}.pt"))
 
         if args.target_dataset in results:
             losses.append(results[args.target_dataset]["best_loss"])
@@ -217,7 +217,7 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
                                            f"benchmark_cv{args.validation_set}.png")
         benchmark_results_path = os.path.join(args.config["prediction_path"], "CV_experiment",
                                            f"benchmark_cv{args.validation_set}.csv")
-        benchmark_pearson, benchmark_loss = get_benchmark_score(model, args, tqdm_output=args.tqdm_output,
+        benchmark_pearson, benchmark_loss = get_benchmark_score(best_model, args, tqdm_output=args.tqdm_output,
                                                                 plot_path=benchmark_plot_path,
                                                                 results_path=benchmark_results_path)
 
@@ -229,7 +229,7 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
                                            f"abag_affinity_test_cv{args.validation_set}.png")
         abag_test_results_path = os.path.join(args.config["prediction_path"], "CV_experiment",
                                               f"abag_affinity_test_cv{args.validation_set}.csv")
-        test_pearson, test_loss = get_abag_test_score(model, args, tqdm_output=args.tqdm_output,
+        test_pearson, test_loss = get_abag_test_score(best_model, args, tqdm_output=args.tqdm_output,
                                                       plot_path=abag_test_plot_path,
                                                       results_path=abag_test_results_path)
         test_losses.append(test_loss)

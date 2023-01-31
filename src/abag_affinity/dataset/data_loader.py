@@ -52,12 +52,11 @@ class AffinityDataset(Dataset, ABC):
         self.max_edge_distance = max_edge_distance
 
         if "-" in dataset_name:
-            dataset_name, publication = dataset_name.split("-")
-            publication_code = publication if "mason21" not in publication else "mason21"
+            dataset_name, publication_code = dataset_name.split("-")
             self.affinity_type = self.config["DATASETS"][dataset_name]["affinity_types"][publication_code]
             self.dataset_name = dataset_name
-            self.publication = publication
-            self.full_dataset_name = dataset_name + "-" + publication
+            self.publication = publication_code
+            self.full_dataset_name = dataset_name + "-" + publication_code
         else:
             self.affinity_type = self.config["DATASETS"][dataset_name]["affinity_type"]
             self.publication = None
@@ -72,7 +71,7 @@ class AffinityDataset(Dataset, ABC):
 
         # create path for processed graphs
         self.results_dir = os.path.join(self.config["PROJECT_ROOT"], self.config["RESULTS"]["path"])
-        self.graph_dir = os.path.join(self.config["processed_graph_path"], dataset_name, node_type)
+        self.graph_dir = os.path.join(self.config["processed_graph_path"], dataset_name, node_type, pretrained_model)
 
         if self.save_graphs or preprocess_data:
             logger.debug(f"Saving processed graphs in {self.graph_dir}")
@@ -420,6 +419,9 @@ class AffinityDataset(Dataset, ABC):
         if self.interface_hull_size is None or self.interface_hull_size == "" or self.interface_hull_size == "None":
             graph_filepath = os.path.join(self.graph_dir, df_idx + ".pickle")
         else:
+            if not os.path.exists(os.path.join(self.graph_dir, f"interface_hull_{self.interface_hull_size}")):
+                Path(os.path.join(self.graph_dir, f"interface_hull_{self.interface_hull_size}")).mkdir(exist_ok=True,
+                                                                                                       parents=True)
             graph_filepath = os.path.join(self.graph_dir, f"interface_hull_{self.interface_hull_size}",
                                           df_idx + ".pickle")
 

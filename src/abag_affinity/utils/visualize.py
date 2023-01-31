@@ -41,5 +41,9 @@ def plot_correlation(x: np.ndarray, y: np.ndarray, path: str, show_corr: bool = 
     legend = legend[:-2]
     phantom, = plot.ax_joint.plot([], [], linestyle="", alpha=0)
     plot.ax_joint.legend([phantom], [legend])
+
+    plot.ax_joint.set_xlabel("Label [-log(Kd)]")
+    plot.ax_joint.set_ylabel("Prediction [-log(Kd)]")
+    plt.tight_layout()
     plt.savefig(path)
     plt.close()

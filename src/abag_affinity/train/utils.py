@@ -138,6 +138,7 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
     all_labels = np.array([])
     all_continuous_labels = np.array([])
     all_binary_labels = np.array([])
+    all_pdbs = []
 
     model.eval()
     for data in tqdm(val_dataloader, disable=not tqdm_output):
@@ -150,11 +151,15 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
             label = torch.argmax(label.detach().cpu(), dim=1)
             all_binary_labels = np.append(all_binary_labels, label.numpy())
             all_binary_predictions = np.append(all_binary_predictions, output["x"].flatten().detach().cpu().numpy())
+            pdb_ids_1 = [ filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
+            pdb_ids_2 = [ filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
+            all_pdbs.extend(list(zip(pdb_ids_1, pdb_ids_2)))
         else:
             label = label.detach().cpu()
             all_continuous_predictions = np.append(all_continuous_predictions, output["x"].flatten().detach().cpu().numpy())
             all_continuous_labels = np.append(all_continuous_labels, label.numpy())
 
+            all_pdbs.extend([ filepath.split("/")[-1].split(".")[0] for filepath in data["input"]["filepath"]])
         all_labels = np.append(all_labels, label.numpy())
         all_predictions = np.append(all_predictions, output["x"].flatten().detach().cpu().numpy())
 
@@ -175,6 +180,7 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
         "pearson_correlation_p": pearson_corr[1],
         "all_labels": all_labels,
         "all_predictions": all_predictions,
+        "all_pdbs": all_pdbs,
         "total_train_loss": total_loss_train,
         "total_val_loss": total_loss_val,
         "val_accuracy": acc
@@ -202,7 +208,10 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_dataset: 
     # create folder to store correlation plots
     plot_path = os.path.join(args.config["plot_path"],
                              f"{args.node_type}/sequential_learning/val_set_{args.validation_set}")
+    prediction_path = os.path.join(args.config["prediction_path"],
+                             f"{args.node_type}/sequential_learning/val_set_{args.validation_set}")
     Path(plot_path).mkdir(exist_ok=True, parents=True)
+    Path(prediction_path).mkdir(parents=True, exist_ok=True)
 
     wandb, wdb_config, use_wandb, run = configure(args)
 
@@ -269,6 +278,13 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_dataset: 
 
                 plot_correlation(x=all_labels, y=all_predictions,
                                  path=os.path.join(plot_path, f"{train_dataset.full_dataset_name}-{data_type}.png"))
+                result_df = pd.DataFrame({
+                        "pdb": epoch_results["all_pdbs"],
+                        "prediction": all_predictions,
+                        "labels": all_labels
+                })
+                result_df.to_csv(os.path.join(prediction_path, f"{train_dataset.full_dataset_name}-{data_type}.csv"),
+                                 index=False)
             best_model = deepcopy(model)
         else:
             patience -= 1
@@ -281,7 +297,7 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_dataset: 
             f'Val-Acc: {epoch_results["val_accuracy"]: .4f} | '
             f'Patience: {patience} ')
 
-        if not np.isnan(epoch_results["rmse"]) and np.isnan(epoch_results["pearson_correlation"]):
+        if val_dataset.affinity_type == "-log(Kd)" and np.isnan(epoch_results["pearson_correlation"]):
             preds_nan = any(np.isnan(epoch_results["all_predictions"]))
             preds_same = np.all(epoch_results["all_predictions"] == epoch_results["all_predictions"][0])
             labels_nan = any(np.isnan(epoch_results["all_labels"]))
@@ -419,12 +435,11 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int, valida
 
     if "-" in dataset_name:
         # DMS data
-        dataset_name, publication = dataset_name.split("-")
+        dataset_name, publication_code = dataset_name.split("-")
         summary_path, _ = get_data_paths(config, dataset_name)
-        summary_path = os.path.join(summary_path, publication + ".csv")
+        summary_path = os.path.join(summary_path, publication_code + ".csv")
         summary_df = pd.read_csv(summary_path, index_col=0)
 
-        publication_code = publication if "mason21" not in publication else "mason21"
         if config["DATASETS"][dataset_name]["affinity_types"][publication_code] == "E":
             summary_df = summary_df[(~summary_df["E"].isna()) &(~summary_df["NLL"].isna())]
         else:
@@ -433,7 +448,7 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int, valida
         data_path = os.path.join(config["DATASETS"]["path"],
                                  config["DATASETS"][dataset_name]["folder_path"],
                                  config["DATASETS"][dataset_name]["mutated_pdb_path"],
-                                 publication)
+                                 publication_code)
         all_files = glob.glob(data_path + "/*/*") + glob.glob(data_path + "/*")
         available_files = set(
             file_path.split("/")[-3] + ":" + file_path.split("/")[-2].split("_")[0] + ":" + file_path.split("/")[-2].split("_")[-1] + "-" + file_path.split("/")[-1].split(".")[0].lower() for file_path in
@@ -463,31 +478,37 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int, valida
                         has_valid_partner.update(has_valid_partner_id)
                     total_elements += len(e_splits[i])
                 has_valid_partner = np.fromiter(has_valid_partner, int, len(has_valid_partner))
+                valid_partners = None
             else:
                 e_dists = sp.distance.cdist(e_values, e_values)
                 nll_avg = (nll_values[:, None] + nll_values) / 2
 
                 valid_pairs = (e_dists - nll_avg) >= 0
                 has_valid_partner = np.where(np.sum(valid_pairs, axis=1) > 0)[0]
+                valid_partners = {
+                    summary_df.index[idx]: set(summary_df.index[np.where(valid_pairs[idx])[0]].values.tolist()) for idx
+                    in has_valid_partner}
 
             data_points_with_valid_partner = set(summary_df.index[has_valid_partner])
-            valid_partners = { summary_df.index[idx]: set(summary_df.index[np.where(valid_pairs[idx])[0]].values.tolist()) for idx in has_valid_partner}
             total_valid_data_points = len(data_points_with_valid_partner)
             logger.debug(f"There are in total {len(data_points_with_valid_partner)} data points with valid partner")
-            random.shuffle(all_data_points)
 
             train_ids = set()
             val_ids = set()
-            for i, pdb_idx in enumerate(data_points_with_valid_partner):
-                possible_ids = set(valid_partners[pdb_idx])
-                if len(possible_ids - train_ids) > 0:
-                    # choose one of the unused ids
-                    other_idx = random.choice(list(possible_ids - train_ids))
+            while len(data_points_with_valid_partner) > 0:
+                pdb_idx = data_points_with_valid_partner.pop()
+                if valid_partners is not None:
+                    possible_ids = set(valid_partners[pdb_idx])
+                    if len(possible_ids - train_ids) > 0:
+                        # choose one of the unused ids
+                        other_idx = random.choice(list(possible_ids - train_ids))
+                    else:
+                        # chosse one randomly with the risk that this idx is already in the train data
+                        other_idx = random.choice(list(possible_ids))
+                    data_points_with_valid_partner.discard(other_idx)
                 else:
-                    # chosse one randomly with the risk that this idx is already in the train data
-                    other_idx = random.choice(list(possible_ids))
-
-                if i >= total_valid_data_points * train_size:  # add to val ids
+                    other_idx = pdb_idx
+                if len(train_ids) >= total_valid_data_points * train_size:  # add to val ids
                     val_ids.add(pdb_idx)
                     val_ids.add(other_idx)
                 else:
@@ -560,7 +581,7 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
     else:
         relative_data = False
 
-    validation_size = args.validation_size if dataset == args.target_dataset else 0
+    validation_size = args.validation_size if dataset == args.target_dataset else args.transfer_learning_validation_size
     train_ids, val_ids = train_val_split(config, dataset_name, validation_set, validation_size)
 
     if args.test:
@@ -635,12 +656,15 @@ def get_bucket_dataloader(args: Namespace, train_datasets: List[AffinityDataset]
                          f"but expected one of [min, geometric_mean]")
     i = 0
     for idx, train_dataset in enumerate(train_datasets):
-        if len(train_dataset) >= train_bucket_size[idx]:
-            # sample without replacement
-            indices = random.sample(range(len(train_dataset)), train_bucket_size[idx])
+        if train_dataset.dataset_name == args.target_dataset:
+            indices = range(len(train_dataset))
         else:
-            # sample with replacement
-            indices = random.choices(range(len(train_dataset)), k=train_bucket_size[idx])
+            if len(train_dataset) >= train_bucket_size[idx]:
+                # sample without replacement
+                indices = random.sample(range(len(train_dataset)), train_bucket_size[idx])
+            else:
+                # sample with replacement
+                indices = random.choices(range(len(train_dataset)), k=train_bucket_size[idx])
 
         train_buckets.append(Subset(train_dataset, indices))
         if train_dataset.relative_data:
@@ -996,7 +1020,6 @@ def get_benchmark_score(model: AffinityGNN, args: Namespace, tqdm_output: bool =
                         results_path: str = None) -> Tuple[float, float]:
 
     criterion = nn.MSELoss()
-
     dataset = AffinityDataset(args.config, "AntibodyBenchmark", None,
                               node_type=args.node_type,
                               max_nodes=args.max_num_nodes,

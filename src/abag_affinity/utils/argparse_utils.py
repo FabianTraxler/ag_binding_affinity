@@ -71,7 +71,7 @@ def parse_args() -> Namespace:
                           help='Datasets used for transfer-learning in addition to goal_dataset', default="", nargs='+')
     optional.add_argument("--relaxed_pdbs", action=BooleanOptionalAction, help="Use the relaxed pdbs for training "
                                                                                "and validation", default=False)
-    optional.add_argument("--validation_size", type=int, help="Percent of target dataset used to validate model",
+    optional.add_argument("--validation_size", type=int, help="Percent of target dataset used to validate model (only DMS)",
                           default=10)
     # -train strategy
     optional.add_argument("-t", "--train_strategy", type=str, help='The training strategy to use',
@@ -82,6 +82,9 @@ def parse_args() -> Namespace:
     optional.add_argument("-m", "--pretrained_model", type=str,
                           help='Name of the pretrained model to use for node embeddings',
                           choices=["", "DeepRefine", "Binding_DDG"], default="")
+    optional.add_argument("--transfer_learning_validation_size", type=int,
+                          help="Percent of transfer learning dataset(s) used to validate model (only DMS)",
+                          default=10)
     # -train config
     optional.add_argument("-b", "--batch_size", type=int, help="Batch size used for training", default=10)
     optional.add_argument("-e", "--max_epochs", type=int, help="Max number of training epochs", default=200)
