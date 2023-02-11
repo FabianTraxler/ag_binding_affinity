@@ -1,4 +1,5 @@
 """Utilities to read PDB files"""
+import os
 from pathlib import Path
 from typing import Dict, Tuple, Union
 
@@ -8,10 +9,13 @@ from Bio.PDB.Structure import Structure
 
 parser = PDBParser(PERMISSIVE=3)
 
-pdb_list = PDBList()
+# Create temporary directory for PDB files
+
+pdb_list = PDBList(pdb=f"pdblist_{os.getpid()}")
+
 
 def read_file(structure_id: str, path: Union[str, Path]) -> Tuple[Structure, Dict]:
-    """ Read a PDB file and return the structure and header
+    """Read a PDB file and return the structure and header
 
     Args:
         structure_id: PDB ID
@@ -27,4 +31,3 @@ def read_file(structure_id: str, path: Union[str, Path]) -> Tuple[Structure, Dic
         raise RuntimeError(f"Could not load pdb_file {path}: {e}")
 
     return structure, header
-
