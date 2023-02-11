@@ -129,7 +129,7 @@ phillips21_bindin:  # TODO we should add antibodies light-chains?
   use_for: "absolute K_D"
   comment: "'real' binding affinity values (-logK_D). not full DMS, but many combinations. Used AlphaFold (with template) to model structures with mutations. be careful: FluB-binding K_Ds are often very low. minimum K_D=6.0; Can be used to directly train/predict K_D"
   source_code: https://github.com/klawrence26/bnab-landscapes
-  data: 
+  data:
     CR9114: https://cdn.elifesciences.org/articles/71393/elife-71393-fig1-data1-v3.csv
     CR6261: https://cdn.elifesciences.org/articles/71393/elife-71393-fig1-data2-v3.csv
   raw_data: PRJNA741613
@@ -147,7 +147,7 @@ wu17_in:
         full_name: C05
       # pdb: 4FP8 / 5UMN
       pdb:
-        id: 4fp8
+        id: 4FP8
         mutations: KA50E;NA53D;NA54S;RA57Q;IA62K;DA63N;HA75Q;VA78G;EA82K;TA83K;FA94Y;IA121N;TA122N;GA124S;TA126N;GA135T;NA137S;KA140I;GA142R;PA143S;GA144K;SA145N;GA146S;KA156H;SA157L;GA158N;SA159F;TA160K;VA163A;DA172E;NA173Q;SA186G;NA188D;QA189K;EA190D;TA192I;SA193F;VA196A;VA202I;RA207K;IA213V;IA214S;WA222R;GA225N;LA226I;SA227P;VA242I;VA244L;NA248T;MA260I;TA262S;DA275G;TA276K;IA278N;KA299R;KA307R;GA310K;HA311Q;HA312N
         chains:
           antigen:
@@ -164,7 +164,7 @@ wu17_in:
         full_name: C05
       # pdb: 6ML8 (4FP8 / 5UMN)
       pdb:
-        id: 6ml8
+        id: 6ML8
         mutations: RA60L;KA64I;NA73S;IA74V;VA78I;SA86L;LA88I;NA90R;RA91E;AA97V;TA99K;SA102P;DA111H;RA138S;RA146T;TA149S;AA151S;PA153S;AA155N;RA156G;KA157E;VA165L;EA169G;AA170K;SA173L;RA179K;VA182A;QA185K;SA199P;EA202G;EA203D;RA209H;DA211E;NA221H;NA223S;RA225K;SA240E;MA243I;TA261N;WA268R;PA277F;TA283N;LA288M;TA293A;IA311V;TA326A;VA340I
       # comment: "this one is for H3, but should be fine nevertheless? map an H1 structure on it?"
         chains:
