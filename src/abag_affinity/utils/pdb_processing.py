@@ -377,7 +377,7 @@ def get_atom_edge_encodings(distance_matrix: np.ndarray, atom_encodings: np.ndar
 def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_file_path: Union[str, Path]):
     Path(cleaned_file_path).parent.mkdir(exist_ok=True, parents=True)
 
-    tmp_pdb_filepath = f'{pdb_file_path}.tmp'
+    tmp_pdb_filepath = f'{pdb_file_path}.{os.getpid()}.tmp'
     shutil.copyfile(pdb_file_path, tmp_pdb_filepath)
 
     # remove additional models - only keep first model
