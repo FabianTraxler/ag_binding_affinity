@@ -15,17 +15,12 @@ DATASETS:
     summary: "abag_affinity_dataset.csv"
     affinity_type: "-log(Kd)"
 
-  AbDb:
-    folder_path: "resources/AbDb"
+  abag_affinity_of_embeddings:
+    folder_path: "results/abag_affinity_dataset"
     pdb_path: "pdbs"
-    summary: "summary.csv"
+    relaxed_pdb_path: "pdbs_relaxed"
+    summary: "abag_affinity_dataset.csv"
     affinity_type: "-log(Kd)"
-  # Dataset_v1:
-  #   folder_path: "results/"
-  #   pdb_path: "pdbs"
-  #   relaxed_pdb_path: "pdbs_relaxed"
-  #   summary: "abag_affinity_dataset.csv"
-  #   affinity_type: "-log(Kd)"
 
   PDBBind:
     folder_path: "results/PDBBind"
@@ -54,7 +49,6 @@ DATASETS:
       wu20_differ_ha_h3_h1: "E"
       mason21: "E"
       b.20_funct_screen_strat_engin_chimer: "E"
-
 
 RESOURCES:
   path: ""
