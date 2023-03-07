@@ -12,9 +12,20 @@ DATASETS:
   abag_affinity:
     folder_path: "results/abag_affinity_dataset"
     pdb_path: "pdbs"
-    relaxed_pdb_path: "pdbs_relaxed"
     summary: "abag_affinity_dataset.csv"
     affinity_type: "-log(Kd)"
+
+  AbDb:
+    folder_path: "resources/AbDb"
+    pdb_path: "pdbs"
+    summary: "summary.csv"
+    affinity_type: "-log(Kd)"
+  # Dataset_v1:
+  #   folder_path: "results/"
+  #   pdb_path: "pdbs"
+  #   relaxed_pdb_path: "pdbs_relaxed"
+  #   summary: "abag_affinity_dataset.csv"
+  #   affinity_type: "-log(Kd)"
 
   PDBBind:
     folder_path: "results/PDBBind"
@@ -58,12 +69,16 @@ RESOURCES:
 
   AbDb:
     folder_path: "resources/AbDb"
-    summary: ""
+    pdb_path: "pdbs"
+    summary: "summary.csv"
 
 
 RESULTS:
   path: "results"
   plot_path: "plots"
+  prediction_path: "predictions"
+  model_path: "models"
+  force_field_results: "ff_res"
   processed_graph_path: "processed_graphs"
   cleaned_pdbs: "cleaned_pdb"
 

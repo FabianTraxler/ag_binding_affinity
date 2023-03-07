@@ -202,6 +202,9 @@ def parse_args() -> Namespace:
     if args.args_file is not None:
         args = read_args_from_file(args)
 
+    if args.transfer_learning_datasets == "":
+        args.transfer_learning_datasets = []
+
     return args
 
 
