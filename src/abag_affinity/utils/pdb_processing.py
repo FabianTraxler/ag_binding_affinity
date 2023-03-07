@@ -410,6 +410,9 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_fil
     # drop H atoms
     filtered_df = filtered_df[filtered_df['element_symbol'] != 'H']
 
+    # Enforce uppercase chain IDs
+    filtered_df["chain_id"] = filtered_df["chain_id"].apply(lambda x: x.upper() if re.match("[a-zA-Z]", x) else chr(ord('M') + int(x) - 1))
+
     # remove all non-standard atoms - used in Binding_DDG preprocessing
     all_postfixes = [ "" ]
     for postfixes in RESIDUE_SIDECHAIN_POSTFIXES.values():
