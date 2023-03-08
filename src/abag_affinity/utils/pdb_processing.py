@@ -20,8 +20,9 @@ from abag_affinity.binding_ddg_predictor.utils.protein import (
 from .pdb_reader import read_file
 from .feature_extraction import residue_features, atom_features
 
-# Definition of standard amino acids and objects to quickly access them
-AMINO_ACIDS = ["ala","cys","asp","glu","phe","gly","his","ile","lys","leu","met","asn","pro","gln","arg","ser","thr","val","trp","tyr"]
+# Definition of standard amino acids and objects to quickly access them (order corresponds to AF2/OF)
+AMINO_ACIDS = ["ala", "arg", "asn", "asp", "cys", "gln", "glu", "gly", "his", "ile", "leu", "lys", "met", "phe", "pro", "ser", "thr", "trp", "tyr", "val"]
+
 AAA2ID = {aa: i for i, aa in enumerate(AMINO_ACIDS)}
 ID2AA = {i: aa for i, aa in enumerate(AMINO_ACIDS)}
 
