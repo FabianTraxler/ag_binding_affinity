@@ -410,5 +410,10 @@ def get_residue_of_embeddings(residue_infos: list, of_emb_path: str):
     Returns:
         np.ndarray: Array with the OpenFold embeddings at the appropriate positions - shape (n, 384)
     """
+    
+    of_embs = torch.load('of_emb_path', map_location='cpu')
+
+    for res in residue_infos:
+
 
     return None
