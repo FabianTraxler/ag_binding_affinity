@@ -35,8 +35,8 @@ for d in dat:
         print('max id', max_id)
         print('max L id', max_L_id)
         res_id[ch_type == 2] += 1
-        res_id[ch_type == 1] += -max_L_id - 15 - 2
-        res_id[ch_type == 3] += -max_id - 200 - 2
+        res_id[ch_type == 1] += -max_L_id - 15
+        res_id[ch_type == 3] += -max_id - 200
         print('res_id_after', res_id)
         d_new['input_data']['residue_index'] = res_id
         of_emb[pdb_id] = d_new

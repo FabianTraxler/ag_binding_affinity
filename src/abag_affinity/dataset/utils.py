@@ -55,7 +55,7 @@ def get_pdb_path_and_id(row: pd.Series, dataset_name: str, config: Dict):
     return pdb_file_path, pdb_id
 
 
-def get_graph_dict(pdb_id: str, pdb_file_path: str, affinity: float, chain_id2protein: Dict,
+def get_graph_dict(pdb_id: str, pdb_file_path: str, of_emb_path: str, affinity: float, chain_id2protein: Dict,
                    node_type: str, distance_cutoff: int = 5, interface_hull_size: int = 10,
                    ca_alpha_contact: bool = False,) -> Dict:
     """ Generate a dictionary with node, edge and meta-information for a given PDB File
@@ -82,11 +82,14 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, affinity: float, chain_id2pr
     structure, _ = read_file(pdb_id, pdb_file_path)
 
     structure_info, residue_infos, residue_atom_coordinates = get_residue_infos(structure, chain_id2protein)
+    node_of_embeddings = None
 
     if node_type == "residue":
         distances, closest_nodes = get_distances(residue_infos, residue_distance=True, ca_distance=ca_alpha_contact)
 
         node_features = get_residue_encodings(residue_infos, structure_info, chain_id2protein)
+        if of_emb_path is not None:
+            node_of_embeddings = get_residue_of_embeddings(residue_infos, of_emb_path)
         adj_tensor = get_residue_edge_encodings(distances, residue_infos, chain_id2protein, distance_cutoff=distance_cutoff)
         atom_names = []
     elif node_type == "atom":
@@ -105,6 +108,7 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, affinity: float, chain_id2pr
         "node_features":node_features,
         "residue_infos": residue_infos,
         "residue_atom_coordinates": residue_atom_coordinates,
+        "node_of_embeddings": node_of_embeddings,
         "adjacency_tensor": adj_tensor,
         "affinity": affinity,
         "closest_residues":closest_nodes,
@@ -149,7 +153,12 @@ def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, cleaned_pdb
     if interface_hull_size is not None:
         cleaned_path = reduce2interface_hull(pdb_id, cleaned_path, chain_id2protein, interface_distance_cutoff, interface_hull_size)
 
-    return get_graph_dict(pdb_id, cleaned_path, affinity, chain_id2protein, distance_cutoff=max_edge_distance,
+    if 'of_embeddings' in config['DATASETS'][dataset_name]:
+        emb_path = os.path.join(config['DATASETS'][dataset_name]['folder_path'],config['DATASETS'][dataset_name]['of_embeddings'])
+    else:
+        emb_path = None
+    
+    return get_graph_dict(pdb_id, cleaned_path, emb_path, affinity, chain_id2protein, distance_cutoff=max_edge_distance,
                           interface_hull_size=interface_hull_size, node_type=node_type)
 
 
@@ -375,6 +384,9 @@ def reduce2interface_hull(file_name: str, pdb_filepath: str, chain_infos: Dict,
         interface_residues = atom_df.iloc[interface_hull][["chain_id", "residue_number"]].drop_duplicates()
         interface_df = atom_df.merge(interface_residues)
 
+        if len(interface_df) <= 0:
+            raise ValueError('Cannot detect interface')
+
         assert len(interface_df) > 0, f"No atoms after cleaning in file: {pdb_filepath}"
 
         pdb.df['ATOM'] = interface_df
@@ -384,3 +396,19 @@ def reduce2interface_hull(file_name: str, pdb_filepath: str, chain_infos: Dict,
                     append_newline=True)
 
         return interface_path
+
+def get_residue_of_embeddings(residue_infos: list, of_emb_path: str):
+    """ Get embeddings calculated for each residue using OpenFold from an external file
+    1. Load embedding file
+    2. Inject embeddings at correct position by matching chain ID and residue number between residue infos and embeddings,
+        because order of residues is different between the two structures
+
+    Args:
+        residue_infos: List of residue infos
+        of_emb_path: Path to file containing OpenFold embeddings 
+
+    Returns:
+        np.ndarray: Array with the OpenFold embeddings at the appropriate positions - shape (n, 384)
+    """
+
+    return None
