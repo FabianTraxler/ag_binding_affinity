@@ -68,7 +68,7 @@ def parse_args() -> Namespace:
     optional.add_argument("--target_dataset", type=str, help='The datasize used for final and patience',
                           default="abag_affinity:absolute")
     optional.add_argument("-tld", "--transfer_learning_datasets", type=str,
-                          help='Datasets used for transfer-learning in addition to goal_dataset', default="", nargs='+')
+                          help='Datasets used for transfer-learning in addition to goal_dataset', default=[], nargs='+')
     optional.add_argument("--relaxed_pdbs", action=BooleanOptionalAction, help="Use the relaxed pdbs for training "
                                                                                "and validation", default=False)
     optional.add_argument("--validation_size", type=int, help="Percent of target dataset used to validate model (only DMS)",
@@ -201,9 +201,6 @@ def parse_args() -> Namespace:
 
     if args.args_file is not None:
         args = read_args_from_file(args)
-
-    if args.transfer_learning_datasets == "":
-        args.transfer_learning_datasets = []
 
     return args
 

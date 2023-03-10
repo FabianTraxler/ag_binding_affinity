@@ -194,7 +194,7 @@ class IPABindingPredictor(nn.Module):
 class AggregatingBindingPredictor(nn.Module):
     def __init__(self, in_dim, hidden_dim):
         super().__init__()
-        self.model = nn.Sequential(nn.Linear(in_dim, hidden_dim), nn.ReLU(), nn.Linear(hidden_dim, 1))
+        self.model = nn.Sequential(nn.Linear(in_dim, hidden_dim), nn.SiLU(), nn.Linear(hidden_dim, 1))
 
     def forward(self, s):
         per_node_affinity = self.model(s)

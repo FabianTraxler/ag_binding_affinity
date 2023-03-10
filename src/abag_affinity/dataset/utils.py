@@ -68,6 +68,7 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, of_emb_path: str, affinity: 
     Args:
         pdb_id: ID of PDB
         pdb_file_path: Path to PDB File
+        of_emb_path: Path to OpenFold embeddings file
         affinity: Binding affinity of the complex
         chain_id2protein: Dict with protein-information for each chain
         node_type: Type of nodes (residue, atom)
@@ -108,7 +109,8 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, of_emb_path: str, affinity: 
         "node_features":node_features,
         "residue_infos": residue_infos,
         "residue_atom_coordinates": residue_atom_coordinates,
-        "node_of_embeddings": node_of_embeddings,
+        "node_of_embeddings": get_residue_of_embeddings(residue_infos, of_emb_path)
+                              if of_emb_path and node_type =="residue" else None,
         "adjacency_tensor": adj_tensor,
         "affinity": affinity,
         "closest_residues":closest_nodes,
@@ -154,11 +156,12 @@ def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, cleaned_pdb
         cleaned_path = reduce2interface_hull(pdb_id, cleaned_path, chain_id2protein, interface_distance_cutoff, interface_hull_size)
 
     if 'of_embeddings' in config['DATASETS'][dataset_name]:
-        emb_path = os.path.join(config['DATASETS'][dataset_name]['folder_path'],config['DATASETS'][dataset_name]['of_embeddings'])
+
+        of_emb_path = os.path.join(config['DATASETS']["path"],config['DATASETS'][dataset_name]['folder_path'],config['DATASETS'][dataset_name]['of_embeddings'], pdb_id + '.pt')
     else:
-        emb_path = None
+        of_emb_path = None
     
-    return get_graph_dict(pdb_id, cleaned_path, emb_path, affinity, chain_id2protein, distance_cutoff=max_edge_distance,
+    return get_graph_dict(pdb_id, cleaned_path, of_emb_path, affinity, chain_id2protein, distance_cutoff=max_edge_distance,
                           interface_hull_size=interface_hull_size, node_type=node_type)
 
 
@@ -169,7 +172,6 @@ def load_deeprefine_graph(file_name: str, input_filepath: str, chain_infos: Dict
         Utilize DeepRefine functionality to get graphs
 
         Args:
-
             file_name: Name of the file
             input_filepath: Path to PDB File
             chain_infos: Dict with protein information for each chain
@@ -397,7 +399,7 @@ def reduce2interface_hull(file_name: str, pdb_filepath: str, chain_infos: Dict,
 
         return interface_path
 
-def get_residue_of_embeddings(residue_infos: list, of_emb_path: str):
+def get_residue_of_embeddings(residue_infos: list, of_emb_path: str) -> np.ndarray:
     """ Get embeddings calculated for each residue using OpenFold from an external file
     1. Load embedding file
     2. Inject embeddings at correct position by matching chain ID and residue number between residue infos and embeddings,
@@ -411,9 +413,21 @@ def get_residue_of_embeddings(residue_infos: list, of_emb_path: str):
         np.ndarray: Array with the OpenFold embeddings at the appropriate positions - shape (n, 384)
     """
     
-    of_embs = torch.load('of_emb_path', map_location='cpu')
+    chain_id_char2num = {'H': 1, 'L':2}
+    of_embs = torch.load(of_emb_path, map_location='cpu')
+    assert torch.all(of_embs['input_data']['context_chain_type'] != 0)
+    of_embs_array = torch.zeros(len(residue_infos), of_embs['single'].shape[-1])
 
-    for res in residue_infos:
-
-
-    return None
+    for i, res in enumerate(residue_infos):
+        chain_id = chain_id_char2num[res['chain_id']] if res['chain_id'] in chain_id_char2num.keys() else 3
+        chain_res_id = torch.nonzero(torch.logical_and(of_embs['input_data']['context_chain_type'] == chain_id,
+                                      of_embs['input_data']['residue_index'] == res['residue_id']), as_tuple=True)
+        if chain_res_id[0].nelement() == 0:
+            logger.warning('Missing residue in OF embeddings, PDBID:{}, chain ID: {}, residue ID: {}'
+                           .format(of_emb_path[-7:-3], res['chain_id'], res['residue_id']))
+        else:
+            of_embs_array[i, :] = of_embs['single'][chain_res_id]
+        
+    of_embs_array = of_embs_array.numpy()
+    # print('of_embs_array', of_embs_array)
+    return of_embs_array

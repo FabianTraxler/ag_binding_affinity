@@ -462,10 +462,6 @@ class AffinityDataset(Dataset, ABC):
             "graph": graph
         }
 
-        # if self.dataset_name == "abag_affinity_of_embeddings":
-        #     # import ipdb; ipdb.set_trace()
-        #     data_point["of_embeddings"] = self.of_embeddings
-
         if self.pretrained_model == "DeepRefine":
             deeprefine_graph = self.load_deeprefine_graph(df_idx)
             nodes = graph_dict["graph_nodes"]

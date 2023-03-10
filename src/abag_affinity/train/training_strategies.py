@@ -122,7 +122,6 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
     """
     config = read_config(args.config_file)
 
-    print('args.transfer_learning_datasets', args.transfer_learning_datasets)
     datasets = args.transfer_learning_datasets + [args.target_dataset]
 
     use_cuda = args.cuda and torch.cuda.is_available()
