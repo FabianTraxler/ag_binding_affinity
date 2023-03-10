@@ -377,7 +377,7 @@ def get_atom_edge_encodings(distance_matrix: np.ndarray, atom_encodings: np.ndar
     return A
 
 
-def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_file_path: Union[str, Path]):
+def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_file_path: Union[str, Path], fix_insert=True):
     Path(cleaned_file_path).parent.mkdir(exist_ok=True, parents=True)
 
     tmp_pdb_filepath = f'{pdb_file_path}.{os.getpid()}.tmp'
@@ -391,19 +391,22 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_fil
     io.save(tmp_pdb_filepath)
 
     # identify antigen chain
-    rename_command = ""
+    rename_fixinsert_command = ""
     df_map = pdb_chain_mapping(pdb_file_path)
     antigen_chains = sorted(df_map[df_map["type"] == "A"]["abdb_label"].values)
 
     # assign chains ids from A to Z. I checked that this will not lead to conflicts with the original chain ids (in case of 2 or more antigen chains)
     for new_id, chain in zip(string.ascii_uppercase, antigen_chains):
-        rename_command += f" | pdb_rplchain -{chain}:{new_id}"
+        rename_fixinsert_command += f" | pdb_rplchain -{chain}:{new_id}"
+
+    if fix_insert:
+        rename_fixinsert_command += " | pdb_fixinsert "
 
     # Clean temporary PDB file and then save its cleaned version as the original PDB file
     # retry 3 times because these commands sometimes do not properly write to disc
     retries = 0
     while not os.path.exists(cleaned_file_path):
-        command = f'pdb_sort "{tmp_pdb_filepath}" {rename_command} | pdb_tidy | pdb_fixinsert | pdb_delhetatm  > "{cleaned_file_path}"'
+        command = f'pdb_sort "{tmp_pdb_filepath}" | pdb_tidy {rename_fixinsert_command} | pdb_delhetatm  > "{cleaned_file_path}"'
         subprocess.run(command, shell=True)
         retries += 1
         if retries >= 3:
@@ -413,7 +416,7 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_fil
     input_atom_df = cleaned_pdb.df['ATOM']
 
     # remove all duplicate (alternate location residues)
-    filtered_df = input_atom_df.drop_duplicates(subset=["atom_name", "chain_id", "residue_number"])
+    filtered_df = input_atom_df.drop_duplicates(subset=["atom_name", "chain_id", "residue_number", "insertion"])
 
     # remove all residues that do not have at least N, CA, C atoms
     filtered_df = filtered_df.groupby(["chain_id", "residue_number", "residue_name"]).filter(
