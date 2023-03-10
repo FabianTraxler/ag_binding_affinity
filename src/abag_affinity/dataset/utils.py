@@ -434,5 +434,4 @@ def get_residue_of_embeddings(residue_infos: list, of_emb_path: str) -> np.ndarr
             of_embs_array[i, :] = of_embs['single'][chain_res_id]
         
     of_embs_array = of_embs_array.numpy()
-    # print('of_embs_array', of_embs_array)
     return of_embs_array
