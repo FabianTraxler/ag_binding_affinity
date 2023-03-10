@@ -13,10 +13,16 @@ import os
 import sys
 import copy
 import shutil
+import pandas as pd
+import ast
+import numpy as np
 
 emb_file = sys.argv[1]
-out_dir = sys.argv[2]
+summ_file = sys.argv[2]
 pdbs_dir = sys.argv[3]
+out_dir = sys.argv[4]
+
+chain_id_order = ['h', 'l', 'a', 'b', 'c']
 
 present_pdbs_dir = '/'.join(pdbs_dir.split('/')[:-1] + ['emb_pdbs'])
 print(present_pdbs_dir)
@@ -29,26 +35,44 @@ if not os.path.exists(out_dir):
 
 dat = torch.load(emb_file, map_location='cpu')
 
+summ_df = pd.read_csv(summ_file)
+
 files = os.listdir(pdbs_dir)
 files = [f[:4] for f in files]
+present_data = []
 print('files', files)
 for d in dat:
-    pdb_id = d['pdb_fn'][:4].lower()
-    if  pdb_id in files:
-        print('pdb id', pdb_id)
+    pdb_id = d['pdb_fn']
+    if  pdb_id[:4].lower() in files:
+        if '_' in pdb_id:
+            if pdb_id[-1:] != '1':
+                continue
+        pdb_id = pdb_id[:4].lower()
+        df_idx = np.where(summ_df.pdb == pdb_id)[0][0]
+        pdb_row = summ_df.iloc[df_idx]
+        chain_dict = ast.literal_eval(pdb_row.chain_infos)
+        chain_keys = list(chain_dict.keys())
+        if len(chain_keys) < 3:
+            continue
+        new_chain_dict = {chain_id_order[i]: chain_dict[chain_keys[i]] 
+                          for i in range(len(chain_keys))}
+        pdb_row.chain_infos = new_chain_dict
         d_new = copy.deepcopy(d) 
         ch_type = d['input_data']['context_chain_type']
         res_id = d['input_data']['residue_index']
         max_id = torch.max(res_id[torch.logical_or(ch_type == 2, ch_type == 1)]) 
         max_L_id = torch.max(res_id[ch_type==2]) 
-        print('ch_type', ch_type)
-        print('res_id_before', res_id)
-        print('max id', max_id)
-        print('max L id', max_L_id)
         res_id[ch_type == 2] += 1
         res_id[ch_type == 1] += -max_L_id - 15
         res_id[ch_type == 3] += -max_id - 200
-        print('res_id_after', res_id)
         d_new['input_data']['residue_index'] = res_id
         torch.save(d_new, os.path.join(out_dir, pdb_id + '.pt'))
         shutil.copyfile(os.path.join(pdbs_dir, pdb_id + '.pdb'), os.path.join(present_pdbs_dir, pdb_id + '.pdb'))
+        present_data.append(pdb_row)
+
+fname_out = summ_file[:-4] + '_OF.csv'
+new_summ_df = pd.DataFrame(present_data)
+print(new_summ_df)
+new_summ_df.set_index('Unnamed: 0', inplace=True)
+print(new_summ_df)
+new_summ_df.to_csv(fname_out)

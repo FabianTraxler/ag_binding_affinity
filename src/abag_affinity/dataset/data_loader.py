@@ -384,6 +384,8 @@ class AffinityDataset(Dataset, ABC):
             Dict: PyG Data object
         """
         graph_dict = self.get_graph_dict(df_idx)
+        print('graph_dict node_features shape', graph_dict['node_features'].shape)
+        print('graph_dict of_embeddings shape', graph_dict['node_of_embeddings'].shape)
         node_features = self.get_node_features(graph_dict)
         edge_indices, edge_features = self.get_edges(graph_dict)
 

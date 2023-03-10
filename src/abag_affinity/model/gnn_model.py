@@ -92,7 +92,38 @@ class AffinityGNN(torch.nn.Module):
         return output
 
 
+class IPABindingPredictorInterface(AffinityGNN):
+    """ Interface class that wraps the IPABindingPredictor and converts the input data to a
+        format appropriate to the IPA predictor
+    """
+    def __init__(self, node_feat_dim: int, edge_feat_dim: int,
+                 num_nodes: int = None,
+                 pretrained_model: str = "", pretrained_model_path: str = "",
+                 gnn_type: str = "5A-proximity",
+                 layer_type: str = "GAT", num_gat_heads: int = 3, num_gnn_layers: int = 3,
+                 channel_halving: bool = True, channel_doubling: bool = False,
+                 node_type: str = "residue",
+                 aggregation_method: str = "sum",
+                 nonlinearity: str = "relu",
+                 num_fc_layers: int = 3, fc_size_halving: bool = True,
+                 device: torch.device = torch.device("cpu")):
+        super(AffinityGNN, self).__init__()
+        self.ipa_model = IPABindingPredictor()
+
+    def forward(self, data: Dict):
+        # do some preprocessing to convert 'node_of_embeddings' to dict field 'single' that has the proper format
+
+        # call IPABindingPredictor
+        x = self.ipa_model(data)
+
+        return {'x': x}
+
+
+
 class IPABindingPredictor(nn.Module):
+    """ Binding predictor based on the IPA model,
+        which takes OpenFold embeddings as inputs and outputs the binding affinity
+    """
     def __init__(
         self,
         c_s: int = 384,  # AF2: 384
@@ -185,10 +216,7 @@ class IPABindingPredictor(nn.Module):
             rigids = rigids.stop_rot_gradient()
 
         # Aggregate all s embeddings to compute binding affinity?!
-        output = {
-            "x": self.aggregating_module(s)
-        }
-        return output
+        return self.aggregating_module(s)
 
 
 class AggregatingBindingPredictor(nn.Module):

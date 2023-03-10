@@ -18,10 +18,10 @@ DATASETS:
 
   abag_affinity_of_embeddings:
     folder_path: "results/abag_affinity_dataset"
-    pdb_path: "emb_pdbs_clean"
-    relaxed_pdb_path: "emb_pdbs_clean"
-    summary: "abag_of_emb_clean_dataset.csv"
-    of_embeddings: "of_embeddings"
+    pdb_path: "emb_pdbs"
+    relaxed_pdb_path: "emb_pdbs"
+    summary: "abag_affinity_dataset_OF.csv"
+    of_embeddings: "of_embeddings_new"
     affinity_type: "-log(Kd)"
 
   PDBBind:

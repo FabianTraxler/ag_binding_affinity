@@ -413,18 +413,23 @@ def get_residue_of_embeddings(residue_infos: list, of_emb_path: str) -> np.ndarr
         np.ndarray: Array with the OpenFold embeddings at the appropriate positions - shape (n, 384)
     """
     
-    chain_id_char2num = {'H': 1, 'L':2}
     of_embs = torch.load(of_emb_path, map_location='cpu')
+    warned = False
+
     assert torch.all(of_embs['input_data']['context_chain_type'] != 0)
     of_embs_array = torch.zeros(len(residue_infos), of_embs['single'].shape[-1])
 
     for i, res in enumerate(residue_infos):
-        chain_id = chain_id_char2num[res['chain_id']] if res['chain_id'] in chain_id_char2num.keys() else 3
-        chain_res_id = torch.nonzero(torch.logical_and(of_embs['input_data']['context_chain_type'] == chain_id,
-                                      of_embs['input_data']['residue_index'] == res['residue_id']), as_tuple=True)
+        chain_id = ord(res['chain_id'])
+        chain_res_id = torch.nonzero(torch.logical_and(of_embs['input_data']['chain_id_pdb'] == chain_id,
+                                      of_embs['input_data']['residue_index_pdb'] == res['residue_id']), as_tuple=True)
         if chain_res_id[0].nelement() == 0:
-            logger.warning('Missing residue in OF embeddings, PDBID:{}, chain ID: {}, residue ID: {}'
-                           .format(of_emb_path[-7:-3], res['chain_id'], res['residue_id']))
+            if not warned:
+                # logger.warning('Missing residue in OF embeddings, PDBID:{}, chain ID: {}, residue ID: {}. Only warning once for this protein.'
+                #                .format(of_emb_path[-7:-3], ord(res['chain_id']), res['residue_id']))
+                # logger.warning('OF residue IDs {}'.format(of_embs['input_data']['residue_index_pdb']))
+                # logger.warning('OF chain IDs {}'.format(of_embs['input_data']['chain_id_pdb']))
+                warned = True
         else:
             of_embs_array[i, :] = of_embs['single'][chain_res_id]
         
