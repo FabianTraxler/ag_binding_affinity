@@ -14,7 +14,6 @@ from Bio.PDB.PDBIO import PDBIO
 from Bio.PDB.Structure import Structure
 from Bio.SeqUtils import seq1
 from biopandas.pdb import PandasPdb
-from rdkit import Chem
 
 from abag_affinity.binding_ddg_predictor.utils.protein import (
     ATOM_CA, NON_STANDARD_SUBSTITUTIONS, RESIDUE_SIDECHAIN_POSTFIXES,
@@ -297,6 +296,7 @@ def get_atom_encodings(residue_infos: List[Dict], structure_info: Dict, chain_id
     Returns:
         np.ndarray: Array with numerical encodings - shape (n, 115)
     """
+    from rdkit import Chem
     atom_encoding = []
     atom_names = []
     for res_idx, res_info in enumerate(residue_infos):
