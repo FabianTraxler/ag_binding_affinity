@@ -400,7 +400,7 @@ def reduce2interface_hull(file_name: str, pdb_filepath: str, chain_infos: Dict,
         return interface_path
 
 def get_residue_of_embeddings(residue_infos: list, of_emb_path: str) -> np.ndarray:
-    """ Get embeddings calculated for each residue using OpenFold from an external file
+    """ Get embeddings calculated for each residue using OpenFold from an external file.
     1. Load embedding file
     2. Inject embeddings at correct position by matching chain ID and residue number between residue infos and embeddings,
         because order of residues is different between the two structures

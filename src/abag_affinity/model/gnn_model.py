@@ -2,6 +2,7 @@
 
 import torch
 import torch.nn as nn
+import pdb
 
 from openfold.model.structure_module import InvariantPointAttention, BackboneUpdate, StructureModuleTransition
 from openfold.utils.rigid_utils import Rigid, Rotation
@@ -107,16 +108,23 @@ class IPABindingPredictorInterface(AffinityGNN):
                  nonlinearity: str = "relu",
                  num_fc_layers: int = 3, fc_size_halving: bool = True,
                  device: torch.device = torch.device("cpu")):
+        # requred to call AffinityGNN for testing if needed, keep for now
+        # kwargs = locals()
+        # kwargs.pop("self")
+        # kwargs.pop("__class__")
+        # super().__init__(**kwargs)
         super(AffinityGNN, self).__init__()
         self.ipa_model = IPABindingPredictor()
 
     def forward(self, data: Dict):
         # do some preprocessing to convert 'node_of_embeddings' to dict field 'single' that has the proper format
 
+        # pdb.set_trace()
+        # output = super().forward(data)
         # call IPABindingPredictor
-        x = self.ipa_model(data)
+        x = self.ipa_model({"single": data["of_node"]})
 
-        return {'x': x}
+        return {"x": x}
 
 
 

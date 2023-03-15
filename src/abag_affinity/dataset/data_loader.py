@@ -9,12 +9,14 @@ import pandas as pd
 from pathlib import Path
 import numpy as np
 import torch
+import torch.nn.functional as F
 from typing import Tuple, Dict, List, Union
 from parallel import submit_jobs
 import scipy.spatial as sp
 import logging
 from ast import literal_eval
 import pickle
+# import pdb
 
 from ..utils.config import get_data_paths
 from .utils import scale_affinity, load_graph_dict, get_hetero_edges, get_pdb_path_and_id, load_deeprefine_graph
@@ -278,7 +280,7 @@ class AffinityDataset(Dataset, ABC):
 
         return all_edges, edge_attributes
 
-    def get_node_features(self, data_file: Dict) -> np.ndarray:
+    def get_node_features(self, data_file: Dict, of_features=False) -> np.ndarray:
         """ Extract residue features from data dict
 
         Args:
@@ -318,7 +320,10 @@ class AffinityDataset(Dataset, ABC):
 
             node_features = np.array(node_features)
         else:
-            node_features = data_file["node_features"][graph_nodes]
+            if of_features:
+                node_features = data_file["node_of_embeddings"][graph_nodes]
+            else:
+                node_features = data_file["node_features"][graph_nodes]
 
         if self.max_nodes is not None and len(graph_nodes) < self.max_nodes:  # add zero nodes for fixed size graphs
             diff = self.max_nodes - len(graph_nodes)
@@ -395,6 +400,9 @@ class AffinityDataset(Dataset, ABC):
         graph = HeteroData()
 
         graph["node"].x = torch.Tensor(node_features).float()
+        if "node_of_embeddings" in graph_dict.keys():
+            node_of_features = self.get_node_features(graph_dict, of_features=True)
+            graph_dict["of_node"] = torch.Tensor(node_of_features).float()
         graph.y = torch.from_numpy(affinity).float()
 
         for edge_type, edges in edge_indices.items():
@@ -459,7 +467,8 @@ class AffinityDataset(Dataset, ABC):
         graph, graph_dict = self.load_graph(df_idx)
         data_point = {
             "filepath": filepath,
-            "graph": graph
+            "graph": graph,
+            "of_node": graph_dict["of_node"] if 'of_node' in graph_dict.keys() else None,
         }
 
         if self.pretrained_model == "DeepRefine":
@@ -486,6 +495,7 @@ class AffinityDataset(Dataset, ABC):
             "affinity_type": self.affinity_type,
             "input": graph_data,
         }
+        # pdb.set_trace()
         return data
 
     def get_relative(self, idx: int) -> Dict:
@@ -597,6 +607,12 @@ class AffinityDataset(Dataset, ABC):
         else:
             data_batch["input"] = {"graph": Batch.from_data_list([input_dict["input"]["graph"] for input_dict in input_dicts]),
                             "filepath": [input_dict["input"]["filepath"] for input_dict in input_dicts]}
+            if input_dicts[0]['input']['of_node'] is not None:
+                of_nodes = [input_dicts[i]['input']['of_node'] for i in range(len(input_dicts))]
+                num_nodes = [of_node.shape[0] for of_node in of_nodes]
+                max_nodes = max(num_nodes)
+                # pad with zeros up to max_nodes
+                data_batch['input']['of_node'] = torch.stack([F.pad(of_node, (0, 0, 0, max_nodes - num_node)) for of_node, num_node in zip(of_nodes, num_nodes)])
 
             if "deeprefine_graph" in input_dicts[0]["input"]:
                 data_batch["input"]["deeprefine_graph"] = dgl.batch(

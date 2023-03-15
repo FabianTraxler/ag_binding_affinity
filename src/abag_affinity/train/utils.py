@@ -21,6 +21,7 @@ from tqdm import tqdm
 from scipy.stats.mstats import gmean
 from sklearn.metrics import accuracy_score
 import scipy.spatial as sp
+# import pdb
 
 from ..dataset import AffinityDataset
 from ..model import AffinityGNN, TwinWrapper, IPABindingPredictorInterface
@@ -123,6 +124,7 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
     for data in tqdm(train_dataloader, disable=not tqdm_output):
         optimizer.zero_grad()
 
+        # pdb.set_trace()
         output, label = forward_step(model, data, device)
 
         loss = get_loss(criterion, label, output, min_log_kd, max_log_kd)
@@ -142,6 +144,7 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
 
     model.eval()
     for data in tqdm(val_dataloader, disable=not tqdm_output):
+        # pdb.set_trace()
         output, label = forward_step(model, data, device)
 
         loss = get_loss(criterion, label, output, min_log_kd, max_log_kd)
@@ -379,30 +382,18 @@ def load_model(num_node_features: int, num_edge_features: int, args: Namespace,
     if dataset_name == 'abag_affinity_of_embeddings':
         # load interface module and containing the IPA model with preset init values
 
-        # model = IPABindingPredictorInterface(num_node_features, num_edge_features,
-        #                                      num_nodes=args.max_num_nodes,
-        #                                      pretrained_model=args.pretrained_model, pretrained_model_path=pretrained_model_path,
-        #                                      gnn_type=args.gnn_type, num_gat_heads=args.attention_heads,
-        #                                      layer_type=args.layer_type, num_gnn_layers=args.num_gnn_layers,
-        #                                      channel_halving=args.channel_halving, channel_doubling=args.channel_doubling,
-        #                                      node_type=args.node_type,
-        #                                      aggregation_method=args.aggregation_method,
-        #                                      nonlinearity=args.nonlinearity,
-        #                                      num_fc_layers=args.num_fc_layers, fc_size_halving=args.fc_size_halving,
-        #                                      device=device)
+        model = IPABindingPredictorInterface(num_node_features, num_edge_features,
+                                             num_nodes=args.max_num_nodes,
+                                             pretrained_model=args.pretrained_model, pretrained_model_path=pretrained_model_path,
+                                             gnn_type=args.gnn_type, num_gat_heads=args.attention_heads,
+                                             layer_type=args.layer_type, num_gnn_layers=args.num_gnn_layers,
+                                             channel_halving=args.channel_halving, channel_doubling=args.channel_doubling,
+                                             node_type=args.node_type,
+                                             aggregation_method=args.aggregation_method,
+                                             nonlinearity=args.nonlinearity,
+                                             num_fc_layers=args.num_fc_layers, fc_size_halving=args.fc_size_halving,
+                                             device=device)
         
-        # TODO: remove once IPABindingPredictorInterface is implemented correctly
-        model = AffinityGNN(num_node_features, num_edge_features,
-                            num_nodes=args.max_num_nodes,
-                            pretrained_model=args.pretrained_model, pretrained_model_path=pretrained_model_path,
-                            gnn_type=args.gnn_type, num_gat_heads=args.attention_heads,
-                            layer_type=args.layer_type, num_gnn_layers=args.num_gnn_layers,
-                            channel_halving=args.channel_halving, channel_doubling=args.channel_doubling,
-                            node_type=args.node_type,
-                            aggregation_method=args.aggregation_method,
-                            nonlinearity=args.nonlinearity,
-                            num_fc_layers=args.num_fc_layers, fc_size_halving=args.fc_size_halving,
-                            device=device)
     else:
         model = AffinityGNN(num_node_features, num_edge_features,
                             num_nodes=args.max_num_nodes,
