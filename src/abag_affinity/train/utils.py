@@ -53,6 +53,7 @@ def forward_step(model: AffinityGNN, data: Dict, device: torch.device) -> Tuple[
 
     else:
         data["input"]["graph"] = data["input"]["graph"].to(device)
+        data["input"]["of_node"] = data["input"]["of_node"].to(device)
         if "deeprefine_graph" in data["input"]:
             data["input"]["deeprefine_graph"] = data["input"]["deeprefine_graph"].to(device)
         output = model(data["input"])

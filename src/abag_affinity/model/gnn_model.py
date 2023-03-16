@@ -116,6 +116,10 @@ class IPABindingPredictorInterface(AffinityGNN):
         super(AffinityGNN, self).__init__()
         self.ipa_model = IPABindingPredictor()
 
+        self.float()
+        self.device = device
+        self.to(device)
+
     def forward(self, data: Dict):
         # do some preprocessing to convert 'node_of_embeddings' to dict field 'single' that has the proper format
 
