@@ -17,10 +17,10 @@ import pandas as pd
 import ast
 import numpy as np
 
-emb_file = sys.argv[1]
-summ_file = sys.argv[2]
-pdbs_dir = sys.argv[3]
-out_dir = sys.argv[4]
+emb_file = sys.argv[1]  # file containing OF embeddings as obtained from guided diffusion
+summ_file = sys.argv[2]  # location of the new summary file, needs to be linked in config as well
+pdbs_dir = sys.argv[3]  # directory containing the PDB files from the original ABDB dataset
+out_dir = sys.argv[4]  # directory where the converted files containing the embeddings are saved
 
 chain_id_order = ['h', 'l', 'a', 'b', 'c']
 
