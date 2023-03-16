@@ -425,10 +425,11 @@ def get_residue_of_embeddings(residue_infos: list, of_emb_path: str) -> np.ndarr
                                       of_embs['input_data']['residue_index_pdb'] == res['residue_id']), as_tuple=True)
         if chain_res_id[0].nelement() == 0:
             if not warned:
-                # logger.warning('Missing residue in OF embeddings, PDBID:{}, chain ID: {}, residue ID: {}. Only warning once for this protein.'
-                #                .format(of_emb_path[-7:-3], ord(res['chain_id']), res['residue_id']))
-                # logger.warning('OF residue IDs {}'.format(of_embs['input_data']['residue_index_pdb']))
-                # logger.warning('OF chain IDs {}'.format(of_embs['input_data']['chain_id_pdb']))
+                logger.warning('Missing residue in OF embeddings, PDBID:{}, chain ID: {}, residue ID: {}. Only warning once for this protein.'
+                               .format(of_emb_path[-7:-3], ord(res['chain_id']), res['residue_id']))
+                logger.warning('OF residue IDs {}'.format(of_embs['input_data']['residue_index_pdb']))
+                logger.warning('OF chain IDs {}'.format(of_embs['input_data']['chain_id_pdb']))
+                logger.warning('Possibly other residues are missing as well, only showing warning once per datapoint.')
                 warned = True
         else:
             of_embs_array[i, :] = of_embs['single'][chain_res_id]
