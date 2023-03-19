@@ -15,7 +15,7 @@ from os.path import join
 np.random.seed(1234)
 tqdm.pandas()
 
-
+# TODO this is broken now
 if "snakemake" not in globals(): # use fake snakemake object for debugging
 
     project_root = Path(__file__).parents[4]  # two directories above - absolute paths not working
@@ -88,7 +88,7 @@ def get_sequence(filepath: str):
 
 
 def is_redundant(filepath: str, val_pdbs: List, pdb_paths, redudancy_cutoff: float = 0.8):
-    orig_chains = get_sequence(os.path.join(snakemake.params["abdb_pdb_folder"], filepath))
+    orig_chains = get_sequence(os.path.join(snakemake.input[1], filepath))
     for pdb_id, path in zip(val_pdbs, pdb_paths):
         check_chains = get_sequence(os.path.join(snakemake.params["benchmark_pdb_path"], path))
         for orig_chain, orig_seq in orig_chains.items():
@@ -129,7 +129,7 @@ def add_train_val_test_split(dataset: pd.DataFrame, n_splits: int, test_size: in
 
 
 def get_chain_ids(row):
-    path = os.path.join(snakemake.params["abdb_pdb_folder"], row["filename"])
+    path = os.path.join(snakemake.input[1], row["filename"])
 
     cleaned_pdb = PandasPdb().read_pdb(path)
     input_atom_df = cleaned_pdb.df['ATOM']
@@ -166,7 +166,7 @@ def copy_files(dataset: pd.DataFrame, pdb_folder: str, new_folder: str):
 # get datasets
 sabdb_df = pd.read_csv(snakemake.input[0], sep="\t")
 sabdb_df = sabdb_df.set_index("pdb")
-abdb_df = get_abdb_dataframe(snakemake.params["abdb_pdb_folder"])
+abdb_df = get_abdb_dataframe(snakemake.input[1])
 
 # join datasets
 sabdab_pdb_ids = set(sabdb_df.index.unique())
@@ -213,7 +213,7 @@ abag_affintiy_df.index = abag_affintiy_df["pdb"]
 abag_affintiy_df.index.name = ""
 
 
-copy_files(abag_affintiy_df, snakemake.params["abdb_pdb_folder"], snakemake.params["pdb_folder"])
+copy_files(abag_affintiy_df, snakemake.input[1], snakemake.params["pdb_folder"])
 
 abag_affintiy_df["filename"] = abag_affintiy_df["pdb"].apply(lambda x: str(x) + ".pdb")
 

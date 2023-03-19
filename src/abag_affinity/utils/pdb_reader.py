@@ -11,7 +11,7 @@ parser = PDBParser(PERMISSIVE=3)
 
 # Create temporary directory for PDB files
 
-pdb_list = PDBList(pdb=f"pdblist_{os.getpid()}")
+pdb_list = PDBList(pdb=f"/tmp/pdblist_{os.getpid()}")
 
 
 def read_file(structure_id: str, path: Union[str, Path]) -> Tuple[Structure, Dict]:
