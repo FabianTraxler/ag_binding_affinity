@@ -23,7 +23,6 @@ from abag_affinity.utils.pdb_processing import (clean_and_tidy_pdb,
                                                 get_residue_infos)
 from abag_affinity.utils.pdb_reader import read_file
 # DeepRefine Imports
-from project.utils.deeprefine_utils import process_pdb_into_graph
 
 
 alphabet_letters = set(string.ascii_lowercase)
@@ -83,14 +82,11 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, of_emb_path: str, affinity: 
     structure, _ = read_file(pdb_id, pdb_file_path)
 
     structure_info, residue_infos, residue_atom_coordinates = get_residue_infos(structure, chain_id2protein)
-    node_of_embeddings = None
 
     if node_type == "residue":
         distances, closest_nodes = get_distances(residue_infos, residue_distance=True, ca_distance=ca_alpha_contact)
 
         node_features = get_residue_encodings(residue_infos, structure_info, chain_id2protein)
-        if of_emb_path is not None:
-            node_of_embeddings = get_residue_of_embeddings(residue_infos, of_emb_path)
         adj_tensor = get_residue_edge_encodings(distances, residue_infos, chain_id2protein, distance_cutoff=distance_cutoff)
         atom_names = []
     elif node_type == "atom":
@@ -182,6 +178,9 @@ def load_deeprefine_graph(file_name: str, input_filepath: str, chain_infos: Dict
         Returns:
             Dict: Information about graph, protein and filepath of pdb
     """
+    # DeepRefine Imports
+    from project.utils.deeprefine_utils import process_pdb_into_graph
+
     # Process the unprocessed protein
     cleaned_path = tidy_up_pdb_file(file_name, input_filepath, pdb_clean_dir)
     if interface_hull_size is not None:
@@ -400,23 +399,26 @@ def reduce2interface_hull(file_name: str, pdb_filepath: str, chain_infos: Dict,
         return interface_path
 
 def get_residue_of_embeddings(residue_infos: list, of_emb_path: str) -> np.ndarray:
-    """ Get embeddings calculated for each residue using OpenFold from an external file.
+    """
+    Get embeddings calculated for each residue using OpenFold from an external file.
     1. Load embedding file
     2. Inject embeddings at correct position by matching chain ID and residue number between residue infos and embeddings,
         because order of residues is different between the two structures
 
+    Note: Here we can use several fields including "single", "sm" -> "single" and all the intermediary states "sm" "states". I would probably start with "sm" -> "single".
+
     Args:
         residue_infos: List of residue infos
-        of_emb_path: Path to file containing OpenFold embeddings 
+        of_emb_path: Path to file containing OpenFold embeddings
 
     Returns:
         np.ndarray: Array with the OpenFold embeddings at the appropriate positions - shape (n, 384)
     """
-    
+
     of_embs = torch.load(of_emb_path, map_location='cpu')
     warned = False
 
-    assert torch.all(of_embs['input_data']['context_chain_type'] != 0)
+    assert torch.all(of_embs['input_data']['context_chain_type'] != 0)  # like this, incompatible with dockground dataset
     of_embs_array = torch.zeros(len(residue_infos), of_embs['single'].shape[-1])
 
     for i, res in enumerate(residue_infos):

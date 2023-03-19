@@ -200,7 +200,7 @@ class IPABindingPredictor(nn.Module):
         if "pair" in data_dict.keys():
             z = self.layer_norm_z(data_dict["pair"])
         else:
-            z = torch.zeros((s.shape[0], s.shape[1], s.shape[1], self.c_z))
+            z = torch.zeros((s.shape[0], s.shape[1], s.shape[1], self.c_z), device=s.device)
 
         # [*, N, C_s]
         s = self.linear_in(s)

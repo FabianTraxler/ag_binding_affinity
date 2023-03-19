@@ -5,8 +5,6 @@ import torch
 from torch import device
 from typing import Dict
 
-# DeepRefine modules
-from project.modules.deeprefine_lit_modules import LitPSR
 # Binding_dgg modules
 from abag_affinity.binding_ddg_predictor.models.predictor import DDGPredictor
 
@@ -56,7 +54,12 @@ class DeepRefineBackbone(torch.nn.Module):
     Code: https://github.com/BioinfoMachineLearning/DeepRefine
     Paper: https://arxiv.org/abs/2205.10390
     """
-    def __init__(self, pretrained_model_path: str, device: device = torch.device("cpu")):
+
+    def __init__(
+        self, pretrained_model_path: str, device: device = torch.device("cpu")
+    ):
+        # DeepRefine modules
+        from project.modules.deeprefine_lit_modules import LitPSR
         super(DeepRefineBackbone, self).__init__()
 
         self.model_type = "deeprefine"
