@@ -212,8 +212,9 @@ abag_affintiy_df["pdb"] = abag_affintiy_df["pdb_num"]  # the new standard from h
 abag_affintiy_df.set_index("pdb", inplace=True, drop=False)
 
 # remove pdbs that lead to errors
-# problematic_pdbs = ["5e8e", "5tkj", "3eo1", "2oqj"]  # TODO asked fabian
-# abag_affintiy_df = abag_affintiy_df[~abag_affintiy_df["pdb"].isin(problematic_pdbs)]
+# 1zmmy is wrongly annotated by AbDb
+problematic_pdbs = ["1zmy"]  # , "5e8e", "5tkj", "3eo1", "2oqj", "1mzy"]  # TODO asked fabian
+abag_affintiy_df = abag_affintiy_df[~abag_affintiy_df["pdb"].isin(problematic_pdbs)]
 
 assert abag_affintiy_df["pdb"].is_unique
 # abag_affintiy_df = abag_affintiy_df.drop_duplicates(subset='pdb', keep='first')
