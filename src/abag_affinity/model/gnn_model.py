@@ -116,6 +116,9 @@ class IPABindingPredictorInterface(AffinityGNN):
         super(AffinityGNN, self).__init__()
         self.ipa_model = IPABindingPredictor()
 
+        # TODO use AggregatingBindingPredictor here!
+        # self.ipa_model = AggregatingBindingPredictor(in_dim=, hid_dim=)
+
         self.float()
         self.device = device
         self.to(device)

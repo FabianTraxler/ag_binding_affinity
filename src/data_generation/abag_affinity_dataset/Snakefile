@@ -16,7 +16,7 @@ cleaned_pdb_folder_name = "cleaned_pdbs"
 redundancy_file = "abdb_redundancy_info.txt"
 
 
-project_root = Path(workflow.basedir).parents[2] # two directories above - absolute paths not working
+project_root = Path(workflow.basedir).parents[2]  # two directories above - absolute paths not working
 resource_folder = os.path.join(project_root, "resources")
 results_folder = os.path.join(project_root, "results")
 
@@ -26,7 +26,6 @@ benchmark_pdb_path = join(results_folder, "antibody_benchmark", "pdbs_bound")
 dataset_results_folder = os.path.join(results_folder, DATASET_NAME)
 
 pdb_relaxed_folder = os.path.join(dataset_results_folder, "pdbs_relaxed")
-
 
 
 def gather_pdb_ids(wildcards):
@@ -50,15 +49,20 @@ rule download_sabdab:
     shell:
         "scripts/download_sabdab.sh {params.dataset_resource_folder} {params.sabdab_link}"
 
-rule download_abdb:
+# use the cleaned version from guided_protein_diffusion
+
+rule download_redundancy:
     output:
         join(resource_folder, "AbDb", redundancy_file)
     params:
         dataset_resource_folder=join(resource_folder, "AbDb"),
         pdb_folder_name=pdb_folder_name,
         redundancy_file=redundancy_file,
-    shell:
-        "scripts/download_abdb.sh {params.dataset_resource_folder} {params.pdb_folder_name} {params.redundancy_file}"
+    shell: """
+        wget -O {output} http://www.abybank.org/abdb/Data/Redundant_files/Redundant_LH_Protein_Martin.txt
+    """
+        
+#         "scripts/download_abdb.sh {params.dataset_resource_folder} {params.pdb_folder_name} {params.redundancy_file}"
 
 # rule clean_abdb:
 #     """Currently not supported because of snakemake bug in running the env"""
@@ -73,14 +77,15 @@ rule download_abdb:
 
 checkpoint generate_dataset:
     input:
-        join(resource_folder, "SAbDab", "sabdab_summary.tsv"),
-        directory(join(resource_folder, "AbDb", pdb_folder_name)),  # TODO use cleaned_pdb_folder_name
+        sabdab_data=join(resource_folder, "SAbDab", "sabdab_summary.tsv"),
+        cleaned_abdb_folder=project_root.parents[1] / "data" / "abdb" / "raw",
+        uncleaned_abdb_folders=project_root.parents[1] / "data" / "abdb" / "raw" / "uncleaned",
+        # redundancy_file=join(resource_folder, "AbDb", redundancy_file),
     output:
         join(dataset_results_folder, "abag_affinity_dataset.csv"),
         directory(join(dataset_results_folder, pdb_folder_name))
     params:
         pdb_folder=join(dataset_results_folder, pdb_folder_name),
-        redundancy_file=join(resource_folder, "AbDb", redundancy_file),
         benchmark_dataset_file=benchmark_dataset_file,
         benchmark_pdb_path=benchmark_pdb_path,
         n_val_splits=NUM_VALIDATION_SPLITS,
@@ -92,16 +97,17 @@ checkpoint generate_dataset:
     script:
         "scripts/generate_dataset.py"
 
-rule convert_openfold_res_ids:
-    "This is a scaffold for future completion"
-    input:
-        # ~/ag_binding_affinity/results/abag_affinity_dataset/abdb_openfold_embeddings_new.pt \
-        #     ~/ag_binding_affinity/results/abag_affinity_dataset/abag_affinity_dataset.csv \
-        #     ~/ag_binding_affinity/results/abag_affinity_dataset/pdbs \
-        #     ~/ag_binding_affinity/results/abag_affinity_dataset/of_embeddings_new
-        pass
+# not sure if necessary
+# rule convert_openfold_res_ids:
+#     "Convert OpenFold embedding residue IDs (necessary?)"
+#     input:
+#         # ~/ag_binding_affinity/results/abag_affinity_dataset/abdb_openfold_embeddings_new.pt \
+#         #     ~/ag_binding_affinity/results/abag_affinity_dataset/abag_affinity_dataset.csv \
+#         #     ~/ag_binding_affinity/results/abag_affinity_dataset/pdbs \
+#         #     ~/ag_binding_affinity/results/abag_affinity_dataset/of_embeddings_new
+#     output:
 
-    script: "scripts/convert_of_res_ids.py"  # wrong path
+#     script: "scripts/convert_of_res_ids.py"
 
 
 rule relax_structures:

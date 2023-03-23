@@ -4,7 +4,7 @@ from Bio import pairwise2
 from Bio.PDB.PDBParser import PDBParser
 import pandas as pd
 import os
-from typing import Dict, Tuple, Set, List
+from typing import Dict, Tuple, Set, List, Union
 import numpy as np
 from biopandas.pdb import PandasPdb
 from tqdm import tqdm
@@ -40,12 +40,28 @@ if "snakemake" not in globals(): # use fake snakemake object for debugging
 
 sequences = {}
 
+def pdb_chain_mapping(pdb_file: Union[str, Path]) -> pd.DataFrame:
+    """
+    Return the chain mapping as provided by AbDb
+    """
+    mapping = []
+
+    with open(pdb_file) as f:
+        for l in f:
+            if l.startswith("REMARK 950 CHAIN "):
+                mapping.append(l.replace("REMARK 950 CHAIN ", "").split())
+            elif len(mapping) > 0:
+                break
+        else:
+            raise ValueError("pdb_file did not contain chain mapping")
+    return pd.DataFrame(data=mapping, columns=("type", "abdb_label", "original_label"))
+
 def get_abdb_dataframe(pdb_folder: str) -> pd.DataFrame:
     abdb_df = pd.DataFrame()
     pdb_files = os.listdir(pdb_folder)
     abdb_df["filename"] = pdb_files
 
-    abdb_df["pdb"] = abdb_df["filename"].apply(lambda pdb_file: pdb_file.split("_")[0].lower())
+    abdb_df["pdb"] = abdb_df["filename"].apply(lambda pdb_file: pdb_file.split(".")[0].lower())
 
     return abdb_df.set_index("pdb")
 
@@ -74,7 +90,10 @@ def remove_benchmark_test_data(dataset: pd.DataFrame, benchmark_dataset_path: st
     benchmark_df = pd.read_csv(benchmark_dataset_path)
     benchmark_pdb_ids = benchmark_df["pdb"].values
 
-    dataset = dataset[~dataset.index.isin(benchmark_pdb_ids)].copy()
+    # check for length 4 and lowercase
+    assert np.all([len(v) == 4 and v.islower() for v in benchmark_pdb_ids]), "Benchmark PDB ids are not in the correct format"
+
+    dataset = dataset[~dataset.index.map(lambda v: v[:4]).isin(benchmark_pdb_ids)].copy()
     return dataset
 
 
@@ -88,20 +107,30 @@ def get_sequence(filepath: str):
 
 
 def is_redundant(filepath: str, val_pdbs: List, pdb_paths, redudancy_cutoff: float = 0.8):
-    orig_chains = get_sequence(os.path.join(snakemake.input[1], filepath))
+    """
+    filter out complexes where all three chains are below the redundancy cutoff
+    """
+    orig_chains = get_sequence(os.path.join(snakemake.input["cleaned_abdb_folder"], filepath))
     for pdb_id, path in zip(val_pdbs, pdb_paths):
         check_chains = get_sequence(os.path.join(snakemake.params["benchmark_pdb_path"], path))
         for orig_chain, orig_seq in orig_chains.items():
             seq1 = Seq(orig_seq)
+
             for check_chain, check_seq in check_chains.items():
                 seq2 = Seq(check_seq)
                 alignments = pairwise2.align.globalxx(seq1, seq2)
                 for alignment in alignments:
                     score = alignment.score / (alignment.end - alignment.start)
                     if score > redudancy_cutoff:
-                        return True, orig_chain, pdb_id, check_chain, score
+                        break
+                else:
+                    # score has been below redundancy cutoff, so we break
+                    break
+            else:
+                # If there has been no break, all chains are above the cutoff, so we return True
+                return True
 
-    return False, None, None, None, None
+    return False
 
 
 def add_train_val_test_split(dataset: pd.DataFrame, n_splits: int, test_size: int = 50) -> pd.DataFrame:
@@ -129,30 +158,12 @@ def add_train_val_test_split(dataset: pd.DataFrame, n_splits: int, test_size: in
 
 
 def get_chain_ids(row):
-    path = os.path.join(snakemake.input[1], row["filename"])
+    path = os.path.join(snakemake.input["cleaned_abdb_folder"], row["filename"])
 
     cleaned_pdb = PandasPdb().read_pdb(path)
     input_atom_df = cleaned_pdb.df['ATOM']
 
-    chain_ids = input_atom_df["chain_id"].unique().tolist()
-    return chain_ids
-
-
-def get_chain_info(chains: List) -> Dict:
-    chain_infos = {}
-
-    ab_chains = ["h", "l"]
-    chains = [chain.lower() for chain in chains]
-
-    for chain in ab_chains:
-        if chain in chains:
-            chain_infos[chain.lower()] = 0
-
-    chains = set(chains) - set(ab_chains)
-    for chain in chains:
-        chain_infos[chain.lower()] = 1
-
-    return chain_infos
+    return ''.join(input_atom_df["chain_id"].unique())
 
 
 def copy_files(dataset: pd.DataFrame, pdb_folder: str, new_folder: str):
@@ -164,23 +175,48 @@ def copy_files(dataset: pd.DataFrame, pdb_folder: str, new_folder: str):
 
 
 # get datasets
-sabdb_df = pd.read_csv(snakemake.input[0], sep="\t")
+sabdb_df = pd.read_csv(snakemake.input["sabdab_data"], sep="\t")
 sabdb_df = sabdb_df.set_index("pdb")
-abdb_df = get_abdb_dataframe(snakemake.input[1])
+abdb_df = get_abdb_dataframe(snakemake.input["cleaned_abdb_folder"])
+
+
+# get information about original chain IDs (to merge with sabdab)
+chain_mappings = []
+
+for f in Path(snakemake.input["uncleaned_abdb_folders"]).glob("*/*.pdb"):
+    df = pdb_chain_mapping(f)
+    df["filename"] = f.name
+    chain_mappings.append(df)
+
+chain_mappings = pd.concat(chain_mappings)
+
+# Convert to sabdab_df compatible format
+def first_or_none(x):
+    if len(x) == 0:
+        return None
+    return x[0]
+chain_mappings = chain_mappings.groupby(["filename"]).apply(lambda group: [{"pdb": group.name[:4].lower(),
+                                                                            "filename": group.name,
+                                                                            "pdb_num": group.name.split('.')[0].lower(),
+                                                                            "Hchain": first_or_none(group[group["type"] == "H"]["original_label"].values),
+                                                                            "Lchain": first_or_none(group[group["type"] == "L"]["original_label"].values),
+                                                                            "antigen_chain": antigen_chain}
+                                                                           for antigen_chain in group[group["type"] == "A"]["original_label"].values])
+
+chain_mappings = pd.DataFrame.from_records(chain_mappings.explode()).fillna(np.nan)
+
 
 # join datasets
-sabdab_pdb_ids = set(sabdb_df.index.unique())
-abdb_pdb_ids = set(abdb_df.index.unique())
-overlapping_ids = abdb_pdb_ids.intersection(sabdab_pdb_ids)
-abag_affintiy_df = sabdb_df[sabdb_df.index.isin(overlapping_ids)].copy()
-abag_affintiy_df = abag_affintiy_df.join(abdb_df)
-abag_affintiy_df["pdb"] = abag_affintiy_df.index
+abag_affintiy_df = sabdb_df.merge(chain_mappings, on=["pdb", "Hchain", "Lchain", "antigen_chain"], how="inner")
+abag_affintiy_df["pdb"] = abag_affintiy_df["pdb_num"]  # the new standard from here on!
+abag_affintiy_df.set_index("pdb", inplace=True, drop=False)
 
 # remove pdbs that lead to errors
-problematic_pdbs = ["5e8e", "5tkj", "3eo1", "2oqj"]
-abag_affintiy_df = abag_affintiy_df[~abag_affintiy_df["pdb"].isin(problematic_pdbs)]
+# problematic_pdbs = ["5e8e", "5tkj", "3eo1", "2oqj"]  # TODO asked fabian
+# abag_affintiy_df = abag_affintiy_df[~abag_affintiy_df["pdb"].isin(problematic_pdbs)]
 
-abag_affintiy_df = abag_affintiy_df.drop_duplicates(subset='pdb', keep='first')
+assert abag_affintiy_df["pdb"].is_unique
+# abag_affintiy_df = abag_affintiy_df.drop_duplicates(subset='pdb', keep='first')
 
 # remove benchmark pdb ids
 abag_affintiy_df = remove_benchmark_test_data(abag_affintiy_df, snakemake.params["benchmark_dataset_file"])
@@ -190,15 +226,13 @@ pdb_paths = benchmark_df["filename"]
 redundant_pdbs = []
 for pdb in tqdm(abag_affintiy_df["pdb"].tolist()):
     filename = abag_affintiy_df[abag_affintiy_df["pdb"] == pdb]['filename'].tolist()[0]
-    redundant, own_chain, pdb_id, chain, score = is_redundant(filename, val_pdbs, pdb_paths,
-                                                              redudancy_cutoff=snakemake.params["redundancy_cutoff"])
+    redundant = is_redundant(filename, val_pdbs, pdb_paths, redudancy_cutoff=snakemake.params["redundancy_cutoff"])
     if redundant:
         redundant_pdbs.append(pdb)
 abag_affintiy_df = abag_affintiy_df[~abag_affintiy_df["pdb"].isin(redundant_pdbs)]
 
 # add chain information
 abag_affintiy_df["chains"] = abag_affintiy_df.progress_apply(lambda row: get_chain_ids(row), axis=1)
-abag_affintiy_df["chain_infos"] = abag_affintiy_df["chains"].apply(get_chain_info)
 
 # add -log(Kd)
 abag_affintiy_df["-log(Kd)"] = abag_affintiy_df.apply(lambda row: -np.log10(row["affinity"]), axis=1)
@@ -207,14 +241,13 @@ abag_affintiy_df["-log(Kd)"] = abag_affintiy_df.apply(lambda row: -np.log10(row[
 abag_affintiy_df = add_train_val_test_split(abag_affintiy_df, n_splits=snakemake.params["n_val_splits"],
                                             test_size=snakemake.params["test_size"])
 
-abag_affintiy_df = abag_affintiy_df[["pdb", "filename", "chain_infos", "-log(Kd)", "delta_g", "validation", "test"]]
+abag_affintiy_df = abag_affintiy_df[["pdb", "filename", "chains", "-log(Kd)", "delta_g", "validation", "test"]]
 # add index
 abag_affintiy_df.index = abag_affintiy_df["pdb"]
 abag_affintiy_df.index.name = ""
 
-
-copy_files(abag_affintiy_df, snakemake.input[1], snakemake.params["pdb_folder"])
-
+# copy files to new folder (doesn't make a lot of sense but whatever)
+copy_files(abag_affintiy_df, snakemake.input["cleaned_abdb_folder"], snakemake.params["pdb_folder"])
 abag_affintiy_df["filename"] = abag_affintiy_df["pdb"].apply(lambda x: str(x) + ".pdb")
 
 # save dataset

@@ -11,6 +11,7 @@ from biopandas.pdb import PandasPdb
 import scipy.spatial as sp
 import dgl
 import logging
+from openfold.np.residue_constants import restype_1to3
 
 warnings.filterwarnings("ignore")
 
@@ -101,8 +102,9 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, of_emb_path: str, affinity: 
 
     assert len(residue_infos) > 0
 
+    # TODO pass in node_of_embeddings as node_features and use fabian's imagined structure
     return {
-        "node_features":node_features,
+        "node_features": node_features,
         "residue_infos": residue_infos,
         "residue_atom_coordinates": residue_atom_coordinates,
         "node_of_embeddings": get_residue_of_embeddings(residue_infos, of_emb_path)
@@ -419,22 +421,29 @@ def get_residue_of_embeddings(residue_infos: list, of_emb_path: str) -> np.ndarr
     warned = False
 
     assert torch.all(of_embs['input_data']['context_chain_type'] != 0)  # like this, incompatible with dockground dataset
-    of_embs_array = torch.zeros(len(residue_infos), of_embs['single'].shape[-1])
+    matched_of_embs = torch.zeros(len(residue_infos), of_embs['single'].shape[-1])
 
     for i, res in enumerate(residue_infos):
         chain_id = ord(res['chain_id'])
         chain_res_id = torch.nonzero(torch.logical_and(of_embs['input_data']['chain_id_pdb'] == chain_id,
                                       of_embs['input_data']['residue_index_pdb'] == res['residue_id']), as_tuple=True)
-        if chain_res_id[0].nelement() == 0:
-            if not warned:
-                logger.warning('Missing residue in OF embeddings, PDBID:{}, chain ID: {}, residue ID: {}. Only warning once for this protein.'
-                               .format(of_emb_path[-7:-3], ord(res['chain_id']), res['residue_id']))
-                logger.warning('OF residue IDs {}'.format(of_embs['input_data']['residue_index_pdb']))
-                logger.warning('OF chain IDs {}'.format(of_embs['input_data']['chain_id_pdb']))
-                logger.warning('Possibly other residues are missing as well, only showing warning once per datapoint.')
-                warned = True
-        else:
-            of_embs_array[i, :] = of_embs['single'][chain_res_id]
-        
-    of_embs_array = of_embs_array.numpy()
-    return of_embs_array
+
+        try:
+            n_elem = chain_res_id[0].nelement()
+            if n_elem != 1:
+                raise ValueError(f'Expected 1 matching residue, but go {n_elem}')
+
+            aatype = of_embs["input_data"]["aatype"][chain_res_id][0]
+            aatype = list(restype_1to3.values())[aatype]
+            if aatype != res['residue_type'].upper():
+                raise ValueError(f"OF residue type mismatch. AffGNN: {res['residue_type'].upper()}, OF/Diffusion: {aatype}")
+
+            # All checks passed? Then
+            matched_of_embs[i, :] = of_embs['sm']['single'][chain_res_id]
+
+        except ValueError as e:
+            logger.warning(f'{e}: PDBID: {of_emb_path[-7:-3]}, chain ID: {ord(res["chain_id"])}, residue ID: {res["residue_id"]}')
+            # OF residue IDs: {of_embs["input_data"]["residue_index_pdb"]}, OF chain IDs: {of_embs["input_data"]["chain_id_pdb"]}') # Only warning once for this protein.'
+
+    matched_of_embs = matched_of_embs.numpy()
+    return matched_of_embs
