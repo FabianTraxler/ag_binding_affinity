@@ -1,3 +1,4 @@
+from functools import lru_cache
 from Bio.SeqUtils import seq1
 from Bio.Seq import Seq
 from Bio import pairwise2
@@ -38,7 +39,6 @@ if "snakemake" not in globals(): # use fake snakemake object for debugging
     }
 
 
-sequences = {}
 
 def pdb_chain_mapping(pdb_file: Union[str, Path]) -> pd.DataFrame:
     """
@@ -97,20 +97,30 @@ def remove_benchmark_test_data(dataset: pd.DataFrame, benchmark_dataset_path: st
     return dataset
 
 
+@lru_cache(maxsize=1000)
 def get_sequence(filepath: str):
-    if filepath in sequences:
-        return sequences[filepath]
     structure = PDBParser(QUIET=True).get_structure('tmp', filepath)
     chains = {chain.id: seq1(''.join(residue.resname for residue in chain)) for chain in structure.get_chains()}
-    sequences[filepath] = chains
     return chains
+
+def antigen_chains_too_long(filepath: str, max_length: int = 350):
+    """
+    filter out complexes where the antigen chain is too long
+    Params:
+        filepath: path to the pdb file
+        max_length: maximum length of the antigen chains (sum).
+    Returns:
+        True if the antigen chain is too long
+    """
+    antigen_seqs = [seq for key, seq in get_sequence(filepath).items() if key in "ABCDE"]
+    return sum(len(seq) for seq in antigen_seqs) > max_length
 
 
 def is_redundant(filepath: str, val_pdbs: List, pdb_paths, redudancy_cutoff: float = 0.8):
     """
     filter out complexes where all three chains are below the redundancy cutoff
     """
-    orig_chains = get_sequence(os.path.join(snakemake.input["cleaned_abdb_folder"], filepath))
+    orig_chains = get_sequence(filepath)
     for pdb_id, path in zip(val_pdbs, pdb_paths):
         check_chains = get_sequence(os.path.join(snakemake.params["benchmark_pdb_path"], path))
         for orig_chain, orig_seq in orig_chains.items():
@@ -179,7 +189,6 @@ sabdb_df = pd.read_csv(snakemake.input["sabdab_data"], sep="\t")
 sabdb_df = sabdb_df.set_index("pdb")
 abdb_df = get_abdb_dataframe(snakemake.input["cleaned_abdb_folder"])
 
-
 # get information about original chain IDs (to merge with sabdab)
 chain_mappings = []
 
@@ -211,11 +220,6 @@ abag_affintiy_df = sabdb_df.merge(chain_mappings, on=["pdb", "Hchain", "Lchain",
 abag_affintiy_df["pdb"] = abag_affintiy_df["pdb_num"]  # the new standard from here on!
 abag_affintiy_df.set_index("pdb", inplace=True, drop=False)
 
-# remove pdbs that lead to errors
-# 1zmmy is wrongly annotated by AbDb
-problematic_pdbs = ["1zmy"]  # , "5e8e", "5tkj", "3eo1", "2oqj", "1mzy"]  # TODO asked fabian
-abag_affintiy_df = abag_affintiy_df[~abag_affintiy_df["pdb"].isin(problematic_pdbs)]
-
 assert abag_affintiy_df["pdb"].is_unique
 # abag_affintiy_df = abag_affintiy_df.drop_duplicates(subset='pdb', keep='first')
 
@@ -224,16 +228,23 @@ abag_affintiy_df = remove_benchmark_test_data(abag_affintiy_df, snakemake.params
 benchmark_df = pd.read_csv(snakemake.params["benchmark_dataset_file"])
 val_pdbs = benchmark_df["pdb"]
 pdb_paths = benchmark_df["filename"]
-redundant_pdbs = []
+
+# remove pdbs that lead to errors or are redundant
+# remove pdbs that lead to errors
+
+problematic_pdbs = ["1zmy_1"]  # 1zmy is wrongly annotated by AbDb
 for pdb in tqdm(abag_affintiy_df["pdb"].tolist()):
     filename = abag_affintiy_df[abag_affintiy_df["pdb"] == pdb]['filename'].tolist()[0]
-    redundant = is_redundant(filename, val_pdbs, pdb_paths, redudancy_cutoff=snakemake.params["redundancy_cutoff"])
-    if redundant:
-        redundant_pdbs.append(pdb)
-abag_affintiy_df = abag_affintiy_df[~abag_affintiy_df["pdb"].isin(redundant_pdbs)]
+    filepath = os.path.join(snakemake.input["cleaned_abdb_folder"], filename)
+    redundant = is_redundant(filepath, val_pdbs, pdb_paths, redudancy_cutoff=snakemake.params["redundancy_cutoff"])
+    too_long = antigen_chains_too_long(filepath, snakemake.params["max_antigen_length"])
+    if redundant or too_long:
+        problematic_pdbs.append(pdb)
+abag_affintiy_df = abag_affintiy_df[~abag_affintiy_df["pdb"].isin(problematic_pdbs)]
 
 # add chain information
 abag_affintiy_df["chains"] = abag_affintiy_df.progress_apply(lambda row: get_chain_ids(row), axis=1)
+
 
 # add -log(Kd)
 abag_affintiy_df["-log(Kd)"] = abag_affintiy_df.apply(lambda row: -np.log10(row["affinity"]), axis=1)

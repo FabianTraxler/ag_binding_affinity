@@ -60,7 +60,7 @@ rule download_redundancy:
     shell: """
         wget -O {output} http://www.abybank.org/abdb/Data/Redundant_files/Redundant_LH_Protein_Martin.txt
     """
-        
+
 #         "scripts/download_abdb.sh {params.dataset_resource_folder} {params.pdb_folder_name} {params.redundancy_file}"
 
 
@@ -91,7 +91,8 @@ checkpoint generate_dataset:
         benchmark_pdb_path=benchmark_pdb_path,
         n_val_splits=NUM_VALIDATION_SPLITS,
         test_size=TESTSET_SIZE,
-        redundancy_cutoff=REDUNDANCY_CUTOFF
+        redundancy_cutoff=REDUNDANCY_CUTOFF,
+        max_antigen_length=350  # should match what we use in diffusion pipeline. excluded because of the lack of OF embeddings..
     conda:
         join(project_root, "envs/generation_environment.yml")
     threads: 10
