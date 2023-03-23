@@ -79,9 +79,9 @@ class AffinityDataset(Dataset, ABC):
             logger.debug(f"Saving processed graphs in {self.graph_dir}")
             Path(self.graph_dir).mkdir(exist_ok=True, parents=True)
         # create path for clean pdbs
-        self.pdb_clean_dir = os.path.join(self.config["cleaned_pdbs"], dataset_name)
-        logger.debug(f"Saving cleaned pdbs in {self.pdb_clean_dir}")
-        Path(self.pdb_clean_dir).mkdir(exist_ok=True, parents=True)
+        self.interface_dir = os.path.join(self.config["interface_pdbs"], dataset_name)
+        logger.debug(f"Saving cleaned pdbs in {self.interface_dir}")
+        Path(self.interface_dir).mkdir(exist_ok=True, parents=True)
 
         self.force_recomputation = force_recomputation
         self.scale_values = scale_values
@@ -188,7 +188,7 @@ class AffinityDataset(Dataset, ABC):
             None
         """
 
-        graph_dict = load_graph_dict(row, self.dataset_name, self.config, self.pdb_clean_dir,
+        graph_dict = load_graph_dict(row, self.dataset_name, self.config, self.interface_dir,
                                      node_type=self.node_type,
                                      interface_distance_cutoff=self.interface_distance_cutoff,
                                      interface_hull_size=self.interface_hull_size,
@@ -211,8 +211,7 @@ class AffinityDataset(Dataset, ABC):
             None
         """
 
-        chain_infos = literal_eval(row["chain_infos"])
-        graph = load_deeprefine_graph(idx, pdb_filepath, chain_infos, self.pdb_clean_dir,
+        graph = load_deeprefine_graph(idx, pdb_filepath, self.interface_dir,
                                       self.interface_distance_cutoff, self.interface_hull_size)
 
         if self.interface_hull_size is None or self.interface_hull_size == "" or self.interface_hull_size == "None":
@@ -362,7 +361,7 @@ class AffinityDataset(Dataset, ABC):
                 # sample one randomly == data augmentation
                 row = row.sample(1).squeeze()
 
-            graph_dict = load_graph_dict(row, self.dataset_name, self.config, self.pdb_clean_dir,
+            graph_dict = load_graph_dict(row, self.dataset_name, self.config, self.interface_dir,
                                          node_type=self.node_type,
                                          interface_distance_cutoff=self.interface_distance_cutoff,
                                          interface_hull_size=self.interface_hull_size,
@@ -419,7 +418,6 @@ class AffinityDataset(Dataset, ABC):
         Args:
             file_name: Name of the file
             input_filepath: Path to PDB File
-            chain_infos: Dict with protein information for each chain
 
         Returns:
             Dict: Information about graph, protein and filepath of pdb
@@ -445,10 +443,9 @@ class AffinityDataset(Dataset, ABC):
 
         if compute_graph:  # graph not loaded from disc
             row = self.data_df.loc[df_idx]
-            chain_infos = literal_eval(row["chain_infos"])
             pdb_filepath, _ = get_pdb_path_and_id(row, self.dataset_name, self.config)
 
-            graph = load_deeprefine_graph(df_idx, pdb_filepath, chain_infos, self.pdb_clean_dir,
+            graph = load_deeprefine_graph(df_idx, pdb_filepath, self.interface_dir,
                                           self.interface_distance_cutoff, self.interface_hull_size)
 
             if self.save_graphs and not os.path.exists(graph_filepath):
@@ -460,9 +457,9 @@ class AffinityDataset(Dataset, ABC):
     def load_data_point(self, df_idx: str):
 
         if self.interface_hull_size is None or self.interface_hull_size == "":
-            filepath = os.path.join(self.pdb_clean_dir, df_idx + ".pdb")
+            filepath = os.path.join(self.interface_dir, df_idx + ".pdb")
         else:
-            filepath = os.path.join(self.pdb_clean_dir, f"interface_hull_{self.interface_hull_size}", df_idx + ".pdb")
+            filepath = os.path.join(self.interface_dir, f"interface_hull_{self.interface_hull_size}", df_idx + ".pdb")
 
         graph, graph_dict = self.load_graph(df_idx)
         data_point = {

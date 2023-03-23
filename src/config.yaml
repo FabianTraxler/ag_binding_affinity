@@ -18,10 +18,10 @@ DATASETS:
 
   abag_affinity_of_embeddings:
     folder_path: "results/abag_affinity_dataset"
-    pdb_path: "emb_pdbs"
-    relaxed_pdb_path: "emb_pdbs"
-    summary: "abag_affinity_dataset_OF.csv"
-    of_embeddings: "of_embeddings_new"
+    pdb_path: "pdbs"
+    relaxed_pdb_path: "pdbs"
+    summary: "abag_affinity_dataset.csv"
+    of_embeddings: "of_embeddings"
     affinity_type: "-log(Kd)"
 
   PDBBind:
@@ -76,7 +76,7 @@ RESULTS:
   model_path: "models"
   force_field_results: "ff_res"
   processed_graph_path: "processed_graphs"
-  cleaned_pdbs: "cleaned_pdb"
+  interface_pdbs: "interface_pdb"
 
 MODELS:
   Binding_DDG:

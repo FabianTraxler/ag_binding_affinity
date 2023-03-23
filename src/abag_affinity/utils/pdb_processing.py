@@ -64,7 +64,7 @@ def remove_redundant_chains(structure: Structure):
             structure[model].detach_child(redundant_chain)
 
 
-def convert_aa_info(info: Dict, structure_info: Dict, chain_id2protein: Dict) -> np.ndarray:
+def convert_aa_info(info: Dict, structure_info: Dict) -> np.ndarray:
     """ Convert the information about amino acids to a feature matrix
     1. One-Hot Encode the Amino Acid Type
     2. Encode Chain ID as integer
@@ -74,7 +74,6 @@ def convert_aa_info(info: Dict, structure_info: Dict, chain_id2protein: Dict) ->
     Args:
         info: residue information (from get_residue_info)
         structure_info: structure information (from get_residue_info)
-        chain_id2protein: Dict with protein information for each chain
     Returns:
         np.ndarray: numerical encoding of residue - shape: (23,)
     """
@@ -83,9 +82,9 @@ def convert_aa_info(info: Dict, structure_info: Dict, chain_id2protein: Dict) ->
     type_encoding[AAA2ID[info["residue_type"].lower()]] = 1
 
     protein_encoding = np.zeros(2)
-    if chain_id2protein[info["chain_id"].lower()] == 0:
+    if info["chain_id"].upper() in "HL":
         protein_encoding[0] = 1
-    elif chain_id2protein[info["chain_id"].lower()] == 1:
+    else:  # info["chain_id"].upper() not in "HL"
         protein_encoding[1] = 1
 
     relative_residue_position = info["residue_id"] / structure_info["chain_length"][info["chain_id"].lower()]
@@ -96,7 +95,7 @@ def convert_aa_info(info: Dict, structure_info: Dict, chain_id2protein: Dict) ->
     return np.concatenate([type_encoding, protein_encoding, manual_features, np.array([relative_residue_position])])
 
 
-def get_residue_infos(structure: Structure, chain_id2protein: Dict) -> Tuple[Dict, List[Dict], np.ndarray]:
+def get_residue_infos(structure: Structure) -> Tuple[Dict, List[Dict], np.ndarray]:
     """ Calculate all distances of the amino acids in this structure
     1. Remove duplicate chains
     2. Get position of amino acid C-alpha atoms + Chain Id, AA type, AA number
@@ -104,7 +103,6 @@ def get_residue_infos(structure: Structure, chain_id2protein: Dict) -> Tuple[Dic
 
     Args:
         structure: PDB Structure Object to be used for distance calculation
-        chain_id2protein: Dict with protein information for each chain
     Returns:
         np.ndarray: Matrix of all distances
         List: information about every amino acid (chain_id, aa_type, aa_number on chain)
@@ -139,10 +137,7 @@ def get_residue_infos(structure: Structure, chain_id2protein: Dict) -> Tuple[Dic
             # extract names of atoms (for atom encodings)
             atom_names = [atom.get_name() for atom in residue.get_atoms()]
 
-            try:
-                antibody = chain_id2protein[chain.id.lower()]
-            except Exception as e:
-                raise RuntimeError(f"Error getting chains for {structure.id}: {e}")
+            antibody = (chain.id.upper() in 'LH')
 
             residue_info = {
                 "chain_id": chain.id,
@@ -230,24 +225,23 @@ def get_distances(residue_info: List[Dict], residue_distance: bool = True, ca_di
     return distances, closest_residue_indices
 
 
-def get_residue_encodings(residue_infos: List, structure_info: Dict, chain_id2protein: Dict) -> np.ndarray:
+def get_residue_encodings(residue_infos: List, structure_info: Dict) -> np.ndarray:
     """ Convert the residue infos to numerical encodings in a numpy array
     Args:
         residue_infos: List of residue infos
         structure_info: Dict containing information about the structure
-        chain_id2protein: Dict with protein information for each chain
 
     Returns:
         np.ndarray: Array with numerical encodings - shape (n, 23)
     """
     residue_encodings = []
     for res_info in residue_infos:
-        aa_protein_chain_encoding = convert_aa_info(res_info, structure_info, chain_id2protein)
+        aa_protein_chain_encoding = convert_aa_info(res_info, structure_info)
         residue_encodings.append(aa_protein_chain_encoding)
     return np.array(residue_encodings)
 
 
-def get_residue_edge_encodings(distance_matrix: np.ndarray, residue_infos: List, chain_id2protein: Dict, distance_cutoff: int = 5) -> np.ndarray:
+def get_residue_edge_encodings(distance_matrix: np.ndarray, residue_infos: List, distance_cutoff: int = 5) -> np.ndarray:
     """ Convert the distance matrix and residue information to an adjacency tensor
     Information:
         A[0,:,:] = inverse pairwise distances - only below distance cutoff otherwise 0
@@ -276,7 +270,7 @@ def get_residue_edge_encodings(distance_matrix: np.ndarray, residue_infos: List,
                 A[1, i, j] = 1
                 A[1, j, i] = 1
 
-            if "chain_id" in res_info and chain_id2protein[res_info["chain_id"].lower()] == chain_id2protein[other_res_info["chain_id"].lower()]:
+            if "chain_id" in res_info and (res_info["chain_id"].upper() in "LH") == (other_res_info["chain_id"].upper() in "LH"):
                 A[2, i, j] = 1
                 A[2, j, i] = 1
 
@@ -285,13 +279,12 @@ def get_residue_edge_encodings(distance_matrix: np.ndarray, residue_infos: List,
     return A
 
 
-def get_atom_encodings(residue_infos: List[Dict], structure_info: Dict, chain_id2protein: Dict):
+def get_atom_encodings(residue_infos: List[Dict], structure_info: Dict):
     """ Convert the atom infos to numerical encodings in a numpy array
 
     Args:
         residue_infos: List of residue infos
         structure_info: Dict containing information about the structure
-        chain_id2protein: Dict with protein information for each chain
 
     Returns:
         np.ndarray: Array with numerical encodings - shape (n, 115)
@@ -300,7 +293,7 @@ def get_atom_encodings(residue_infos: List[Dict], structure_info: Dict, chain_id
     atom_encoding = []
     atom_names = []
     for res_idx, res_info in enumerate(residue_infos):
-        res_encoding = convert_aa_info(res_info, structure_info, chain_id2protein)
+        res_encoding = convert_aa_info(res_info, structure_info)
 
         atom_order = ['N', 'CA', 'C', 'O'] + RESIDUE_SIDECHAIN_POSTFIXES[augmented_three_to_one(res_info["residue_type"].upper())]
 

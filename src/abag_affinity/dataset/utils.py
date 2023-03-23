@@ -55,7 +55,7 @@ def get_pdb_path_and_id(row: pd.Series, dataset_name: str, config: Dict):
     return pdb_file_path, pdb_id
 
 
-def get_graph_dict(pdb_id: str, pdb_file_path: str, of_emb_path: str, affinity: float, chain_id2protein: Dict,
+def get_graph_dict(pdb_id: str, pdb_file_path: str, of_emb_path: str, affinity: float, 
                    node_type: str, distance_cutoff: int = 5, interface_hull_size: int = 10,
                    ca_alpha_contact: bool = False,) -> Dict:
     """ Generate a dictionary with node, edge and meta-information for a given PDB File
@@ -70,7 +70,6 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, of_emb_path: str, affinity: 
         pdb_file_path: Path to PDB File
         of_emb_path: Path to OpenFold embeddings file
         affinity: Binding affinity of the complex
-        chain_id2protein: Dict with protein-information for each chain
         node_type: Type of nodes (residue, atom)
         distance_cutoff: Max. interface distance
         interface_hull_size: Hull size expanding interface
@@ -82,18 +81,18 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, of_emb_path: str, affinity: 
     """
     structure, _ = read_file(pdb_id, pdb_file_path)
 
-    structure_info, residue_infos, residue_atom_coordinates = get_residue_infos(structure, chain_id2protein)
+    structure_info, residue_infos, residue_atom_coordinates = get_residue_infos(structure)
 
     if node_type == "residue":
         distances, closest_nodes = get_distances(residue_infos, residue_distance=True, ca_distance=ca_alpha_contact)
 
-        node_features = get_residue_encodings(residue_infos, structure_info, chain_id2protein)
-        adj_tensor = get_residue_edge_encodings(distances, residue_infos, chain_id2protein, distance_cutoff=distance_cutoff)
+        node_features = get_residue_encodings(residue_infos, structure_info)
+        adj_tensor = get_residue_edge_encodings(distances, residue_infos, distance_cutoff=distance_cutoff)
         atom_names = []
     elif node_type == "atom":
         distances, closest_nodes = get_distances(residue_infos, residue_distance=False)
 
-        node_features, atom_names = get_atom_encodings(residue_infos, structure_info, chain_id2protein)
+        node_features, atom_names = get_atom_encodings(residue_infos, structure_info)
         adj_tensor = get_atom_edge_encodings(distances, node_features, distance_cutoff=distance_cutoff)
 
     else:
@@ -116,7 +115,7 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, of_emb_path: str, affinity: 
     }
 
 
-def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, cleaned_pdb_folder: str, node_type: str = "residue",
+def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, interface_folder: str, node_type: str = "residue",
                     interface_distance_cutoff: int = 5, interface_hull_size: int = None, max_edge_distance: int = 5,
                     affinity_type: str = "-log(Kd)") -> Dict:
     """ Load and process a data point and generate a graph and meta-information for it
@@ -141,38 +140,30 @@ def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, cleaned_pdb
     pdb_file_path, pdb_id = get_pdb_path_and_id(row, dataset_name, config)
 
     affinity = row[affinity_type]
-    try:
-        chain_id2protein = literal_eval(row["chain_infos"])
-    except:
-        logger.error(row["chain_infos"])
-        logger.debug(pdb_id)
 
-    cleaned_path = os.path.join(cleaned_pdb_folder,pdb_id + ".pdb")
-    if not os.path.exists(cleaned_path):
-        clean_and_tidy_pdb(pdb_id, pdb_file_path, cleaned_path)
     if interface_hull_size is not None:
-        cleaned_path = reduce2interface_hull(pdb_id, cleaned_path, chain_id2protein, interface_distance_cutoff, interface_hull_size)
+        interface_path = reduce2interface_hull(pdb_id, pdb_file_path, interface_distance_cutoff, interface_hull_size)
 
     if 'of_embeddings' in config['DATASETS'][dataset_name]:
-
         of_emb_path = os.path.join(config['DATASETS']["path"],config['DATASETS'][dataset_name]['folder_path'],config['DATASETS'][dataset_name]['of_embeddings'], pdb_id + '.pt')
     else:
         of_emb_path = None
-    
-    return get_graph_dict(pdb_id, cleaned_path, of_emb_path, affinity, chain_id2protein, distance_cutoff=max_edge_distance,
+
+    return get_graph_dict(pdb_id, interface_path, of_emb_path, affinity, distance_cutoff=max_edge_distance,
                           interface_hull_size=interface_hull_size, node_type=node_type)
 
 
-def load_deeprefine_graph(file_name: str, input_filepath: str, chain_infos: Dict, pdb_clean_dir: str,
+def load_deeprefine_graph(file_name: str, input_filepath: str, pdb_clean_dir: str,
                           interface_distance_cutoff: int = 5, interface_hull_size: int = 7) -> dgl.DGLHeteroGraph:
-    """ Convert PDB file to a graph with node and edge encodings
+    """
+    (Deprecated?)
+    Convert PDB file to a graph with node and edge encodings
 
         Utilize DeepRefine functionality to get graphs
 
         Args:
             file_name: Name of the file
             input_filepath: Path to PDB File
-            chain_infos: Dict with protein information for each chain
             pdb_clean_dir:
             interface_distance_cutoff:
             interface_hull_size:
@@ -186,7 +177,7 @@ def load_deeprefine_graph(file_name: str, input_filepath: str, chain_infos: Dict
     # Process the unprocessed protein
     cleaned_path = tidy_up_pdb_file(file_name, input_filepath, pdb_clean_dir)
     if interface_hull_size is not None:
-        cleaned_path = reduce2interface_hull(file_name, cleaned_path, chain_infos, interface_distance_cutoff,
+        cleaned_path = reduce2interface_hull(file_name, cleaned_path, interface_distance_cutoff,
                                              interface_hull_size)
 
     # get graph info with DeepRefine utility
@@ -324,7 +315,7 @@ def tidy_up_pdb_file(file_name: str, pdb_filepath: str, out_dir: str) -> str:
             return cleaned_path
 
 
-def reduce2interface_hull(file_name: str, pdb_filepath: str, chain_infos: Dict,
+def reduce2interface_hull(file_name: str, pdb_filepath: str,
                           interface_size: int, interface_hull_size: int, ) -> str:
         """ Reduce PDB file to only contain residues in interface-hull
 
@@ -338,7 +329,6 @@ def reduce2interface_hull(file_name: str, pdb_filepath: str, chain_infos: Dict,
         Args:
             file_name: Name of the file
             pdb_filepath: Path of the original pdb file
-            chain_infos: Dict with information which chain belongs to which protein (necessary for interface detection)
 
         Returns:
             str: path to interface pdb file
@@ -357,13 +347,14 @@ def reduce2interface_hull(file_name: str, pdb_filepath: str, chain_infos: Dict,
 
         prot_1_chains = []
         prot_2_chains = []
-        for chain, prot in chain_infos.items():
-            if prot == 0:
-                prot_1_chains.append(chain.upper())
-            elif prot == 1:
-                prot_2_chains.append(chain.upper())
+
+        # iterate over chains in pandaspdb object
+        for chain in atom_df["chain_id"].unique():
+            assert chain in "LHABCDEF", f"Chain {chain} not in 'LHABCDEF'"
+            if chain in "LH":
+                prot_1_chains.append(chain)
             else:
-                print("Error while loading interface hull - more than two proteins")
+                prot_2_chains.append(chain)
 
         # calcualte distances
         coords = atom_df[["x_coord", "y_coord", "z_coord"]].to_numpy()
@@ -442,7 +433,7 @@ def get_residue_of_embeddings(residue_infos: list, of_emb_path: str) -> np.ndarr
             matched_of_embs[i, :] = of_embs['sm']['single'][chain_res_id]
 
         except ValueError as e:
-            logger.warning(f'{e}: PDBID: {of_emb_path[-7:-3]}, chain ID: {ord(res["chain_id"])}, residue ID: {res["residue_id"]}')
+            logger.warning(f'{e}: PDBID: {of_emb_path[-9:-3]}, chain ID: {ord(res["chain_id"])}, residue ID: {res["residue_id"]}')
             # OF residue IDs: {of_embs["input_data"]["residue_index_pdb"]}, OF chain IDs: {of_embs["input_data"]["chain_id_pdb"]}') # Only warning once for this protein.'
 
     matched_of_embs = matched_of_embs.numpy()

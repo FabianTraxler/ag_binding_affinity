@@ -12,7 +12,6 @@ sabdab_link = "https://opig.stats.ox.ac.uk/webapps/newsabdab/sabdab/summary/2023
 
 
 pdb_folder_name = "pdbs"
-cleaned_pdb_folder_name = "cleaned_pdbs"
 redundancy_file = "abdb_redundancy_info.txt"
 
 
@@ -64,6 +63,8 @@ rule download_redundancy:
         
 #         "scripts/download_abdb.sh {params.dataset_resource_folder} {params.pdb_folder_name} {params.redundancy_file}"
 
+
+# cleaned_pdb_folder_name = "cleaned_pdbs"
 # rule clean_abdb:
 #     """Currently not supported because of snakemake bug in running the env"""
 #     input:

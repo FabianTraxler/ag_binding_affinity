@@ -71,7 +71,6 @@ def reduce2interface_hull(pdb_filepath: str, out_path: str,
     Args:
         file_name: Name of the file
         pdb_filepath: Path of the original pdb file
-        chain_infos: Dict with information which chain belongs to which protein (necessary for interface detection)
 
     Returns:
         str: path to interface pdb file
@@ -130,7 +129,6 @@ with open(snakemake.params["metadata_file"], "r") as f:
     metadata = yaml.safe_load(f)
 
 complex_metadata = get_complex_metadata(publication, antibody, antigen, metadata)
-chain_infos = get_chain_infos(complex_metadata)
 
-reduce2interface_hull(file_path, out_path, chain_infos, interface_size, interface_hull_size)
+reduce2interface_hull(file_path, out_path, interface_size, interface_hull_size)
 
