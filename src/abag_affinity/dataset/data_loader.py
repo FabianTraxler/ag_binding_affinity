@@ -319,10 +319,7 @@ class AffinityDataset(Dataset, ABC):
 
             node_features = np.array(node_features)
         else:
-            if of_features:
-                node_features = data_file["node_of_embeddings"][graph_nodes]
-            else:
-                node_features = data_file["node_features"][graph_nodes]
+            node_features = data_file["node_features"][graph_nodes]
 
         if self.max_nodes is not None and len(graph_nodes) < self.max_nodes:  # add zero nodes for fixed size graphs
             diff = self.max_nodes - len(graph_nodes)
@@ -399,9 +396,6 @@ class AffinityDataset(Dataset, ABC):
         graph = HeteroData()
 
         graph["node"].x = torch.Tensor(node_features).float()
-        if "node_of_embeddings" in graph_dict.keys():
-            node_of_features = self.get_node_features(graph_dict, of_features=True)
-            graph_dict["of_node"] = torch.Tensor(node_of_features).float()
         graph.y = torch.from_numpy(affinity).float()
 
         for edge_type, edges in edge_indices.items():
@@ -465,7 +459,6 @@ class AffinityDataset(Dataset, ABC):
         data_point = {
             "filepath": filepath,
             "graph": graph,
-            "of_node": graph_dict["of_node"] if 'of_node' in graph_dict.keys() else None,
         }
 
         if self.pretrained_model == "DeepRefine":
@@ -604,12 +597,6 @@ class AffinityDataset(Dataset, ABC):
         else:
             data_batch["input"] = {"graph": Batch.from_data_list([input_dict["input"]["graph"] for input_dict in input_dicts]),
                             "filepath": [input_dict["input"]["filepath"] for input_dict in input_dicts]}
-            if input_dicts[0]['input']['of_node'] is not None:
-                of_nodes = [input_dicts[i]['input']['of_node'] for i in range(len(input_dicts))]
-                num_nodes = [of_node.shape[0] for of_node in of_nodes]
-                max_nodes = max(num_nodes)
-                # pad with zeros up to max_nodes
-                data_batch['input']['of_node'] = torch.stack([F.pad(of_node, (0, 0, 0, max_nodes - num_node)) for of_node, num_node in zip(of_nodes, num_nodes)])
 
             if "deeprefine_graph" in input_dicts[0]["input"]:
                 data_batch["input"]["deeprefine_graph"] = dgl.batch(

@@ -52,6 +52,9 @@ class AffinityGNN(torch.nn.Module):
                                              num_gnn_layers=num_gnn_layers,
                                              channel_halving=channel_halving, channel_doubling=channel_doubling,
                                              nonlinearity=nonlinearity)
+        elif gnn_type == "identity":
+            self.graph_conv = nn.Identity()
+            setattr(self.graph_conv, "embedding_dim", node_feat_dim)
         else:
             raise ValueError(f"Invalid gnn_type given: Got {gnn_type} but expected one of ('guided', 'proximity')")
         # define regression head
@@ -91,48 +94,6 @@ class AffinityGNN(torch.nn.Module):
             "x": affinity
         }
         return output
-
-
-class IPABindingPredictorInterface(AffinityGNN):
-    """ Interface class that wraps the IPABindingPredictor and converts the input data to a
-        format appropriate to the IPA predictor
-    """
-    def __init__(self, node_feat_dim: int, edge_feat_dim: int,
-                 num_nodes: int = None,
-                 pretrained_model: str = "", pretrained_model_path: str = "",
-                 gnn_type: str = "5A-proximity",
-                 layer_type: str = "GAT", num_gat_heads: int = 3, num_gnn_layers: int = 3,
-                 channel_halving: bool = True, channel_doubling: bool = False,
-                 node_type: str = "residue",
-                 aggregation_method: str = "sum",
-                 nonlinearity: str = "relu",
-                 num_fc_layers: int = 3, fc_size_halving: bool = True,
-                 device: torch.device = torch.device("cpu")):
-        # requred to call AffinityGNN for testing if needed, keep for now
-        # kwargs = locals()
-        # kwargs.pop("self")
-        # kwargs.pop("__class__")
-        # super().__init__(**kwargs)
-        super(AffinityGNN, self).__init__()
-        self.ipa_model = IPABindingPredictor()
-
-        # TODO use AggregatingBindingPredictor here!
-        # self.ipa_model = AggregatingBindingPredictor(in_dim=, hid_dim=)
-
-        self.float()
-        self.device = device
-        self.to(device)
-
-    def forward(self, data: Dict):
-        # do some preprocessing to convert 'node_of_embeddings' to dict field 'single' that has the proper format
-
-        # pdb.set_trace()
-        # output = super().forward(data)
-        # call IPABindingPredictor
-        x = self.ipa_model({"single": data["of_node"]})
-
-        return {"x": x}
-
 
 
 class IPABindingPredictor(nn.Module):

@@ -55,7 +55,7 @@ def get_pdb_path_and_id(row: pd.Series, dataset_name: str, config: Dict):
     return pdb_file_path, pdb_id
 
 
-def get_graph_dict(pdb_id: str, pdb_file_path: str, of_emb_path: str, affinity: float, 
+def get_graph_dict(pdb_id: str, pdb_file_path: str, of_emb_path: str, affinity: float,
                    node_type: str, distance_cutoff: int = 5, interface_hull_size: int = 10,
                    ca_alpha_contact: bool = False,) -> Dict:
     """ Generate a dictionary with node, edge and meta-information for a given PDB File
@@ -98,16 +98,13 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, of_emb_path: str, affinity: 
     else:
         raise ValueError("Invalid graph_type: Either 'residue' or 'atom'")
 
-
     assert len(residue_infos) > 0
 
-    # TODO pass in node_of_embeddings as node_features and use fabian's imagined structure
     return {
-        "node_features": node_features,
+        "node_features": get_residue_of_embeddings(residue_infos, of_emb_path)
+        if of_emb_path and node_type =="residue" else node_features,  # I think we need to inject them so harshly here, to facilitate backpropagation later
         "residue_infos": residue_infos,
         "residue_atom_coordinates": residue_atom_coordinates,
-        "node_of_embeddings": get_residue_of_embeddings(residue_infos, of_emb_path)
-                              if of_emb_path and node_type =="residue" else None,
         "adjacency_tensor": adj_tensor,
         "affinity": affinity,
         "closest_residues":closest_nodes,
@@ -409,7 +406,7 @@ def get_residue_of_embeddings(residue_infos: list, of_emb_path: str) -> np.ndarr
     """
 
     of_embs = torch.load(of_emb_path, map_location='cpu')
-    warned = False
+    # warned = False
 
     assert torch.all(of_embs['input_data']['context_chain_type'] != 0)  # like this, incompatible with dockground dataset
     matched_of_embs = torch.zeros(len(residue_infos), of_embs['single'].shape[-1])
@@ -433,8 +430,9 @@ def get_residue_of_embeddings(residue_infos: list, of_emb_path: str) -> np.ndarr
             matched_of_embs[i, :] = of_embs['sm']['single'][chain_res_id]
 
         except ValueError as e:
-            logger.warning(f'{e}: PDBID: {of_emb_path[-9:-3]}, chain ID: {ord(res["chain_id"])}, residue ID: {res["residue_id"]}')
-            # OF residue IDs: {of_embs["input_data"]["residue_index_pdb"]}, OF chain IDs: {of_embs["input_data"]["chain_id_pdb"]}') # Only warning once for this protein.'
+            # if not warned:
+            #     warned = True
+            logger.warning(f'{e}: PDBID: {of_emb_path[-9:-3]}, chain ID: {ord(res["chain_id"])}, residue ID: {res["residue_id"]}.')  # (Won\'t warn again.)
 
     matched_of_embs = matched_of_embs.numpy()
     return matched_of_embs

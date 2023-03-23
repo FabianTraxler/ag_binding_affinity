@@ -115,7 +115,7 @@ def parse_args() -> Namespace:
     optional.add_argument("--layer_type", type=str, help="Type of GNN Layer", default="GAT",
                           choices=["GAT", "GCN"] )
     optional.add_argument("--gnn_type", type=str, help="Type of GNN Layer", default="proximity",
-                          choices=["proximity", "guided"] )
+                          choices=["proximity", "guided", "identity"] )
     optional.add_argument("--num_gnn_layers", type=int, help="Number of GNN Layers", default=3)
     optional.add_argument("--attention_heads", type=int, help="Number of attention heads for GAT layer type",
                           default=3)
@@ -126,7 +126,7 @@ def parse_args() -> Namespace:
     optional.add_argument("--aggregation_method", type=str, help="Type aggregation method to get graph embeddings",
                           default="max",  choices=["max", "sum", "mean", "attention", "fixed_size", "edge"])
     optional.add_argument("--nonlinearity", type=str, help="Type of activation function", default="gelu",
-                          choices=["relu", "leaky", "gelu"])
+                          choices=["relu", "leaky", "gelu", "silu"])
     optional.add_argument("--num_fc_layers", type=int, help="Number of FullyConnected Layers in regression head",
                           default=3)
     optional.add_argument("--fc_size_halving", action=BooleanOptionalAction,

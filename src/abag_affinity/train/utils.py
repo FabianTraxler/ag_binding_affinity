@@ -24,7 +24,7 @@ import scipy.spatial as sp
 # import pdb
 
 from ..dataset import AffinityDataset
-from ..model import AffinityGNN, TwinWrapper, IPABindingPredictorInterface
+from ..model import AffinityGNN, TwinWrapper
 from ..train.wandb_config import configure
 from ..utils.config import get_data_paths
 from ..utils.visualize import plot_correlation
@@ -53,7 +53,6 @@ def forward_step(model: AffinityGNN, data: Dict, device: torch.device) -> Tuple[
 
     else:
         data["input"]["graph"] = data["input"]["graph"].to(device)
-        data["input"]["of_node"] = data["input"]["of_node"].to(device)
         if "deeprefine_graph" in data["input"]:
             data["input"]["deeprefine_graph"] = data["input"]["deeprefine_graph"].to(device)
         output = model(data["input"])
@@ -380,33 +379,17 @@ def load_model(num_node_features: int, num_edge_features: int, args: Namespace,
     else:
         pretrained_model_path = ""
     dataset_name = args.target_dataset.split(':')[0]
-    if dataset_name == 'abag_affinity_of_embeddings':
-        # load interface module and containing the IPA model with preset init values
-
-        model = IPABindingPredictorInterface(num_node_features, num_edge_features,
-                                             num_nodes=args.max_num_nodes,
-                                             pretrained_model=args.pretrained_model, pretrained_model_path=pretrained_model_path,
-                                             gnn_type=args.gnn_type, num_gat_heads=args.attention_heads,
-                                             layer_type=args.layer_type, num_gnn_layers=args.num_gnn_layers,
-                                             channel_halving=args.channel_halving, channel_doubling=args.channel_doubling,
-                                             node_type=args.node_type,
-                                             aggregation_method=args.aggregation_method,
-                                             nonlinearity=args.nonlinearity,
-                                             num_fc_layers=args.num_fc_layers, fc_size_halving=args.fc_size_halving,
-                                             device=device)
-        
-    else:
-        model = AffinityGNN(num_node_features, num_edge_features,
-                            num_nodes=args.max_num_nodes,
-                            pretrained_model=args.pretrained_model, pretrained_model_path=pretrained_model_path,
-                            gnn_type=args.gnn_type, num_gat_heads=args.attention_heads,
-                            layer_type=args.layer_type, num_gnn_layers=args.num_gnn_layers,
-                            channel_halving=args.channel_halving, channel_doubling=args.channel_doubling,
-                            node_type=args.node_type,
-                            aggregation_method=args.aggregation_method,
-                            nonlinearity=args.nonlinearity,
-                            num_fc_layers=args.num_fc_layers, fc_size_halving=args.fc_size_halving,
-                            device=device)
+    model = AffinityGNN(num_node_features, num_edge_features,
+                        num_nodes=args.max_num_nodes,
+                        pretrained_model=args.pretrained_model, pretrained_model_path=pretrained_model_path,
+                        gnn_type=args.gnn_type, num_gat_heads=args.attention_heads,
+                        layer_type=args.layer_type, num_gnn_layers=args.num_gnn_layers,
+                        channel_halving=args.channel_halving, channel_doubling=args.channel_doubling,
+                        node_type=args.node_type,
+                        aggregation_method=args.aggregation_method,
+                        nonlinearity=args.nonlinearity,
+                        num_fc_layers=args.num_fc_layers, fc_size_halving=args.fc_size_halving,
+                        device=device)
 
     return model
 
