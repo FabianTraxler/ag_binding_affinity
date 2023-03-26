@@ -2,17 +2,12 @@
 
 import torch
 import torch.nn as nn
-import pdb
-
-from openfold.model.structure_module import InvariantPointAttention, BackboneUpdate, StructureModuleTransition
-from openfold.utils.rigid_utils import Rigid, Rotation
-
 
 from typing import Dict
 
 from .utils import pretrained_models, pretraind_embeddings, NoOpModel
 from .regression_heads import EdgeRegressionHead, RegressionHead
-from .graph_conv_layers import NaiveGraphConv, GuidedGraphConv
+from .graph_conv_layers import IPABindingPredictor, NaiveGraphConv, GuidedGraphConv
 
 
 class AffinityGNN(torch.nn.Module):
@@ -52,6 +47,8 @@ class AffinityGNN(torch.nn.Module):
                                              num_gnn_layers=num_gnn_layers,
                                              channel_halving=channel_halving, channel_doubling=channel_doubling,
                                              nonlinearity=nonlinearity)
+        elif gnn_type == "ipa":
+            self.graph_conv = IPABindingPredictor()
         elif gnn_type == "identity":
             self.graph_conv = nn.Identity()
             setattr(self.graph_conv, "embedding_dim", node_feat_dim)
@@ -95,107 +92,10 @@ class AffinityGNN(torch.nn.Module):
         }
         return output
 
-
-class IPABindingPredictor(nn.Module):
-    """ Binding predictor based on the IPA model,
-        which takes OpenFold embeddings as inputs and outputs the binding affinity
-    """
-    def __init__(
-        self,
-        c_s: int = 384,  # AF2: 384
-        c_z: int = 128,  # AF2: 128 (but they sum up multiple embedding in these 128 dimensions.....)
-        c_ipa: int = 16,  # AF2
-        no_heads_ipa: int = 12,  # Anand: 4, AF2: 12
-        no_qk_points: int = 4,  # Anand: 4, AF2: 4 probably increase?
-        no_v_points: int = 8,  # Anand: 4, AF2: 8
-        dropout_rate: float = 0.1,  # AF2
-        no_blocks: int = 12,  # 8 is AF2, 12 is Anand et al., for sequence it's even 15
-        no_transition_layers: int = 1,  # 1 is from AF2
-        epsilon: float = 1e-8,  # from IPA
-        inf: float = 1e5,  # from IPA
-    ):
-        super().__init__()
-
-        self.c_s = c_s
-        self.c_z = c_z
-        self.dropout_rate = dropout_rate
-        self.inf = inf
-        self.epsilon = epsilon
-        self.no_transition_layers = no_transition_layers
-        self.no_blocks = no_blocks
-        self.layer_norm_s = nn.LayerNorm(self.c_s)
-        self.layer_norm_z = nn.LayerNorm(self.c_z)
-
-        self.linear_in = nn.Linear(self.c_s, self.c_s)
-
-        self.ipa = InvariantPointAttention(
-            self.c_s,
-            self.c_z,
-            c_ipa,
-            no_heads_ipa,
-            no_qk_points,
-            no_v_points,
-            inf=self.inf,
-            eps=self.epsilon,
-        )
-
-        self.ipa_dropout = nn.Dropout(self.dropout_rate)
-        self.layer_norm_ipa = nn.LayerNorm(self.c_s)
-        self.transition = StructureModuleTransition(
-            self.c_s,
-            self.no_transition_layers,
-            self.dropout_rate,
-        )
-
-        self.bb_update = BackboneUpdate(self.c_s)
-
-        self.aggregating_module = AggregatingBindingPredictor(self.c_s, self.c_s)
-
-    def forward(self, data_dict: Dict, node_mask=None, data=None) -> Dict:
-        s = data_dict['single']
-        if node_mask is None:
-            # [*, N]
-            node_mask = s.new_ones(s.shape[:-1])
-
-        # [*, N, C_s]
-        s = self.layer_norm_s(s)
-
-        # [*, N, N, C_z]
-        if "pair" in data_dict.keys():
-            z = self.layer_norm_z(data_dict["pair"])
-        else:
-            z = torch.zeros((s.shape[0], s.shape[1], s.shape[1], self.c_z), device=s.device)
-
-        # [*, N, C_s]
-        s = self.linear_in(s)
-
-        if data is not None:
-            rigids = Rigid(rots=Rotation(quats=data["orientations"]), trans=data["positions"])
-        else:
-            rigids = Rigid.identity(
-                s.shape[:-1],
-                s.dtype,
-                s.device,
-                self.training,
-                fmt="quat",
-            )
-        for _ in range(self.no_blocks):
-            # [*, N, C_s]
-            s = s + self.ipa(s, z, rigids, node_mask)
-            s = self.ipa_dropout(s)
-            s = self.layer_norm_ipa(s)
-            s = self.transition(s)
-
-            # [*, N]
-            rigids = rigids.compose_q_update_vec(self.bb_update(s))
-
-            rigids = rigids.stop_rot_gradient()
-
-        # Aggregate all s embeddings to compute binding affinity?!
-        return self.aggregating_module(s)
-
-
 class AggregatingBindingPredictor(nn.Module):
+    """
+    TODO delete in favor of fabian's regression heads
+    """
     def __init__(self, in_dim, hidden_dim):
         super().__init__()
         self.model = nn.Sequential(nn.Linear(in_dim, hidden_dim), nn.SiLU(), nn.Linear(hidden_dim, 1))

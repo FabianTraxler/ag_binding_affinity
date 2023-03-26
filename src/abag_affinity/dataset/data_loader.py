@@ -396,6 +396,9 @@ class AffinityDataset(Dataset, ABC):
         graph = HeteroData()
 
         graph["node"].x = torch.Tensor(node_features).float()
+        graph["node"].positions = torch.stack([residue_info["matched_position"] for residue_info in graph_dict["residue_infos"]])
+        graph["node"].orientations = torch.stack([residue_info["matched_orientation"] for residue_info in graph_dict["residue_infos"]])
+        graph["node"].residue_index = torch.stack([residue_info["matched_residue_index"] for residue_info in graph_dict["residue_infos"]])
         graph.y = torch.from_numpy(affinity).float()
 
         for edge_type, edges in edge_indices.items():

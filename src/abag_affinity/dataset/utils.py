@@ -100,9 +100,16 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, of_emb_path: str, affinity: 
 
     assert len(residue_infos) > 0
 
+    if of_emb_path and node_type =="residue":  # I think we need to inject them so harshly here, to facilitate backpropagation later
+        node_features, matched_positions, matched_orientations, matched_residue_index = get_residue_of_embeddings(residue_infos, of_emb_path)
+        # fill residue_infos with matched positions and orientations
+        for i in range(len(residue_infos)):
+            residue_infos[i]["matched_position"] = matched_positions[i]
+            residue_infos[i]["matched_orientation"] = matched_orientations[i]
+            residue_infos[i]["matched_residue_index"] = matched_residue_index[i]
+
     return {
-        "node_features": get_residue_of_embeddings(residue_infos, of_emb_path)
-        if of_emb_path and node_type =="residue" else node_features,  # I think we need to inject them so harshly here, to facilitate backpropagation later
+        "node_features": node_features,
         "residue_infos": residue_infos,
         "residue_atom_coordinates": residue_atom_coordinates,
         "adjacency_tensor": adj_tensor,
@@ -388,7 +395,7 @@ def reduce2interface_hull(file_name: str, pdb_filepath: str,
 
         return interface_path
 
-def get_residue_of_embeddings(residue_infos: list, of_emb_path: str) -> np.ndarray:
+def get_residue_of_embeddings(residue_infos: list, of_emb_path: str) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Get embeddings calculated for each residue using OpenFold from an external file.
     1. Load embedding file
@@ -410,6 +417,10 @@ def get_residue_of_embeddings(residue_infos: list, of_emb_path: str) -> np.ndarr
 
     assert torch.all(of_embs['input_data']['context_chain_type'] != 0)  # like this, incompatible with dockground dataset
     matched_of_embs = torch.zeros(len(residue_infos), of_embs['single'].shape[-1])
+    
+    matched_positions = torch.zeros(len(residue_infos), 3)
+    matched_orientations = torch.zeros(len(residue_infos), 4)
+    matched_residue_index = torch.zeros(len(residue_infos))
 
     for i, res in enumerate(residue_infos):
         chain_id = ord(res['chain_id'])
@@ -427,7 +438,10 @@ def get_residue_of_embeddings(residue_infos: list, of_emb_path: str) -> np.ndarr
                 raise ValueError(f"OF residue type mismatch. AffGNN: {res['residue_type'].upper()}, OF/Diffusion: {aatype}")
 
             # All checks passed? Then
-            matched_of_embs[i, :] = of_embs['sm']['single'][chain_res_id]
+            matched_of_embs[i, :] = of_embs['single'][chain_res_id]
+            matched_positions[i, :] = of_embs['input_data']['positions'][chain_res_id]
+            matched_orientations[i, :] = of_embs['input_data']['orientations'][chain_res_id]
+            matched_residue_index[i] = of_embs['input_data']['residue_index'][chain_res_id]
 
         except ValueError as e:
             # if not warned:
@@ -435,4 +449,4 @@ def get_residue_of_embeddings(residue_infos: list, of_emb_path: str) -> np.ndarr
             logger.warning(f'{e}: PDBID: {of_emb_path[-9:-3]}, chain ID: {ord(res["chain_id"])}, residue ID: {res["residue_id"]}.')  # (Won\'t warn again.)
 
     matched_of_embs = matched_of_embs.numpy()
-    return matched_of_embs
+    return matched_of_embs, matched_positions, matched_orientations, matched_residue_index
