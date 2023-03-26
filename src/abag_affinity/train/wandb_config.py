@@ -14,7 +14,7 @@ def configure(args: Namespace) -> Tuple:
         run = wandb.init(project="abag_binding_affinity", mode=args.wandb_mode)
         if args.wandb_mode == "online":
             wandb.run.name = args.wandb_name
-            run_id = "fabian22/abag_binding_affinity/{}".format(run.id)
+            run_id = "dachdiffusion/abag_binding_affinity/{}".format(run.id)
             api = wandb.Api()
             api.run(run_id)
         use_wandb = True
