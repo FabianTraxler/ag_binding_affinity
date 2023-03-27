@@ -144,7 +144,6 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
 
     model.eval()
     for data in tqdm(val_dataloader, disable=not tqdm_output):
-        # pdb.set_trace()
         output, label = forward_step(model, data, device)
 
         loss = get_loss(criterion, label, output, min_log_kd, max_log_kd)
@@ -931,8 +930,10 @@ def finetune_pretrained(model: AffinityGNN, train_dataset: Union[AffinityDataset
 
     # make pretrained model trainable
     model.pretrained_model.requires_grad = True
-    if hasattr(model.pretrained_model, 'deep_refine'):
-        model.pretrained_model.deep_refine.unfreeze()
+    try:
+        model.pretrained_model.unfreeze()
+    except AttributeError:
+        logging.warning("Pretrained model does not have an unfreeze method")
 
     if args.train_strategy == "bucket_train":
         results, model = bucket_learning(model, train_dataset, val_dataset, args)

@@ -5,9 +5,9 @@ import torch.nn as nn
 
 from typing import Dict
 
-from .utils import pretrained_models, pretraind_embeddings, NoOpModel
+from .utils import pretrained_models, pretrained_embeddings, NoOpModel
 from .regression_heads import EdgeRegressionHead, RegressionHead
-from .graph_conv_layers import IPABindingPredictor, NaiveGraphConv, GuidedGraphConv
+from .graph_conv_layers import NaiveGraphConv, GuidedGraphConv
 
 
 class AffinityGNN(torch.nn.Module):
@@ -47,8 +47,6 @@ class AffinityGNN(torch.nn.Module):
                                              num_gnn_layers=num_gnn_layers,
                                              channel_halving=channel_halving, channel_doubling=channel_doubling,
                                              nonlinearity=nonlinearity)
-        elif gnn_type == "ipa":
-            self.graph_conv = IPABindingPredictor()
         elif gnn_type == "identity":
             self.graph_conv = nn.Identity()
             setattr(self.graph_conv, "embedding_dim", node_feat_dim)
@@ -79,7 +77,7 @@ class AffinityGNN(torch.nn.Module):
             torch.Tensor
         """
         # calculate pretrained node embeddings
-        data = pretraind_embeddings(data, self.pretrained_model)
+        data = pretrained_embeddings(data, self.pretrained_model)
 
         # calculate node embeddings
         graph = self.graph_conv(data["graph"])

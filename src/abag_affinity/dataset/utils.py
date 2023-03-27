@@ -87,8 +87,19 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, of_emb_path: str, affinity: 
         distances, closest_nodes = get_distances(residue_infos, residue_distance=True, ca_distance=ca_alpha_contact)
 
         node_features = get_residue_encodings(residue_infos, structure_info)
+
+        if of_emb_path:  # I think we need to inject them so harshly here, to facilitate backpropagation later. An alternative would be to load the OF data closer to the model..
+            node_features, matched_positions, matched_orientations, matched_residue_index = get_residue_of_embeddings(residue_infos, of_emb_path)
+            # fill residue_infos with matched positions and orientations
+            for i in range(len(residue_infos)):
+                residue_infos[i]["matched_position"] = matched_positions[i]
+                residue_infos[i]["matched_orientation"] = matched_orientations[i]
+                residue_infos[i]["matched_residue_index"] = matched_residue_index[i]
+            # assert (matched_residue_index > 0).all()  # check if all residues have a match (could also just raise exception in get_residue_of_embeddings)
+
         adj_tensor = get_residue_edge_encodings(distances, residue_infos, distance_cutoff=distance_cutoff)
         atom_names = []
+
     elif node_type == "atom":
         distances, closest_nodes = get_distances(residue_infos, residue_distance=False)
 
@@ -99,14 +110,6 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, of_emb_path: str, affinity: 
         raise ValueError("Invalid graph_type: Either 'residue' or 'atom'")
 
     assert len(residue_infos) > 0
-
-    if of_emb_path and node_type =="residue":  # I think we need to inject them so harshly here, to facilitate backpropagation later
-        node_features, matched_positions, matched_orientations, matched_residue_index = get_residue_of_embeddings(residue_infos, of_emb_path)
-        # fill residue_infos with matched positions and orientations
-        for i in range(len(residue_infos)):
-            residue_infos[i]["matched_position"] = matched_positions[i]
-            residue_infos[i]["matched_orientation"] = matched_orientations[i]
-            residue_infos[i]["matched_residue_index"] = matched_residue_index[i]
 
     return {
         "node_features": node_features,
@@ -417,10 +420,10 @@ def get_residue_of_embeddings(residue_infos: list, of_emb_path: str) -> Tuple[to
 
     assert torch.all(of_embs['input_data']['context_chain_type'] != 0)  # like this, incompatible with dockground dataset
     matched_of_embs = torch.zeros(len(residue_infos), of_embs['single'].shape[-1])
-    
+
     matched_positions = torch.zeros(len(residue_infos), 3)
     matched_orientations = torch.zeros(len(residue_infos), 4)
-    matched_residue_index = torch.zeros(len(residue_infos))
+    matched_residue_index = torch.full((len(residue_infos),), -1, dtype=torch.long)
 
     for i, res in enumerate(residue_infos):
         chain_id = ord(res['chain_id'])
@@ -441,6 +444,7 @@ def get_residue_of_embeddings(residue_infos: list, of_emb_path: str) -> Tuple[to
             matched_of_embs[i, :] = of_embs['single'][chain_res_id]
             matched_positions[i, :] = of_embs['input_data']['positions'][chain_res_id]
             matched_orientations[i, :] = of_embs['input_data']['orientations'][chain_res_id]
+            assert of_embs['input_data']['residue_index'][chain_res_id] >= 0
             matched_residue_index[i] = of_embs['input_data']['residue_index'][chain_res_id]
 
         except ValueError as e:

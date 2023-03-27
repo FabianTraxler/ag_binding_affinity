@@ -3,7 +3,7 @@ from torch_geometric.nn import global_add_pool, global_max_pool, global_mean_poo
 from torch.nn import ReLU, LeakyReLU, GELU
 from typing import Tuple, Dict
 
-from .pretrained_models import DDGBackbone, DeepRefineBackbone
+from .pretrained_models import DDGBackbone, DeepRefineBackbone, IPABindingEmbedder
 
 
 class NoOpModel(torch.nn.Module):
@@ -51,11 +51,12 @@ nonlinearity_function = {
 
 pretrained_models = {
     "Binding_DDG": DDGBackbone,
-    "DeepRefine": DeepRefineBackbone
+    "DeepRefine": DeepRefineBackbone,
+    "IPA": IPABindingEmbedder
 }
 
 
-def pretraind_embeddings(data: Dict, pretrained_model: torch.nn.Module) -> Dict:
+def pretrained_embeddings(data: Dict, pretrained_model: torch.nn.Module) -> Dict:
     """ Get the embeddings of the backbone module
 
     Convert the input data to the correct format and then feed through the backbone model

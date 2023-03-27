@@ -122,17 +122,18 @@ rule relax_structures:
     script:
         "../scripts/relax.py"
 
-
 rule expand_openfold_embeddings:
     input:
-        join(dataset_resource_folder, "abdb_openfold_embeddings.pt")
+        join(resource_folder, "abdb_openfold_embeddings.pt")
     output:
-        directory(join(dataset_results_folder, "abag_affinity_dataset/of_embeddings"))
+        directory(join(dataset_results_folder, "of_embeddings"))
     run:
         import torch
         from pathlib import Path
         dat = torch.load(input[0], map_location='cpu')
+        outdir = Path(output[0])
+        outdir.mkdir(exist_ok=True)
 
         for d in dat:
             pdb_id = d['pdb_fn']
-            torch.save(d, Path(output[0]) / pdb_id.lower() + '.pt')
+            torch.save(d, outdir / (pdb_id.lower() + '.pt'))
