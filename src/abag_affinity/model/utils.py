@@ -31,6 +31,7 @@ aggregation_methods = {
     "attention": GlobalAttention,
     "fixed_size": FixedSizeAggregation(),
     "edge": lambda x: x,
+    "interface_sum": global_add_pool,
 }
 
 layer_types = {

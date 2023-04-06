@@ -124,7 +124,7 @@ def parse_args() -> Namespace:
     optional.add_argument("--channel_doubling", action=BooleanOptionalAction,
                           help="Indicator if after every layer the embedding size should be doubled", default=False)
     optional.add_argument("--aggregation_method", type=str, help="Type aggregation method to get graph embeddings",
-                          default="max",  choices=["max", "sum", "mean", "attention", "fixed_size", "edge"])
+                          default="max",  choices=["max", "sum", "mean", "attention", "fixed_size", "edge", "interface_sum"])
     optional.add_argument("--nonlinearity", type=str, help="Type of activation function", default="gelu",
                           choices=["relu", "leaky", "gelu", "silu"])
     optional.add_argument("--num_fc_layers", type=int, help="Number of FullyConnected Layers in regression head",
