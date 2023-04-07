@@ -7,7 +7,8 @@ from .config import read_config
 
 enforced_node_type = {
     "Binding_DDG": "residue",
-    "DeepRefine": "atom"
+    "DeepRefine": "atom",
+    "IPA": "residue"
 }
 
 
@@ -196,6 +197,9 @@ def parse_args() -> Namespace:
     # check arguments
     if args.pretrained_model in enforced_node_type and args.pretrained_model != enforced_node_type[args.pretrained_model]:
         args.__dict__["node_type"] = enforced_node_type[args.pretrained_model]
+    if args.pretrained_model == "IPA":
+        print("Forcing batch_size to 1 for IPA model. Alternatively implement batch_size > 1 for IPA model.")
+        args.__dict__["batch_size"] = 1
 
     args.__dict__["learning_rate"] = args.__dict__["learning_rate"] * args.__dict__["batch_size"]
 

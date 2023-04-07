@@ -5,9 +5,11 @@ import torch
 from torch import device
 from typing import Dict
 
+from openfold.model.primitives import LayerNorm
+
 # Binding_dgg modules
 from abag_affinity.binding_ddg_predictor.models.predictor import DDGPredictor
-from guided_protein_diffusion.models.ipa_denoiser import IPADenoiser
+from guided_protein_diffusion.models.ipa_denoiser import IPADenoiser, PairwiseRelPos
 
 
 class DDGBackbone(torch.nn.Module):
@@ -102,7 +104,7 @@ class IPABindingEmbedder(torch.nn.Module):
     Very similar to IPAWrapper (for diffusion process, maybe DRY this up?)
     """
 
-    def __init__(self, pretrained_model_path: str, device: device = torch.device("cpu")):
+    def __init__(self, pretrained_model_path: str, device: device = torch.device("cpu"), c_s: int = 384, c_z: int = 128, relpos_k: int = 32):
         """
         TODO: implement optional weights sharing between blocks
         """
@@ -123,7 +125,11 @@ class IPABindingEmbedder(torch.nn.Module):
         }
         # non-strict loading due to additional modules (that are not reflected in the pretrained weights)
         self.model.load_state_dict(ipa_denoiser_weigths, strict=False)
-        self.embedding_size = 384
+        self.embedding_size = c_s
+        self.c_z = c_z
+        self.z_linear = torch.nn.Linear(3, self.c_z)
+        self.pairwise_rel_pos = PairwiseRelPos(c_z=self.c_z, relpos_k=relpos_k)  # AF2
+        self.layer_norm_z = LayerNorm(c_z)
 
         # At first, we only train the z-model
         self.freeze_ipa()
@@ -132,15 +138,22 @@ class IPABindingEmbedder(torch.nn.Module):
         # Prepare data for IPA
 
         nodes = data_dict["graph"]["node"]
+        edges = data_dict["graph"]["node", "edge", "node"]
 
         # edge_index = data["graph"]["node", "edge", "node"].edge_index
         # edge_attr = data["graph"]["node", "edge", "node"].edge_attr
+
+        # the normal z is built from pairwise_rel_pos + the sum of embeddings of the two nodes. we ignore these embeddings for now, as we will later use the original z. instead, we
+
+        A = torch.zeros(nodes.x.shape[0], nodes.x.shape[0], 3).to(nodes.x)
+        A[edges.edge_index[0], edges.edge_index[1]] = edges.edge_attr
+        z = self.layer_norm_z(self.pairwise_rel_pos(nodes.residue_index.squeeze(-1).to(A)) + self.z_linear(A))
 
         outputs = self.model(
             data={"positions": nodes.positions, "orientations": nodes.orientations},
             context={"residue_index": nodes.residue_index},
             s=nodes.x,
-            z=None,  # TODO generate z via linear layer from edge features
+            z=z,  # TODO generate z via linear layer from edge features
         )
 
         # Use the final <s> embedding
