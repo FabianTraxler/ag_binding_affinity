@@ -71,7 +71,7 @@ def parse_args() -> Namespace:
     optional.add_argument("-tld", "--transfer_learning_datasets", type=str,
                           help='Datasets used for transfer-learning in addition to goal_dataset', default=[], nargs='+')
     optional.add_argument("--relaxed_pdbs", action=BooleanOptionalAction, help="Use the relaxed pdbs for training "
-                                                                               "and validation", default=False)
+                                                                               "and validation", default=True)
     optional.add_argument("--validation_size", type=int, help="Percent of target dataset used to validate model (only DMS)",
                           default=10)
     # -train strategy
@@ -103,36 +103,36 @@ def parse_args() -> Namespace:
     optional.add_argument("--interface_hull_size", type=int,
                           help="Size of the extension from interface to generate interface hull", default=7)
     optional.add_argument("--scale_values", action=BooleanOptionalAction, help="Scale affinity values between 0 and 1",
-                          default=False)
+                          default=True)
     optional.add_argument("--scale_min", type=int, help="The minimal affinity value -> gets mapped to 0",
                           default=2)
     optional.add_argument("--scale_max", type=int, help="The maximal affinity value -> gets mapped to 1",
                           default=19)
-    optional.add_argument("--max_edge_distance", type=int, help="Maximal distance of proximity edges", default=5)
+    optional.add_argument("--max_edge_distance", type=int, help="Maximal distance of proximity edges", default=3)
 
     # model config arguments
     optional.add_argument("--loss_function", type=str, help="Type of Loss Function", default="L1",
                           choices=["L1", "L2"] )
-    optional.add_argument("--layer_type", type=str, help="Type of GNN Layer", default="GAT",
+    optional.add_argument("--layer_type", type=str, help="Type of GNN Layer", default="GCN",
                           choices=["GAT", "GCN"] )
-    optional.add_argument("--gnn_type", type=str, help="Type of GNN Layer", default="proximity",
-                          choices=["proximity", "guided", "identity"] )
-    optional.add_argument("--num_gnn_layers", type=int, help="Number of GNN Layers", default=3)
+    optional.add_argument("--gnn_type", type=str, help="Type of GNN Layer", default="guided",
+                          choices=["proximity", "guided", "identity"])
+    optional.add_argument("--num_gnn_layers", type=int, help="Number of GNN Layers", default=5)
     optional.add_argument("--attention_heads", type=int, help="Number of attention heads for GAT layer type",
-                          default=3)
+                          default=5)
     optional.add_argument("--channel_halving", action=BooleanOptionalAction,
                           help="Indicator if after every layer the embedding size should be halved", default=True)
     optional.add_argument("--channel_doubling", action=BooleanOptionalAction,
                           help="Indicator if after every layer the embedding size should be doubled", default=False)
     optional.add_argument("--aggregation_method", type=str, help="Type aggregation method to get graph embeddings",
-                          default="max",  choices=["max", "sum", "mean", "attention", "fixed_size", "edge", "interface_sum"])
+                          default="mean",  choices=["max", "sum", "mean", "attention", "fixed_size", "edge", "interface_sum"])
     optional.add_argument("--nonlinearity", type=str, help="Type of activation function", default="gelu",
                           choices=["relu", "leaky", "gelu", "silu"])
     optional.add_argument("--num_fc_layers", type=int, help="Number of FullyConnected Layers in regression head",
-                          default=3)
+                          default=10)
     optional.add_argument("--fc_size_halving", action=BooleanOptionalAction,
                           help="Indicator if after every FC layer the embedding sizeshould be halved",
-                          default=True)
+                          default=False)
 
     # weight and bias arguments
     optional.add_argument("-wdb", "--use_wandb", action=BooleanOptionalAction, help="Use Weight&Bias to log training process",
