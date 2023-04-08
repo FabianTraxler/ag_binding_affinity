@@ -88,7 +88,7 @@ def write_selection_for_atom_interface_hull(pdb_id: str, interface_cutoff: int =
         atom_encoding = graph_dict["node_features"]
         atom_names = graph_dict["atom_names"]
 
-    elif pdb_path is not None and:
+    elif pdb_path is not None:
         structure, header = read_file(pdb_id, pdb_path)
         structure_info, node_infos, residue_atom_coordinates = get_residue_infos(structure)
         distances, closest_atoms = get_distances(node_infos, residue_distance=False, ca_distance=False)
@@ -198,7 +198,7 @@ def write_connection_lines(pdb_id: str, hull_size: int = 5, graph_dict = None, u
         structure, header = read_file(pdb_id, pdb_path)
         structure_info, residue_infos, residue_atom_coordinates = get_residue_infos(structure)
         distances, closest_residues = get_distances(residue_infos, residue_distance=False)
-        A = get_residue_edge_encodings(distances, residue_infos, cutoff)
+        A = get_residue_edge_encodings(distances, residue_infos, 5)
         interface = A[0, :, :]  - A[2, :, :]
     else:
         interface = graph_dict["adjacency_tensor"][0, :, :] - graph_dict["adjacency_tensor"][2, :, :]
@@ -245,7 +245,7 @@ def write_atom_connection_lines(pdb_id: str, hull_size: int = 5, use_dataloader:
         structure_info, node_infos, residue_atom_coordinates = get_residue_infos(structure)
         distances, closest_atoms = get_distances(node_infos, residue_distance=False, ca_distance=False)
         node_features, atom_names = get_atom_encodings(node_infos, structure_info)
-        A = get_atom_edge_encodings(distances, node_features, cutoff)
+        A = get_atom_edge_encodings(distances, node_features, 5)
     else:
         return ""
 
@@ -753,7 +753,6 @@ def generate_graph_story(pdb_id: str, file_path: str, image_path: str, chain2pro
 
 
     residue_peptide_graph_connections = write_peptide_bond_connection_lines(pdb_id, hull_size=hull_size, pdb_path=file_path,
-                                                                 chain_id2protein=chain2protein,
                                                                  use_dataloader=use_dataloader)
 
 
@@ -834,7 +833,6 @@ def pdb_analysis():
     pm("png ~/pymol_images/full_sticks.png, dpi=300")
 
     residue_graph_edges = write_graph_connection_lines(pdb_id, hull_size=None, pdb_path=file_path,
-                                                       chain_id2protein=chain2protein,
                                                        use_dataloader=use_dataloader, node_distance=5,
                                                        node_type="residue")
     pm("hide cartoon")

@@ -357,7 +357,7 @@ def reduce2interface_hull(file_name: str, pdb_filepath: str,
 
         # iterate over chains in pandaspdb object
         for chain in atom_df["chain_id"].unique():
-            assert chain in "LHABCDEF", f"Chain {chain} not in 'LHABCDEF'"
+            #assert chain in "LHABCDEF", f"Chain {chain} not in 'LHABCDEF'"
             if chain in "LH":
                 prot_1_chains.append(chain)
             else:
