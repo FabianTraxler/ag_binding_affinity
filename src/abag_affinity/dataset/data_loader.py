@@ -1,4 +1,6 @@
-"""Module providing a basic superclass for all datasets as well as specific datasets for PyTorch geometric data"""
+"""
+Module providing a PyTorch dataset class for binding affinity data
+"""
 import os
 import random
 from abc import ABC
@@ -25,8 +27,12 @@ logger = logging.getLogger(__name__)
 
 
 class AffinityDataset(Dataset, ABC):
-    """Superclass for all protein-protein binding affinity datasets
-    Provides functionality to load dataset csv files and graph generation as well as the item_getter methods
+    """Dataset class all protein-protein binding affinity datasets
+
+    Provides functionality to:
+     - load dataset csv files
+     - generate graphs (atom or residue) from PDB Files
+     - handle relative binding affinity data
     """
 
     def __init__(self, config: Dict,
@@ -41,19 +47,46 @@ class AffinityDataset(Dataset, ABC):
                  relative_data: bool = False,
                  save_graphs: bool = False, force_recomputation: bool = False,
                  preprocess_data: bool = False, num_threads: int = 1):
+        """ Initialization of class variables,
+        generation of necessary directories,
+        start of graph preprocessing
+
+        Args:
+            config: Dict with data configuration
+            dataset_name: Name of the dataset
+            pdb_ids: List of PDB IDs to use in this dataset
+            node_type: Type of graph nodes
+            max_nodes: Maximal number of nodes
+            interface_distance_cutoff: Maximal interface distance
+            interface_hull_size: Size of the interface hull extension
+            max_edge_distance: Maximal edge distance between two nodes
+            pretrained_model: Pretrained model used for prediction
+            scale_values: Boolean indicator if affinity values should be scaled
+            scale_min: Minimum value of scaling range
+            scale_max: Maximum value of scaling range
+            relative_data: Boolean indicator if this dataset is relative
+            save_graphs: Boolean indicator if processed graphs are stored to disc
+            force_recomputation: Boolean indicator if graphs are newly computed even if they are found on disc
+            preprocess_data: Boolean indicator if data should be processed after class initialization
+            num_threads: Number of threads to use for preprocessing
+        """
         super(AffinityDataset, self).__init__()
         self.dataset_name = dataset_name
         self.config = config
         self.node_type = node_type
-        self.save_graphs = save_graphs
-        self.pretrained_model = pretrained_model
+
+        self.save_graphs = save_graphs # store graphs to disc
+        self.pretrained_model = pretrained_model # if pretrained model is used
 
         self.max_nodes = max_nodes
         self.interface_hull_size = interface_hull_size
         self.interface_distance_cutoff = interface_distance_cutoff
         self.max_edge_distance = max_edge_distance
+        self.scale_values = scale_values
+        self.scale_min = scale_min
+        self.scale_max = scale_max
 
-        if "-" in dataset_name:
+        if "-" in dataset_name: # part of DMS dataset
             dataset_name, publication_code = dataset_name.split("-")
             self.affinity_type = self.config["DATASETS"][dataset_name]["affinity_types"][publication_code]
             self.dataset_name = dataset_name
@@ -64,6 +97,7 @@ class AffinityDataset(Dataset, ABC):
             self.publication = None
             self.full_dataset_name = dataset_name
 
+        # define edge types based on node type
         if node_type == "residue":
             self.edge_types = ["distance", "peptide_bond", "same_protein"]
         elif node_type == "atom":
@@ -71,10 +105,9 @@ class AffinityDataset(Dataset, ABC):
         else:
             raise ValueError(f"Invalid node type provided - got {node_type} - supported 'residue', 'atom'")
 
-        # create path for processed graphs
+        # create path for results and processed graphs
         self.results_dir = os.path.join(self.config["PROJECT_ROOT"], self.config["RESULTS"]["path"])
         self.graph_dir = os.path.join(self.config["processed_graph_path"], dataset_name, node_type, pretrained_model)
-
         if self.save_graphs or preprocess_data:
             logger.debug(f"Saving processed graphs in {self.graph_dir}")
             Path(self.graph_dir).mkdir(exist_ok=True, parents=True)
@@ -84,9 +117,6 @@ class AffinityDataset(Dataset, ABC):
         Path(self.interface_dir).mkdir(exist_ok=True, parents=True)
 
         self.force_recomputation = force_recomputation
-        self.scale_values = scale_values
-        self.scale_min = scale_min
-        self.scale_max = scale_max
         self.preprocess_data = preprocess_data
 
         # load dataframe with metainfo
@@ -110,7 +140,15 @@ class AffinityDataset(Dataset, ABC):
             self.preprocess()
 
     def get_valid_pairs(self, pdb_ids: List) -> List:
-        """ Get all mutation pairs available for a complex that do not have the exact same affinity
+        """ Find for each data point a valid partner
+        If no partner is found than ignore the datapoint
+
+        Criteria are:
+        - -log(Kd) values available: Different PDB ID
+        - E values available: Difference of E must be higher than average NLL
+
+        Args:
+            pdb_ids: List of PDB Ids to find a partner for
 
         Returns:
             List: All Pairs of mutation data points of the same complex
@@ -127,12 +165,53 @@ class AffinityDataset(Dataset, ABC):
 
         return all_data_points
 
+    def get_compatible_pair(self, pdb_id: str) -> str:
+        """ Find a compatible data point for a PDB ID
+
+        Criteria are:
+        - -log(Kd) values available: Different PDB ID
+        - E values available: Difference of E must be higher than average NLL
+
+        Args:
+            pdb_id: PDB ID to find a partner for
+
+        Returns:
+            str: PDB ID of partner or None if there is no valid partner
+        """
+        pdb_file = self.data_df.loc[pdb_id, "pdb"]
+        if self.affinity_type == "-log(Kd)":
+            other_mutations = self.data_df[(self.data_df["pdb"] == pdb_file) & (self.data_df.index != pdb_id)]
+            possible_partner = other_mutations.index.tolist()
+        elif self.affinity_type == "E":
+            # get data point that has distance > avg(NLL) from current data point
+            pdb_nll = self.data_df.loc[self.data_df.index == pdb_id, "NLL"].values[0]
+            pdb_e = np.array(self.data_df.loc[self.data_df.index == pdb_id, "E"].values[0]).reshape(-1, 1)
+
+            e_values = self.data_df["E"].values.reshape(-1, 1)
+            nll_values = self.data_df["NLL"].values
+            e_dists = sp.distance.cdist(pdb_e, e_values)[0, :]
+            nll_avg = (pdb_nll + nll_values) / 2
+
+            valid_pairs = (e_dists - nll_avg) >= 0
+            valid_partner = np.where(valid_pairs)[0]
+            possible_partner = self.data_df.index[valid_partner].tolist()
+
+        else:
+            raise ValueError(
+                f"Wrong affinity type given - expected one of (-log(Kd), E) but got {self.affinity_type}")
+
+        if len(possible_partner) > 0:  # random choose one of the available mutations
+            return random.sample(possible_partner, 1)[0]
+        else:  # compare to oneself if there is no other option available
+            return None
+
     def len(self) -> int:
         """Returns the length of the dataset"""
         return len(self.data_points)
 
     def preprocess(self):
-        """ Preprocess graphs for faster dataloader and avoiding file conflicts during parallel dataloading
+        """ Preprocess graphs to reduce redundant processing during training +
+        avoid file conflicts during parallel dataloading
 
         Use given threads to preprocess data and store them on disc
 
@@ -143,7 +222,6 @@ class AffinityDataset(Dataset, ABC):
         if self.interface_hull_size is not None and self.interface_hull_size != "" and self.interface_hull_size != "None":
             Path(os.path.join(self.graph_dir, f"interface_hull_{self.interface_hull_size}")).mkdir(exist_ok=True,
                                                                                                    parents=True)
-
         graph_dicts2process = []
         deeprefine_graphs2process = []
         for df_idx, row in self.data_df.iterrows():
@@ -152,21 +230,22 @@ class AffinityDataset(Dataset, ABC):
             if not os.path.exists(file_path) or self.force_recomputation:
                 graph_dicts2process.append((row, file_path))
 
-
             if "pdb" not in row:
                 row["pdb"] = "-".join((row["publication"], row["ab_ag"]))
             pdb_path, _ = get_pdb_path_and_id(row, self.dataset_name, self.config)
 
-            # Pre-Load DeepRefine graphs
-            # TODO: Store only full graph and reduce to interface hull later on
+            # get final file name of graph
             if self.interface_hull_size is None or self.interface_hull_size == "" or self.interface_hull_size == "None":
                 graph_filepath = os.path.join(self.graph_dir, str(df_idx) + ".pickle")
             else:
                 graph_filepath = os.path.join(self.graph_dir, f"interface_hull_{self.interface_hull_size}",
                                               str(df_idx) + ".pickle")
+            # Pre-Load DeepRefine graphs
+
             if not os.path.exists(graph_filepath) or self.force_recomputation:
                 deeprefine_graphs2process.append((df_idx, pdb_path, row))
 
+        # start processing with given threads
         logger.debug(f"Preprocessing {len(graph_dicts2process)} graph dicts with {self.num_threads} threads")
         submit_jobs(self.preload_graph_dict, graph_dicts2process, self.num_threads)
 
@@ -198,12 +277,12 @@ class AffinityDataset(Dataset, ABC):
         np.savez_compressed(out_path, **graph_dict)
 
     def preload_deeprefine_graph(self, idx: str, pdb_filepath: str, row: pd.Series):
-        """ Function to get graph dict and store to disc
+        """ Function to get graph dict of Deeprefine graphs and store to disc
 
         Used by preprocess functionality
 
         Args:
-            idx: ID = Name of the DataPoint
+            idx: Name of the DataPoint
             pdb_filepath: Path of pdb file
             row: DataFrame Row of the data point
 
@@ -226,10 +305,10 @@ class AffinityDataset(Dataset, ABC):
     def load_df(self, pdb_ids: List):
         """ Load all the dataset information (csv) into a pandas dataframe
 
-        Only consider the pdbs given as argument
+        Discard all PDBs not given in argument
 
         Args:
-            pdb_ids: List of pdb ids in this dataset
+            pdb_ids: List of PDB ids to use in this dataset
 
         Returns:
             pd.DataFrame: Object with all information available for the pdb_ids
@@ -268,7 +347,6 @@ class AffinityDataset(Dataset, ABC):
             Tuple: Edge Dict with indices, edge dict with attributes
         """
 
-        # TODO: Add Max num Nodes, Interface hull size, ...
         # use only nodes actually available in the graph
         data_file["adjacency_tensor"] = data_file["adjacency_tensor"][:, data_file["graph_nodes"], :][:, :,
                                         data_file["graph_nodes"]]
@@ -333,7 +411,7 @@ class AffinityDataset(Dataset, ABC):
         Either load from disc or compute anew
 
         Args:
-            df_idx: Index of metadata dataframe
+            df_idx: Index of dataset dataframe
 
         Returns:
             Dict: graph information for index
@@ -374,15 +452,12 @@ class AffinityDataset(Dataset, ABC):
     def load_graph(self, df_idx: str) -> Tuple[HeteroData, Dict]:
         """ Load a data point either from disc or compute it anew
 
-        Standard method for PyTorch geometric graphs
-
-        Can be overwritten by subclasses with a need for differnt data type
-
         Args:
-            df_idx: Index of the dataframe with metadata
+            df_idx: Dataset index of the datapoint
 
         Returns:
-            Dict: PyG Data object
+            HeteroData: PyG HeteroData object
+            Dict: Metadata for graph
         """
         graph_dict = self.get_graph_dict(df_idx)
         node_features = self.get_node_features(graph_dict)
@@ -411,16 +486,15 @@ class AffinityDataset(Dataset, ABC):
         return graph, graph_dict
 
     def load_deeprefine_graph(self, df_idx: str) -> dgl.DGLGraph:
-        """ Convert PDB file to a graph with node and edge encodings
+        """Load a data point for Deeprefine model either from disc or compute it anew
 
         Utilize DeepRefine functionality to get graphs
 
         Args:
-            file_name: Name of the file
-            input_filepath: Path to PDB File
+            df_idx: Dataset index of the datapoint
 
         Returns:
-            Dict: Information about graph, protein and filepath of pdb
+            dgl.DGLGraph: DGL graph object
         """
         if self.interface_hull_size is None or self.interface_hull_size == "" or self.interface_hull_size == "None":
             graph_filepath = os.path.join(self.graph_dir, df_idx + ".pickle")
@@ -432,6 +506,7 @@ class AffinityDataset(Dataset, ABC):
                                           df_idx + ".pickle")
 
         compute_graph = True
+        graph = None
         if (not self.force_recomputation or self.preprocess_data) and os.path.exists(graph_filepath):
             try:
                 with open(graph_filepath, 'rb') as f:
@@ -454,7 +529,17 @@ class AffinityDataset(Dataset, ABC):
 
         return graph
 
-    def load_data_point(self, df_idx: str):
+    def load_data_point(self, df_idx: str) -> Dict:
+        """ Functionality to load the correct graph + all necessary meta information
+
+        Loads either a PyG graph or DGL graph based on the model used later on
+
+        Args:
+            df_idx: Dataset index of the datapoint
+
+        Returns:
+            Dict: Dict containing graph(s) and path of the PDB
+        """
 
         if self.interface_hull_size is None or self.interface_hull_size == "":
             filepath = os.path.join(self.interface_dir, df_idx + ".pdb")
@@ -475,13 +560,13 @@ class AffinityDataset(Dataset, ABC):
         return data_point
 
     def get_absolute(self, idx: int) -> Dict:
-        """ Get the datapoint for a dataset index
+        """ Get the datapoint with one graph for a dataset index
 
         Args:
             idx: Index in the dataset
 
         Returns:
-            Data: PyG data object containing node, edge and label information
+            Dict: Graph object and meta information to this data point
         """
         pdb_id = self.data_points[idx]
         graph_data = self.load_data_point(pdb_id)
@@ -503,7 +588,7 @@ class AffinityDataset(Dataset, ABC):
             idx: Index in the dataset
 
         Returns:
-            List: List of PyG data object containing node, edge and label information
+            Dict: Dict containing two graphs and meta information for this data point
         """
         data = {
             "relative": True,
@@ -518,37 +603,9 @@ class AffinityDataset(Dataset, ABC):
 
         return data
 
-    def get_compatible_pair(self, pdb_id: str) -> str:
-        pdb_file = self.data_df.loc[pdb_id, "pdb"]
-        if self.affinity_type == "-log(Kd)":
-            other_mutations = self.data_df[(self.data_df["pdb"] == pdb_file) & (self.data_df.index != pdb_id)]
-            possible_partner = other_mutations.index.tolist()
-        elif self.affinity_type == "E":
-            # get data point that has distance > avg(NLL) from current data point
-            pdb_nll = self.data_df.loc[self.data_df.index == pdb_id, "NLL"].values[0]
-            pdb_e = np.array(self.data_df.loc[self.data_df.index == pdb_id, "E"].values[0]).reshape(-1,1)
-
-            e_values = self.data_df["E"].values.reshape(-1,1)
-            nll_values = self.data_df["NLL"].values
-            e_dists = sp.distance.cdist(pdb_e, e_values)[0, :]
-            nll_avg = (pdb_nll + nll_values) / 2
-
-            valid_pairs = (e_dists - nll_avg) >= 0
-            valid_partner = np.where(valid_pairs)[0]
-            possible_partner = self.data_df.index[valid_partner].tolist()
-
-        else:
-            raise ValueError(
-                f"Wrong affinity type given - expected one of (-log(Kd), E) but got {self.affinity_type}")
-
-        if len(possible_partner) > 0: # random choose one of the available mutations
-            return random.sample(possible_partner, 1)[0]
-        else: # compare to oneself if there is no other option available
-            return None
-
     @property
     def num_node_features(self) -> int:
-        r"""Returns the number of features per node in the dataset."""
+        """Returns the number of features per node in the dataset."""
         data = self[0]["input"]
         data = data[0]["graph"] if isinstance(data, List) else data["graph"]
         if hasattr(data["node"], 'num_node_features'):
@@ -558,7 +615,7 @@ class AffinityDataset(Dataset, ABC):
 
     @property
     def num_edge_features(self) -> int:
-        r"""Returns the number of features per edge in the dataset."""
+        """Returns the number of features per edge in the dataset."""
         data = self[0]["input"]
         data = data[0]["graph"] if isinstance(data, List) else data["graph"]
         if hasattr(data["node", "edge", "node"], 'num_edge_features'):
@@ -567,9 +624,8 @@ class AffinityDataset(Dataset, ABC):
     @staticmethod
     def collate(input_dicts: List[Dict]) -> Union[List, Dict]:
         """ Collate multiple datapoints to a batch
-        1. Batch the graphs (using DGL Batch)
-        2. Batch the filepaths
-        3. Batch the affinity values (using numpy)
+        1. Batch the graphs (using DGL Batch or PyG Batch)
+        2. Batch the metadata information
         Args:
             input_dicts: List of input data points
         Returns:

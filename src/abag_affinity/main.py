@@ -2,6 +2,7 @@
 import logging
 import random
 import sys
+import time
 from argparse import Namespace
 from typing import Dict
 import wandb
@@ -71,7 +72,12 @@ def run_sweep(args: Namespace, logger):
                     "pretrained_model"] in enforced_node_type:
                     continue  # ignore since it is manually overwritten below
                 if param == "transfer_learning_datasets" and isinstance(param_value, str):
-                    args.__dict__[param] = [param_value]
+                    if param_value == "DMS-taft22_deep_mutat_learn_predic_ace2:relative":
+                        raise ValueError("This dataset leads to timeouts during training and is therefore skipped")
+                    if ";" in param_value:
+                        args.__dict__[param] = param_value.split(";")
+                    else:
+                        args.__dict__[param] = [param_value]
                     continue
 
                 args.__dict__[param] = param_value
@@ -113,6 +119,7 @@ def run_sweep(args: Namespace, logger):
         if args.wandb_mode == "offline":
             command = f'wandb sync --id {run.id} {run_dir}'
             subprocess.run(command, shell=True)
+            time.sleep(10)
 
     logger.info(f"Starting {args.sweep_runs} runs in this instance")
     wandb.agent(args.sweep_id, function=sweep_train, count=args.sweep_runs, project="abag_binding_affinity")

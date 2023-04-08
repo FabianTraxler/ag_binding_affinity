@@ -76,7 +76,7 @@ def parse_args() -> Namespace:
                           default=10)
     # -train strategy
     optional.add_argument("-t", "--train_strategy", type=str, help='The training strategy to use',
-                          choices=["bucket_train", "pretrain_model", "model_train", "cross_validation"],
+                          choices=["bucket_train", "pretrain_model", "model_train"],
                           default="model_train")
     optional.add_argument("--bucket_size_mode", type=str, help="Mode to determine the size of the training buckets",
                           default="min", choices=["min", "geometric_mean", "double_geometric_mean"])
@@ -105,7 +105,7 @@ def parse_args() -> Namespace:
     optional.add_argument("--scale_values", action=BooleanOptionalAction, help="Scale affinity values between 0 and 1",
                           default=True)
     optional.add_argument("--scale_min", type=int, help="The minimal affinity value -> gets mapped to 0",
-                          default=2)
+                          default=0)
     optional.add_argument("--scale_max", type=int, help="The maximal affinity value -> gets mapped to 1",
                           default=19)
     optional.add_argument("--max_edge_distance", type=int, help="Maximal distance of proximity edges", default=3)
@@ -151,6 +151,8 @@ def parse_args() -> Namespace:
     # general config
     optional.add_argument("-w", "--num_workers", type=int, help="Number of workers to use for data loading", default=0)
     optional.add_argument("--cross_validation", action=BooleanOptionalAction, help="Perform CV on all validation datasets", default=False)
+    optional.add_argument("--number_cv_splits", type=int, help='The number of data splits for cross validation',
+                          default=10)
     optional.add_argument("-v", "--validation_set", type=int, help="Which validation set to use", default=1,
                           choices=[1, 2, 3, 4])
     optional.add_argument("-c", "--config_file", type=str,
@@ -220,5 +222,13 @@ def read_args_from_file(args: Namespace) -> Namespace:
             value["value"] = None
         if key in args.__dict__ and key not in manually_passed_args:
             args.__dict__[key] = value["value"]
+            if key == "transfer_learning_datasets" and isinstance(value["value"], str):
+                if value["value"] == "DMS-taft22_deep_mutat_learn_predic_ace2:relative":
+                    raise ValueError("This dataset leads to timeouts during training and is therefore skipped")
+                if ";" in value["value"]:
+                    args.__dict__[key] = value["value"].split(";")
+                else:
+                    args.__dict__[key] = [value["value"]]
+                continue
 
     return args

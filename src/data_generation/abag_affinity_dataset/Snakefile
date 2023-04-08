@@ -3,7 +3,7 @@ from os.path import join
 from pathlib import Path
 
 DATASET_NAME = "abag_affinity_dataset"
-NUM_VALIDATION_SPLITS = 4
+NUM_VALIDATION_SPLITS = 10
 TESTSET_SIZE = 50
 REDUNDANCY_CUTOFF = 0.8
 

@@ -156,6 +156,14 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
             pdb_ids_1 = [ filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
             pdb_ids_2 = [ filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
             all_pdbs.extend(list(zip(pdb_ids_1, pdb_ids_2)))
+        elif data["relative"] and data["affinity_type"] == "-log(Kd)":
+            label = label.detach().cpu()
+            all_continuous_predictions = np.append(all_continuous_predictions, output["x"].flatten().detach().cpu().numpy())
+            all_continuous_labels = np.append(all_continuous_labels, label.numpy())
+
+            pdb_ids_1 = [ filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
+            pdb_ids_2 = [ filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
+            all_pdbs.extend(list(zip(pdb_ids_1, pdb_ids_2)))
         else:
             label = label.detach().cpu()
             all_continuous_predictions = np.append(all_continuous_predictions, output["x"].flatten().detach().cpu().numpy())
@@ -529,6 +537,10 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int, valida
 
         train_ids = list(train_ids)
         val_ids = list(val_ids)
+
+        #train_ids = ["phillips21_bindin:cr9114:h1wiscon05-SD166N;ID188S;AD194T;ND195A;KD210I".lower()] + train_ids[                                                                                               :5]
+        #val_ids = val_ids[:2]
+
     else:
         summary_path, _ = get_data_paths(config, dataset_name)
         summary_df = pd.read_csv(summary_path, index_col=0)
@@ -552,9 +564,6 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int, valida
 
         val_ids = summary_df[summary_df["pdb"].isin(val_pdbs)].index.tolist()
         train_ids = summary_df[summary_df["pdb"].isin(train_pdbs)].index.tolist()
-
-    #train_ids = val_ids[:2]
-    #val_ids = val_ids[:2]
 
     return train_ids, val_ids
 
@@ -644,6 +653,7 @@ def get_bucket_dataloader(args: Namespace, train_datasets: List[AffinityDataset]
     train_buckets = []
     absolute_data_indices = []
     relative_data_indices = []
+    relative_E_data_indices = []
 
     if args.bucket_size_mode == "min":
         train_bucket_size = [min([len(dataset) for dataset in train_datasets])] * len(train_datasets)
@@ -659,7 +669,7 @@ def get_bucket_dataloader(args: Namespace, train_datasets: List[AffinityDataset]
                          f"but expected one of [min, geometric_mean]")
     i = 0
     for idx, train_dataset in enumerate(train_datasets):
-        if train_dataset.dataset_name == args.target_dataset:
+        if train_dataset.dataset_name == args.target_dataset: # always take all data points from the target dataset
             indices = range(len(train_dataset))
         else:
             if len(train_dataset) >= train_bucket_size[idx]:
@@ -670,20 +680,22 @@ def get_bucket_dataloader(args: Namespace, train_datasets: List[AffinityDataset]
                 indices = random.choices(range(len(train_dataset)), k=train_bucket_size[idx])
 
         train_buckets.append(Subset(train_dataset, indices))
-        if train_dataset.relative_data:
+        if train_dataset.relative_data and train_dataset.affinity_type == "E":
+            relative_E_data_indices.extend(list(range(i, i + len(indices))))
+        elif train_dataset.relative_data and train_dataset.affinity_type == "-log(Kd)":
             relative_data_indices.extend(list(range(i, i + len(indices))))
         else:
             absolute_data_indices.extend(list(range(i, i + len(indices))))
         i += len(indices)
 
-    # shorten relative data for validation
+    # shorten relative data for validation because DMS datapoints tend to have a lot of validation data if we use 10% split
     # TODO: find better way
     for dataset in val_datasets:
         if dataset.relative_data:
             dataset.data_points = dataset.data_points[:100]
 
     train_dataset = ConcatDataset(train_buckets)
-    batch_sampler = generate_bucket_batch_sampler([absolute_data_indices, relative_data_indices], args.batch_size,
+    batch_sampler = generate_bucket_batch_sampler([absolute_data_indices, relative_data_indices, relative_E_data_indices], args.batch_size,
                                                   shuffle=args.shuffle)
 
     train_dataloader = DL_torch(train_dataset, num_workers=args.num_workers,
@@ -796,7 +808,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
             preds = epoch_results["all_predictions"][i:i + len(val_dataset)]
             labels = epoch_results["all_labels"][i:i + len(val_dataset)]
             val_loss = criterion(torch.from_numpy(preds).to(device),
-                                 torch.from_numpy(labels).to(device))  # mean_squared_error(labels, preds) / len(labels)
+                                 torch.from_numpy(labels).to(device)).detach().cpu()  # mean_squared_error(labels, preds) / len(labels)
 
             if val_dataset.affinity_type == "E":
                 pearson_corr = (np.nan, np.nan)
@@ -1053,13 +1065,17 @@ def get_benchmark_score(model: AffinityGNN, args: Namespace, tqdm_output: bool =
 
 
 def get_abag_test_score(model: AffinityGNN, args: Namespace, tqdm_output: bool = True, plot_path: str = None,
-                        results_path: str = None) -> Tuple[float, float]:
+                        results_path: str = None, validation_set: int = None) -> Tuple[float, float]:
 
     criterion = nn.MSELoss()
 
     summary_path, _ = get_data_paths(args.config, "abag_affinity")
     summary_df = pd.read_csv(summary_path, index_col=0)
-    summary_df = summary_df[summary_df["test"]]
+    if validation_set is None:
+        summary_df = summary_df[summary_df["test"]]
+    else:
+        summary_df = summary_df[summary_df["validation"] == validation_set]
+
     test_pdbs_ids = summary_df.index.tolist()
 
     dataset = AffinityDataset(args.config, "abag_affinity", test_pdbs_ids,
