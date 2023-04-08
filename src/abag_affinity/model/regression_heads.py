@@ -85,7 +85,7 @@ class EdgeRegressionHead(torch.nn.Module):
 
 class RegressionHead(torch.nn.Module):
     def __init__(self, node_feat_dim: int, num_nodes: int = None, aggregation_method: str = "sum",
-                 nonlinearity: str = "relu", size_halving: bool = True,
+                 nonlinearity: str = "silu", size_halving: bool = True,
                  num_fc_layers: int = 3, device: torch.device = torch.device("cpu")):
         super(RegressionHead, self).__init__()
 
@@ -93,6 +93,7 @@ class RegressionHead(torch.nn.Module):
         self.activation = nonlinearity_function[nonlinearity]()
 
         # define graph aggregation function
+        self.aggregation_method = aggregation_method
         if aggregation_method == "attention":
             self.aggregation = aggregation_methods[aggregation_method](nn.Linear(node_feat_dim, 1))
         else:
@@ -123,12 +124,19 @@ class RegressionHead(torch.nn.Module):
 
         batch = get_node_batches(data).to(self.device)
 
-        # calculate graph embedding
-        x = self.aggregation(x, batch)
+        if self.aggregation_method == "interface_sum":
+            # get interface edges
+            interface_node_indices = data["node", "interface", "node"].edge_index.view(-1).unique()
+            batch = batch[interface_node_indices]
+            x = x[interface_node_indices]
 
-        # calculate affinity
+        # compute node-wise affinity contribution from graph embedding
         for fc_layer in self.fc_layers[:-1]:
             x = fc_layer(x)
             x = self.activation(x)
         x = self.fc_layers[-1](x)
+
+        # sum up node-wise affinity contributions
+        x = self.aggregation(x, batch)
+
         return x

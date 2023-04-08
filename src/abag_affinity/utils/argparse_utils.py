@@ -7,7 +7,8 @@ from .config import read_config
 
 enforced_node_type = {
     "Binding_DDG": "residue",
-    "DeepRefine": "atom"
+    "DeepRefine": "atom",
+    "IPA": "residue"
 }
 
 
@@ -68,9 +69,9 @@ def parse_args() -> Namespace:
     optional.add_argument("--target_dataset", type=str, help='The datasize used for final and patience',
                           default="abag_affinity:absolute")
     optional.add_argument("-tld", "--transfer_learning_datasets", type=str,
-                          help='Datasets used for transfer-learning in addition to goal_dataset', default="", nargs='+')
+                          help='Datasets used for transfer-learning in addition to goal_dataset', default=[], nargs='+')
     optional.add_argument("--relaxed_pdbs", action=BooleanOptionalAction, help="Use the relaxed pdbs for training "
-                                                                               "and validation", default=False)
+                                                                               "and validation", default=True)
     optional.add_argument("--validation_size", type=int, help="Percent of target dataset used to validate model (only DMS)",
                           default=10)
     # -train strategy
@@ -81,7 +82,7 @@ def parse_args() -> Namespace:
                           default="min", choices=["min", "geometric_mean", "double_geometric_mean"])
     optional.add_argument("-m", "--pretrained_model", type=str,
                           help='Name of the pretrained model to use for node embeddings',
-                          choices=["", "DeepRefine", "Binding_DDG"], default="")
+                          choices=["", "DeepRefine", "Binding_DDG", "IPA"], default="")
     optional.add_argument("--transfer_learning_validation_size", type=int,
                           help="Percent of transfer learning dataset(s) used to validate model (only DMS)",
                           default=10)
@@ -102,36 +103,36 @@ def parse_args() -> Namespace:
     optional.add_argument("--interface_hull_size", type=int,
                           help="Size of the extension from interface to generate interface hull", default=7)
     optional.add_argument("--scale_values", action=BooleanOptionalAction, help="Scale affinity values between 0 and 1",
-                          default=False)
+                          default=True)
     optional.add_argument("--scale_min", type=int, help="The minimal affinity value -> gets mapped to 0",
                           default=0)
     optional.add_argument("--scale_max", type=int, help="The maximal affinity value -> gets mapped to 1",
                           default=19)
-    optional.add_argument("--max_edge_distance", type=int, help="Maximal distance of proximity edges", default=5)
+    optional.add_argument("--max_edge_distance", type=int, help="Maximal distance of proximity edges", default=3)
 
     # model config arguments
     optional.add_argument("--loss_function", type=str, help="Type of Loss Function", default="L1",
                           choices=["L1", "L2"] )
-    optional.add_argument("--layer_type", type=str, help="Type of GNN Layer", default="GAT",
+    optional.add_argument("--layer_type", type=str, help="Type of GNN Layer", default="GCN",
                           choices=["GAT", "GCN"] )
-    optional.add_argument("--gnn_type", type=str, help="Type of GNN Layer", default="proximity",
-                          choices=["proximity", "guided"] )
-    optional.add_argument("--num_gnn_layers", type=int, help="Number of GNN Layers", default=3)
+    optional.add_argument("--gnn_type", type=str, help="Type of GNN Layer", default="guided",
+                          choices=["proximity", "guided", "identity"])
+    optional.add_argument("--num_gnn_layers", type=int, help="Number of GNN Layers", default=5)
     optional.add_argument("--attention_heads", type=int, help="Number of attention heads for GAT layer type",
-                          default=3)
+                          default=5)
     optional.add_argument("--channel_halving", action=BooleanOptionalAction,
                           help="Indicator if after every layer the embedding size should be halved", default=True)
     optional.add_argument("--channel_doubling", action=BooleanOptionalAction,
                           help="Indicator if after every layer the embedding size should be doubled", default=False)
     optional.add_argument("--aggregation_method", type=str, help="Type aggregation method to get graph embeddings",
-                          default="max",  choices=["max", "sum", "mean", "attention", "fixed_size", "edge"])
+                          default="mean",  choices=["max", "sum", "mean", "attention", "fixed_size", "edge", "interface_sum"])
     optional.add_argument("--nonlinearity", type=str, help="Type of activation function", default="gelu",
-                          choices=["relu", "leaky", "gelu"])
+                          choices=["relu", "leaky", "gelu", "silu"])
     optional.add_argument("--num_fc_layers", type=int, help="Number of FullyConnected Layers in regression head",
-                          default=3)
+                          default=10)
     optional.add_argument("--fc_size_halving", action=BooleanOptionalAction,
                           help="Indicator if after every FC layer the embedding sizeshould be halved",
-                          default=True)
+                          default=False)
 
     # weight and bias arguments
     optional.add_argument("-wdb", "--use_wandb", action=BooleanOptionalAction, help="Use Weight&Bias to log training process",
@@ -198,6 +199,9 @@ def parse_args() -> Namespace:
     # check arguments
     if args.pretrained_model in enforced_node_type and args.pretrained_model != enforced_node_type[args.pretrained_model]:
         args.__dict__["node_type"] = enforced_node_type[args.pretrained_model]
+    if args.pretrained_model == "IPA":
+        print("Forcing batch_size to 1 for IPA model. Alternatively implement batch_size > 1 for IPA model.")
+        args.__dict__["batch_size"] = 1
 
     args.__dict__["learning_rate"] = args.__dict__["learning_rate"] * args.__dict__["batch_size"]
 

@@ -15,7 +15,7 @@ from abag_affinity.utils.pdb_reader import read_file
 dataset_name = "abag_affinity"
 
 def write_selection_for_residue_interface_hull(pdb_id: str, interface_cutoff: int = 5, hull_size:int = 7, use_dataloader: bool = False,
-                                  pdb_path: str = None, chain_id2protein: Dict = None):
+                                  pdb_path: str = None):
     if use_dataloader:
         config = read_config("../../config.yaml")
         dataset = AffinityDataset(config, dataset_name, pdb_ids=[pdb_id],
@@ -34,13 +34,13 @@ def write_selection_for_residue_interface_hull(pdb_id: str, interface_cutoff: in
 
         node_infos = graph_dict["residue_infos"]
 
-    elif pdb_path is not None and chain_id2protein is not None:
+    elif pdb_path is not None:
         structure, header = read_file(pdb_id, pdb_path)
-        structure_info, node_infos, residue_atom_coordinates = get_residue_infos(structure, chain_id2protein)
+        structure_info, node_infos, residue_atom_coordinates = get_residue_infos(structure)
         distances, closest_atoms = get_distances(node_infos, residue_distance=True, ca_distance=False)
 
 
-        adjacency_matrix = get_residue_edge_encodings(distances, node_infos, chain_id2protein, interface_cutoff)
+        adjacency_matrix = get_residue_edge_encodings(distances, node_infos, interface_cutoff)
 
         interface_nodes = np.where(adjacency_matrix[0, :, :] - adjacency_matrix[2, :, :] > 0.001)[0]
         interface_nodes = np.unique(interface_nodes)
@@ -68,7 +68,7 @@ def write_selection_for_residue_interface_hull(pdb_id: str, interface_cutoff: in
 
 
 def write_selection_for_atom_interface_hull(pdb_id: str, interface_cutoff: int = 5, hull_size:int = 7, use_dataloader: bool = False,
-                                  pdb_path: str = None, chain_id2protein: Dict = None):
+                                  pdb_path: str = None):
     if use_dataloader:
         config = read_config("../../config.yaml")
         dataset = AffinityDataset(config, dataset_name, pdb_ids=[pdb_id],
@@ -88,11 +88,11 @@ def write_selection_for_atom_interface_hull(pdb_id: str, interface_cutoff: int =
         atom_encoding = graph_dict["node_features"]
         atom_names = graph_dict["atom_names"]
 
-    elif pdb_path is not None and chain_id2protein is not None:
+    elif pdb_path is not None and:
         structure, header = read_file(pdb_id, pdb_path)
-        structure_info, node_infos, residue_atom_coordinates = get_residue_infos(structure, chain_id2protein)
+        structure_info, node_infos, residue_atom_coordinates = get_residue_infos(structure)
         distances, closest_atoms = get_distances(node_infos, residue_distance=False, ca_distance=False)
-        atom_encoding, atom_names = get_atom_encodings(node_infos, structure_info, chain_id2protein)
+        atom_encoding, atom_names = get_atom_encodings(node_infos, structure_info)
         adjacency_matrix = get_atom_edge_encodings(distances, atom_encoding, interface_cutoff)
 
         interface_nodes = np.where(adjacency_matrix[0, :, :] - adjacency_matrix[2, :, :] > 0.001)[0]
@@ -126,7 +126,7 @@ def write_selection_for_atom_interface_hull(pdb_id: str, interface_cutoff: int =
 
 
 def write_selection_for_interface(pdb_id: str, hull_size: int = None, n_closest: int = None, use_dataloader: bool = False,
-                           pdb_path: str = None, chain_id2protein: Dict = None):
+                           pdb_path: str = None):
 
     if use_dataloader:
         config = read_config("../../config.yaml")
@@ -148,11 +148,11 @@ def write_selection_for_interface(pdb_id: str, hull_size: int = None, n_closest:
         atom_encoding = graph_dict["node_features"]
         atom_names = graph_dict["atom_names"]
 
-    elif pdb_path is not None and chain_id2protein is not None:
+    elif pdb_path is not None:
         structure, header = read_file(pdb_id, pdb_path)
-        structure_info, node_infos, residue_atom_coordinates = get_residue_infos(structure, chain_id2protein)
+        structure_info, node_infos, residue_atom_coordinates = get_residue_infos(structure)
         distances, closest_atoms = get_distances(node_infos, residue_distance=False, ca_distance=False)
-        atom_encoding, atom_names = get_atom_encodings(node_infos, structure_info, chain_id2protein)
+        atom_encoding, atom_names = get_atom_encodings(node_infos, structure_info)
         A = get_atom_edge_encodings(distances, atom_encoding, 5)
         if n_closest is None:
             interface = A[0, :, :] - A[2, :, :]
@@ -184,7 +184,7 @@ def write_selection_for_interface(pdb_id: str, hull_size: int = None, n_closest:
 
 
 def write_connection_lines(pdb_id: str, hull_size: int = 5, graph_dict = None, use_dataloader: bool = False,
-                           pdb_path: str = None, chain_id2protein: Dict = None):
+                           pdb_path: str = None):
     if graph_dict is None and use_dataloader:
         config = read_config("../../config.yaml")
         dataset = AffinityDataset(config, dataset_name,  pdb_ids=[pdb_id],
@@ -194,11 +194,11 @@ def write_connection_lines(pdb_id: str, hull_size: int = 5, graph_dict = None, u
         graph_dict = dataset.get_graph_dict(pdb_id)
         interface = graph_dict["adjacency_tensor"][0, :, :] - graph_dict["adjacency_tensor"][2, :, :]
 
-    elif graph_dict is None and pdb_path is not None and chain_id2protein is not None:
+    elif graph_dict is None and pdb_path is not None:
         structure, header = read_file(pdb_id, pdb_path)
-        structure_info, residue_infos, residue_atom_coordinates = get_residue_infos(structure, chain_id2protein)
+        structure_info, residue_infos, residue_atom_coordinates = get_residue_infos(structure)
         distances, closest_residues = get_distances(residue_infos, residue_distance=False)
-        A = get_residue_edge_encodings(distances, residue_infos, chain_id2protein, cutoff)
+        A = get_residue_edge_encodings(distances, residue_infos, cutoff)
         interface = A[0, :, :]  - A[2, :, :]
     else:
         interface = graph_dict["adjacency_tensor"][0, :, :] - graph_dict["adjacency_tensor"][2, :, :]
@@ -227,7 +227,7 @@ def write_connection_lines(pdb_id: str, hull_size: int = 5, graph_dict = None, u
 
 
 def write_atom_connection_lines(pdb_id: str, hull_size: int = 5, use_dataloader: bool = False,
-                           pdb_path: str = None, chain_id2protein: Dict = None):
+                           pdb_path: str = None):
     if use_dataloader:
         config = read_config("../../config.yaml")
         dataset = AffinityDataset(config, dataset_name,  pdb_ids=[pdb_id],
@@ -240,11 +240,11 @@ def write_atom_connection_lines(pdb_id: str, hull_size: int = 5, use_dataloader:
         atom_names = graph_dict["atom_names"]
         node_features = graph_dict["node_features"]
 
-    elif pdb_path is not None and chain_id2protein is not None:
+    elif pdb_path is not None:
         structure, header = read_file(pdb_id, pdb_path)
-        structure_info, node_infos, residue_atom_coordinates = get_residue_infos(structure, chain_id2protein)
+        structure_info, node_infos, residue_atom_coordinates = get_residue_infos(structure)
         distances, closest_atoms = get_distances(node_infos, residue_distance=False, ca_distance=False)
-        node_features, atom_names = get_atom_encodings(node_infos, structure_info, chain_id2protein)
+        node_features, atom_names = get_atom_encodings(node_infos, structure_info)
         A = get_atom_edge_encodings(distances, node_features, cutoff)
     else:
         return ""
@@ -300,7 +300,7 @@ def write_atom_connection_lines(pdb_id: str, hull_size: int = 5, use_dataloader:
 
 
 def write_graph_connection_lines(pdb_id: str, hull_size: int = 7, node_distance: int = None, node_type: str = "residue", use_dataloader: bool = False,
-                           pdb_path: str = None, chain_id2protein: Dict = None):
+                           pdb_path: str = None):
     if use_dataloader:
         config = read_config("../../config.yaml")
         dataset = AffinityDataset(config, dataset_name,  pdb_ids=[pdb_id],
@@ -314,16 +314,16 @@ def write_graph_connection_lines(pdb_id: str, hull_size: int = 7, node_distance:
         atom_names = graph_dict["atom_names"]
         node_features = graph_dict["node_features"]
 
-    elif pdb_path is not None and chain_id2protein is not None:
+    elif pdb_path is not None:
         structure, header = read_file(pdb_id, pdb_path)
-        structure_info, node_infos, residue_atom_coordinates = get_residue_infos(structure, chain_id2protein)
+        structure_info, node_infos, residue_atom_coordinates = get_residue_infos(structure)
         residue_distances = node_type == "residue"
         distances, closest_atoms = get_distances(node_infos, residue_distance=residue_distances, ca_distance=residue_distances)
         if node_type == "residue":
-            node_features = get_residue_encodings(node_infos, structure_info, chain_id2protein)
-            A = get_residue_edge_encodings(distances, node_infos, chain_id2protein, distance_cutoff=5)
+            node_features = get_residue_encodings(node_infos, structure_info)
+            A = get_residue_edge_encodings(distances, node_infos, distance_cutoff=5)
         else:
-            node_features, atom_names = get_atom_encodings(node_infos, structure_info, chain_id2protein)
+            node_features, atom_names = get_atom_encodings(node_infos, structure_info)
             A = get_atom_edge_encodings(distances, node_features, distance_cutoff=5)
     else:
         return ""
@@ -383,7 +383,7 @@ def write_graph_connection_lines(pdb_id: str, hull_size: int = 7, node_distance:
 
 
 def write_peptide_bond_connection_lines(pdb_id: str, hull_size: int = 7, node_distance: int = None, node_type: str = "residue", use_dataloader: bool = False,
-                           pdb_path: str = None, chain_id2protein: Dict = None):
+                           pdb_path: str = None):
     if use_dataloader:
         config = read_config("../../config.yaml")
         dataset = AffinityDataset(config, dataset_name,  pdb_ids=[pdb_id],
@@ -396,11 +396,11 @@ def write_peptide_bond_connection_lines(pdb_id: str, hull_size: int = 7, node_di
         atom_names = graph_dict["atom_names"]
         node_features = graph_dict["node_features"]
 
-    elif pdb_path is not None and chain_id2protein is not None:
+    elif pdb_path is not None:
         structure, header = read_file(pdb_id, pdb_path)
-        structure_info, node_infos, residue_atom_coordinates = get_residue_infos(structure, chain_id2protein)
+        structure_info, node_infos, residue_atom_coordinates = get_residue_infos(structure)
         distances, closest_atoms = get_distances(node_infos, residue_distance=False, ca_distance=False)
-        node_features, atom_names = get_atom_encodings(node_infos, structure_info, chain_id2protein)
+        node_features, atom_names = get_atom_encodings(node_infos, structure_info)
         A = get_atom_edge_encodings(distances, node_features, distance_cutoff=5)
     else:
         return ""
@@ -590,7 +590,6 @@ def generate_graph_reasons(pdb_id: str, file_path: str, image_path: str, chain2p
 
 
     residue_graph_edges = write_graph_connection_lines(pdb_id, hull_size=None, pdb_path=file_path,
-                                                       chain_id2protein=chain2protein,
                                                        use_dataloader=use_dataloader, node_distance=node_distance,
                                                        node_type="residue")
     pm("hide cartoon")
@@ -731,7 +730,6 @@ def generate_graph_story(pdb_id: str, file_path: str, image_path: str, chain2pro
     pm(f"png {os.path.join(image_path, 'hull_nodes.png')}, dpi=300")
 
     residue_graph_edges = write_graph_connection_lines(pdb_id, hull_size=hull_size, pdb_path=file_path,
-                                                       chain_id2protein=chain2protein,
                                                        use_dataloader=use_dataloader, node_distance=5,
                                                        node_type="residue")
 
@@ -742,7 +740,6 @@ def generate_graph_story(pdb_id: str, file_path: str, image_path: str, chain2pro
     pm(f"png {os.path.join(image_path, 'hull_graph.png')}, dpi=300")
 
     residue_interface_graph_connections = write_connection_lines(pdb_id, hull_size=hull_size, pdb_path=file_path,
-                                                                 chain_id2protein=chain2protein,
                                                                  use_dataloader=use_dataloader)
 
     for edge in residue_interface_graph_connections.split("\n"):
@@ -793,32 +790,24 @@ def pdb_analysis():
     hull_size = 7
 
     selection, graph_dict = write_selection_for_interface(pdb_id, hull_size=hull_size, pdb_path=file_path,
-                                                          chain_id2protein=chain2protein, use_dataloader=use_dataloader)
+                                                          use_dataloader=use_dataloader)
 
     residue_interface_graph_connections = write_connection_lines(pdb_id, hull_size=hull_size, pdb_path=file_path,
-                                                              chain_id2protein=chain2protein,
                                                               use_dataloader=use_dataloader)
 
-    interface_graph_connections = write_atom_connection_lines(pdb_id, hull_size=hull_size, pdb_path=file_path, chain_id2protein=chain2protein,
-                                                              use_dataloader=use_dataloader)
+    interface_graph_connections = write_atom_connection_lines(pdb_id, hull_size=hull_size, pdb_path=file_path, use_dataloader=use_dataloader)
 
-    atom_graph_edges = write_graph_connection_lines(pdb_id, hull_size=hull_size, pdb_path=file_path, chain_id2protein=chain2protein,
-                                                              use_dataloader=use_dataloader, node_distance=5, node_type="atom")
+    atom_graph_edges = write_graph_connection_lines(pdb_id, hull_size=hull_size, pdb_path=file_path, use_dataloader=use_dataloader, node_distance=5, node_type="atom")
 
-    atom_graph_edges_3 = write_graph_connection_lines(pdb_id, hull_size=hull_size, pdb_path=file_path, chain_id2protein=chain2protein,
-                                                              use_dataloader=use_dataloader, node_distance=3, node_type="atom")
+    atom_graph_edges_3 = write_graph_connection_lines(pdb_id, hull_size=hull_size, pdb_path=file_path, use_dataloader=use_dataloader, node_distance=3, node_type="atom")
 
-    atom_graph_edges_2 = write_graph_connection_lines(pdb_id, hull_size=hull_size, pdb_path=file_path, chain_id2protein=chain2protein,
-                                                              use_dataloader=use_dataloader, node_distance=2, node_type="atom")
+    atom_graph_edges_2 = write_graph_connection_lines(pdb_id, hull_size=hull_size, pdb_path=file_path, use_dataloader=use_dataloader, node_distance=2, node_type="atom")
 
-    residue_graph_edges = write_graph_connection_lines(pdb_id, hull_size=hull_size, pdb_path=file_path, chain_id2protein=chain2protein,
-                                                              use_dataloader=use_dataloader, node_distance=5, node_type="residue")
+    residue_graph_edges = write_graph_connection_lines(pdb_id, hull_size=hull_size, pdb_path=file_path, use_dataloader=use_dataloader, node_distance=5, node_type="residue")
 
-    residue_graph_edges_3 = write_graph_connection_lines(pdb_id, hull_size=hull_size, pdb_path=file_path, chain_id2protein=chain2protein,
-                                                              use_dataloader=use_dataloader, node_distance=3, node_type="residue")
+    residue_graph_edges_3 = write_graph_connection_lines(pdb_id, hull_size=hull_size, pdb_path=file_path, use_dataloader=use_dataloader, node_distance=3, node_type="residue")
 
-    residue_graph_edges_2 = write_graph_connection_lines(pdb_id, hull_size=hull_size, pdb_path=file_path, chain_id2protein=chain2protein,
-                                                              use_dataloader=use_dataloader, node_distance=2, node_type="residue")
+    residue_graph_edges_2 = write_graph_connection_lines(pdb_id, hull_size=hull_size, pdb_path=file_path, use_dataloader=use_dataloader, node_distance=2, node_type="residue")
 
     #mutations = [('D', '187'), ('D', '241'), ('D', '166'), ('D', '230')]
     #mutation_select = select_residues(pdb_id, mutations, "Mutations")
@@ -826,7 +815,6 @@ def pdb_analysis():
     deep_refine_edges = get_deeprefine_edges(pdb_id)
 
     res_hull,_ = write_selection_for_atom_interface_hull(pdb_id, interface_cutoff=5, hull_size=hull_size, pdb_path=file_path,
-                                                         #chain_id2protein=chain2protein,
                                                          use_dataloader=use_dataloader)
     expanded_interface_5 = "select expanded_5"  + selection[selection.find("_interface"):] + " expand 5"
     expaned_interface_7 = "select expanded_10"  + selection[selection.find("_interface"):] + " expand 7"

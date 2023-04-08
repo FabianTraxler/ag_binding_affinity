@@ -21,6 +21,7 @@ from tqdm import tqdm
 from scipy.stats.mstats import gmean
 from sklearn.metrics import accuracy_score
 import scipy.spatial as sp
+# import pdb
 
 from ..dataset import AffinityDataset
 from ..model import AffinityGNN, TwinWrapper
@@ -123,6 +124,7 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
     for data in tqdm(train_dataloader, disable=not tqdm_output):
         optimizer.zero_grad()
 
+        # pdb.set_trace()
         output, label = forward_step(model, data, device)
 
         loss = get_loss(criterion, label, output, min_log_kd, max_log_kd)
@@ -383,6 +385,7 @@ def load_model(num_node_features: int, num_edge_features: int, args: Namespace,
         pretrained_model_path = args.config["MODELS"][args.pretrained_model]["model_path"]
     else:
         pretrained_model_path = ""
+    dataset_name = args.target_dataset.split(':')[0]
     model = AffinityGNN(num_node_features, num_edge_features,
                         num_nodes=args.max_num_nodes,
                         pretrained_model=args.pretrained_model, pretrained_model_path=pretrained_model_path,
@@ -939,8 +942,10 @@ def finetune_pretrained(model: AffinityGNN, train_dataset: Union[AffinityDataset
 
     # make pretrained model trainable
     model.pretrained_model.requires_grad = True
-    if hasattr(model.pretrained_model, 'deep_refine'):
-        model.pretrained_model.deep_refine.unfreeze()
+    try:
+        model.pretrained_model.unfreeze()
+    except AttributeError:
+        logging.warning("Pretrained model does not have an unfreeze method")
 
     if args.train_strategy == "bucket_train":
         results, model = bucket_learning(model, train_dataset, val_dataset, args)

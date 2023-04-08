@@ -11,9 +11,14 @@ This repository provides a pipeline for interpreting protein structures (PDB fil
 
 ### Download
 
-Follow the steps in the respective notebooks found in `src/data_analysis/Datasets` to download and convert the datasets into the necessary format.
+Follow the steps in the respective notebooks found in `src/data_analysis/Datasets** to download and convert the datasets into the necessary format.
 
 # Installation
+
+
+**From now on install via guided_protein_diffusion and ignore all this (?)**
+
+
 Make sure to link the `resources`, `results` and `data` folders to the correct location (ln -s). Beware that this repository might on its own deliver a `data` folder.
 
 - Downloaded files are to be stored in the `resources` folder
@@ -22,11 +27,19 @@ Make sure to link the `resources`, `results` and `data` folders to the correct l
 
 Folder names can be adapted in `src/config`
 
+To install the shared environment, make sure that libxml2 is installed on your machine (via apt-get). Alternatively, just use the libxml from your conda machine:
+
+`find ~/conda | grep libxml2.so` 
+
+`LD_LIBRARY_PATH=~/conda/lib/ mamba env install -f envs/diff_aff_combined_environment.yml`
+
+deep refine is missing too still.. Clone https://github.com/BioinfoMachineLearning/DeepRefine and run `python setup.py install`
+
 Make sure to install the python package by running
 
 `python setup.py develop` (or `install`)
 
-### Requirements
+#### For the environment that is specific to this repo, use the code below
 
 Create a conda environment with the `envs/environment.yaml` file.
 
@@ -35,7 +48,8 @@ Create a conda environment with the `envs/environment.yaml` file.
 As of now, DGL needs to be installed separately:
 `mamba install -c dglteam dgl`
 
-deep refine is missing too still.. Clone https://github.com/BioinfoMachineLearning/DeepRefine and run `python setup.py install`
+`mamba install -c rdkit rdkit`
+
 
 # Usage
 

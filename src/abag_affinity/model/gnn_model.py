@@ -1,9 +1,11 @@
 """Submodule for Graph Neural Networks trained to predict binding affinity"""
 
 import torch
+import torch.nn as nn
+
 from typing import Dict
 
-from .utils import pretrained_models, pretraind_embeddings, NoOpModel
+from .utils import pretrained_models, pretrained_embeddings, NoOpModel
 from .regression_heads import EdgeRegressionHead, RegressionHead
 from .graph_conv_layers import NaiveGraphConv, GuidedGraphConv
 
@@ -45,6 +47,9 @@ class AffinityGNN(torch.nn.Module):
                                              num_gnn_layers=num_gnn_layers,
                                              channel_halving=channel_halving, channel_doubling=channel_doubling,
                                              nonlinearity=nonlinearity)
+        elif gnn_type == "identity":
+            self.graph_conv = nn.Identity()
+            setattr(self.graph_conv, "embedding_dim", node_feat_dim)
         else:
             raise ValueError(f"Invalid gnn_type given: Got {gnn_type} but expected one of ('guided', 'proximity')")
         # define regression head
@@ -72,7 +77,7 @@ class AffinityGNN(torch.nn.Module):
             torch.Tensor
         """
         # calculate pretrained node embeddings
-        data = pretraind_embeddings(data, self.pretrained_model)
+        data = pretrained_embeddings(data, self.pretrained_model)
 
         # calculate node embeddings
         graph = self.graph_conv(data["graph"])
@@ -84,3 +89,16 @@ class AffinityGNN(torch.nn.Module):
             "x": affinity
         }
         return output
+
+class AggregatingBindingPredictor(nn.Module):
+    """
+    TODO delete in favor of fabian's regression heads
+    """
+    def __init__(self, in_dim, hidden_dim):
+        super().__init__()
+        self.model = nn.Sequential(nn.Linear(in_dim, hidden_dim), nn.SiLU(), nn.Linear(hidden_dim, 1))
+
+    def forward(self, s):
+        per_node_affinity = self.model(s)
+        # Take the sum over all nodes
+        return per_node_affinity.sum(-2)

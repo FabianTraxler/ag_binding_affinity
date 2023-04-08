@@ -119,3 +119,5 @@ class NaiveGraphConv(torch.nn.Module):
         data["node"].x = x
 
         return data
+
+

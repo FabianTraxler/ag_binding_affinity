@@ -11,12 +11,14 @@ import pandas as pd
 from pathlib import Path
 import numpy as np
 import torch
+import torch.nn.functional as F
 from typing import Tuple, Dict, List, Union
 from parallel import submit_jobs
 import scipy.spatial as sp
 import logging
 from ast import literal_eval
 import pickle
+# import pdb
 
 from ..utils.config import get_data_paths
 from .utils import scale_affinity, load_graph_dict, get_hetero_edges, get_pdb_path_and_id, load_deeprefine_graph
@@ -109,11 +111,10 @@ class AffinityDataset(Dataset, ABC):
         if self.save_graphs or preprocess_data:
             logger.debug(f"Saving processed graphs in {self.graph_dir}")
             Path(self.graph_dir).mkdir(exist_ok=True, parents=True)
-
-        # create path for cleaned PDBs
-        self.pdb_clean_dir = os.path.join(self.config["cleaned_pdbs"], dataset_name)
-        logger.debug(f"Saving cleaned pdbs in {self.pdb_clean_dir}")
-        Path(self.pdb_clean_dir).mkdir(exist_ok=True, parents=True)
+        # create path for clean pdbs
+        self.interface_dir = os.path.join(self.config["interface_pdbs"], dataset_name)
+        logger.debug(f"Saving cleaned pdbs in {self.interface_dir}")
+        Path(self.interface_dir).mkdir(exist_ok=True, parents=True)
 
         self.force_recomputation = force_recomputation
         self.preprocess_data = preprocess_data
@@ -266,7 +267,7 @@ class AffinityDataset(Dataset, ABC):
             None
         """
 
-        graph_dict = load_graph_dict(row, self.dataset_name, self.config, self.pdb_clean_dir,
+        graph_dict = load_graph_dict(row, self.dataset_name, self.config, self.interface_dir,
                                      node_type=self.node_type,
                                      interface_distance_cutoff=self.interface_distance_cutoff,
                                      interface_hull_size=self.interface_hull_size,
@@ -289,8 +290,7 @@ class AffinityDataset(Dataset, ABC):
             None
         """
 
-        chain_infos = literal_eval(row["chain_infos"])
-        graph = load_deeprefine_graph(idx, pdb_filepath, chain_infos, self.pdb_clean_dir,
+        graph = load_deeprefine_graph(idx, pdb_filepath, self.interface_dir,
                                       self.interface_distance_cutoff, self.interface_hull_size)
 
         if self.interface_hull_size is None or self.interface_hull_size == "" or self.interface_hull_size == "None":
@@ -357,7 +357,7 @@ class AffinityDataset(Dataset, ABC):
 
         return all_edges, edge_attributes
 
-    def get_node_features(self, data_file: Dict) -> np.ndarray:
+    def get_node_features(self, data_file: Dict, of_features=False) -> np.ndarray:
         """ Extract residue features from data dict
 
         Args:
@@ -436,7 +436,7 @@ class AffinityDataset(Dataset, ABC):
                 # sample one randomly == data augmentation
                 row = row.sample(1).squeeze()
 
-            graph_dict = load_graph_dict(row, self.dataset_name, self.config, self.pdb_clean_dir,
+            graph_dict = load_graph_dict(row, self.dataset_name, self.config, self.interface_dir,
                                          node_type=self.node_type,
                                          interface_distance_cutoff=self.interface_distance_cutoff,
                                          interface_hull_size=self.interface_hull_size,
@@ -471,6 +471,12 @@ class AffinityDataset(Dataset, ABC):
         graph = HeteroData()
 
         graph["node"].x = torch.Tensor(node_features).float()
+        try:
+            graph["node"].positions = torch.stack([residue_info["matched_position"] for residue_info in graph_dict["residue_infos"]])
+            graph["node"].orientations = torch.stack([residue_info["matched_orientation"] for residue_info in graph_dict["residue_infos"]])
+            graph["node"].residue_index = torch.stack([residue_info["matched_residue_index"] for residue_info in graph_dict["residue_infos"]])
+        except KeyError:
+            pass  # data is only available when of-embeddings are used
         graph.y = torch.from_numpy(affinity).float()
 
         for edge_type, edges in edge_indices.items():
@@ -512,10 +518,9 @@ class AffinityDataset(Dataset, ABC):
 
         if compute_graph:  # graph not loaded from disc
             row = self.data_df.loc[df_idx]
-            chain_infos = literal_eval(row["chain_infos"])
             pdb_filepath, _ = get_pdb_path_and_id(row, self.dataset_name, self.config)
 
-            graph = load_deeprefine_graph(df_idx, pdb_filepath, chain_infos, self.pdb_clean_dir,
+            graph = load_deeprefine_graph(df_idx, pdb_filepath, self.interface_dir,
                                           self.interface_distance_cutoff, self.interface_hull_size)
 
             if self.save_graphs and not os.path.exists(graph_filepath):
@@ -537,14 +542,14 @@ class AffinityDataset(Dataset, ABC):
         """
 
         if self.interface_hull_size is None or self.interface_hull_size == "":
-            filepath = os.path.join(self.pdb_clean_dir, df_idx + ".pdb")
+            filepath = os.path.join(self.interface_dir, df_idx + ".pdb")
         else:
-            filepath = os.path.join(self.pdb_clean_dir, f"interface_hull_{self.interface_hull_size}", df_idx + ".pdb")
+            filepath = os.path.join(self.interface_dir, f"interface_hull_{self.interface_hull_size}", df_idx + ".pdb")
 
         graph, graph_dict = self.load_graph(df_idx)
         data_point = {
             "filepath": filepath,
-            "graph": graph
+            "graph": graph,
         }
 
         if self.pretrained_model == "DeepRefine":
@@ -569,8 +574,9 @@ class AffinityDataset(Dataset, ABC):
         data = {
             "relative": False,
             "affinity_type": self.affinity_type,
-            "input":graph_data,
+            "input": graph_data,
         }
+        # pdb.set_trace()
         return data
 
     def get_relative(self, idx: int) -> Dict:
