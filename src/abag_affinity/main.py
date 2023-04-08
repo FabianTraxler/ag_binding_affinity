@@ -1,10 +1,14 @@
 """This module provides all training utilities for the antibody-antigen binding affinity prediction"""
+from datetime import datetime
 import logging
+from pathlib import Path
 import random
 import sys
 import time
 from argparse import Namespace
 from typing import Dict
+
+import torch
 import wandb
 import subprocess
 
@@ -147,10 +151,25 @@ def main() -> Dict:
     else:
         logger.info(f"Performing {args.train_strategy}")
         if args.cross_validation:
-            results = cross_validation(args)
+            model, results = cross_validation(args)
         else:
-            results = training[args.train_strategy](args)
+            model, results = training[args.train_strategy](args)
 
+            # save model
+            state_dict = model.state_dict()
+
+            for param_name in [
+                param_name for param_name, param in model.named_parameters() if not param.requires_grad
+            ]:
+                try:
+                    del state_dict[param_name]
+                except KeyError:
+                    print(f"Key {param_name} not found")
+
+            path = Path(args.config["model_path"]) / datetime.now().strftime("%Y-%m-%d_%H-%M-%S") / "model.pt"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            torch.save(state_dict, path)
+            # TODO make sure (when loading) that the model is initialized with the same seed
         return results
 
 
