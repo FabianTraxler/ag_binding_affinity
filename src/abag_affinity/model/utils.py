@@ -3,8 +3,7 @@ from torch_geometric.nn import global_add_pool, global_max_pool, global_mean_poo
 from torch.nn import ReLU, LeakyReLU, GELU
 from typing import Tuple, Dict
 
-from .pretrained_models import DDGBackbone, DeepRefineBackbone, IPABindingEmbedder
-
+from .pretrained_models import DDGBackbone, DeepRefineBackbone, IPABindingEmbedder, DiffusionPipelinePredictor
 
 class NoOpModel(torch.nn.Module):
     def __init__(self):
@@ -53,7 +52,8 @@ nonlinearity_function = {
 pretrained_models = {
     "Binding_DDG": DDGBackbone,
     "DeepRefine": DeepRefineBackbone,
-    "IPA": IPABindingEmbedder
+    "IPA": IPABindingEmbedder,
+    "Diffusion": DiffusionPipelinePredictor
 }
 
 

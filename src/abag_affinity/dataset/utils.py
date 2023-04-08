@@ -2,7 +2,7 @@ import os
 import string
 import warnings
 from ast import literal_eval
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 import torch
 import numpy as np
 import pandas as pd
@@ -89,7 +89,9 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, of_emb_path: str, affinity: 
         node_features = get_residue_encodings(residue_infos, structure_info)
 
         if of_emb_path:  # I think we need to inject them so harshly here, to facilitate backpropagation later. An alternative would be to load the OF data closer to the model..
-            node_features, matched_positions, matched_orientations, matched_residue_index = get_residue_of_embeddings(residue_infos, of_emb_path)
+
+            of_embs = torch.load(of_emb_path, map_location='cpu')
+            node_features, matched_positions, matched_orientations, matched_residue_index, indices = get_residue_of_embeddings(residue_infos, of_embs)
             # fill residue_infos with matched positions and orientations
             for i in range(len(residue_infos)):
                 residue_infos[i]["matched_position"] = matched_positions[i]
@@ -398,7 +400,7 @@ def reduce2interface_hull(file_name: str, pdb_filepath: str,
 
         return interface_path
 
-def get_residue_of_embeddings(residue_infos: list, of_emb_path: str) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+def get_residue_of_embeddings(residue_infos: list, of_embs: Dict) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Get embeddings calculated for each residue using OpenFold from an external file.
     1. Load embedding file
@@ -415,7 +417,7 @@ def get_residue_of_embeddings(residue_infos: list, of_emb_path: str) -> Tuple[to
         np.ndarray: Array with the OpenFold embeddings at the appropriate positions - shape (n, 384)
     """
 
-    of_embs = torch.load(of_emb_path, map_location='cpu')
+
     # warned = False
 
     assert torch.all(of_embs['input_data']['context_chain_type'] != 0)  # like this, incompatible with dockground dataset
@@ -424,9 +426,13 @@ def get_residue_of_embeddings(residue_infos: list, of_emb_path: str) -> Tuple[to
     matched_positions = torch.zeros(len(residue_infos), 3)
     matched_orientations = torch.zeros(len(residue_infos), 4)
     matched_residue_index = torch.full((len(residue_infos),), -1, dtype=torch.long)
+    indices = torch.zeros(len(residue_infos), dtype=torch.long)
 
     for i, res in enumerate(residue_infos):
-        chain_id = ord(res['chain_id'])
+        try:
+            chain_id = ord(res['chain_id'])
+        except TypeError:
+            chain_id = res['chain_id']
         chain_res_id = torch.nonzero(torch.logical_and(of_embs['input_data']['chain_id_pdb'] == chain_id,
                                       of_embs['input_data']['residue_index_pdb'] == res['residue_id']), as_tuple=True)
 
@@ -435,10 +441,11 @@ def get_residue_of_embeddings(residue_infos: list, of_emb_path: str) -> Tuple[to
             if n_elem != 1:
                 raise ValueError(f'Expected 1 matching residue, but go {n_elem}')
 
-            aatype = of_embs["input_data"]["aatype"][chain_res_id][0]
-            aatype = list(restype_1to3.values())[aatype]
-            if aatype != res['residue_type'].upper():
-                raise ValueError(f"OF residue type mismatch. AffGNN: {res['residue_type'].upper()}, OF/Diffusion: {aatype}")
+            if 'residue_type' in res:  # TODO should be probably added in data_loader.py to make sure there is no error
+                aatype = of_embs["input_data"]["aatype"][chain_res_id][0]
+                aatype = list(restype_1to3.values())[aatype]
+                if aatype != res['residue_type'].upper():
+                    raise ValueError(f"OF residue type mismatch. AffGNN: {res['residue_type'].upper()}, OF/Diffusion: {aatype}")
 
             # All checks passed? Then
             matched_of_embs[i, :] = of_embs['single'][chain_res_id]
@@ -446,11 +453,12 @@ def get_residue_of_embeddings(residue_infos: list, of_emb_path: str) -> Tuple[to
             matched_orientations[i, :] = of_embs['input_data']['orientations'][chain_res_id]
             assert of_embs['input_data']['residue_index'][chain_res_id] >= 0
             matched_residue_index[i] = of_embs['input_data']['residue_index'][chain_res_id]
+            indices[i] = chain_res_id[1][0]  # we made sure earlier that there is only one element in chain_res_id. The first coordinate is batch
 
         except ValueError as e:
             # if not warned:
             #     warned = True
-            logger.warning(f'{e}: PDBID: {of_emb_path[-9:-3]}, chain ID: {ord(res["chain_id"])}, residue ID: {res["residue_id"]}.')  # (Won\'t warn again.)
+            logger.warning(f'{e}: PDBID: {of_embs[-9:-3]}, chain ID: {ord(res["chain_id"])}, residue ID: {res["residue_id"]}.')  # (Won\'t warn again.)
 
     matched_of_embs = matched_of_embs.numpy()
-    return matched_of_embs, matched_positions, matched_orientations, matched_residue_index
+    return matched_of_embs, matched_positions, matched_orientations, matched_residue_index, indices

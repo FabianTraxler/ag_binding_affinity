@@ -8,7 +8,8 @@ from .config import read_config
 enforced_node_type = {
     "Binding_DDG": "residue",
     "DeepRefine": "atom",
-    "IPA": "residue"
+    "IPA": "residue",
+    "Diffusion": "residue"
 }
 
 
@@ -82,7 +83,7 @@ def parse_args() -> Namespace:
                           default="min", choices=["min", "geometric_mean", "double_geometric_mean"])
     optional.add_argument("-m", "--pretrained_model", type=str,
                           help='Name of the pretrained model to use for node embeddings',
-                          choices=["", "DeepRefine", "Binding_DDG", "IPA"], default="")
+                          choices=["", "DeepRefine", "Binding_DDG", "IPA", "Diffusion"], default="")
     optional.add_argument("--transfer_learning_validation_size", type=int,
                           help="Percent of transfer learning dataset(s) used to validate model (only DMS)",
                           default=10)
@@ -125,7 +126,7 @@ def parse_args() -> Namespace:
     optional.add_argument("--channel_doubling", action=BooleanOptionalAction,
                           help="Indicator if after every layer the embedding size should be doubled", default=False)
     optional.add_argument("--aggregation_method", type=str, help="Type aggregation method to get graph embeddings",
-                          default="mean",  choices=["max", "sum", "mean", "attention", "fixed_size", "edge", "interface_sum"])
+                          default="interface_sum",  choices=["max", "sum", "mean", "attention", "fixed_size", "edge", "interface_sum"])
     optional.add_argument("--nonlinearity", type=str, help="Type of activation function", default="gelu",
                           choices=["relu", "leaky", "gelu", "silu"])
     optional.add_argument("--num_fc_layers", type=int, help="Number of FullyConnected Layers in regression head",
@@ -199,7 +200,7 @@ def parse_args() -> Namespace:
     # check arguments
     if args.pretrained_model in enforced_node_type and args.pretrained_model != enforced_node_type[args.pretrained_model]:
         args.__dict__["node_type"] = enforced_node_type[args.pretrained_model]
-    if args.pretrained_model == "IPA":
+    if args.pretrained_model in ["IPA", "Diffusion"]:
         print("Forcing batch_size to 1 for IPA model. Alternatively implement batch_size > 1 for IPA model.")
         args.__dict__["batch_size"] = 1
 

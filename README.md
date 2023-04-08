@@ -15,8 +15,7 @@ Follow the steps in the respective notebooks found in `src/data_analysis/Dataset
 
 # Installation
 
-
-**From now on install via guided_protein_diffusion and ignore all this (?)**
+**From now on install via guided_protein_diffusion and ignore all this!**
 
 
 Make sure to link the `resources`, `results` and `data` folders to the correct location (ln -s). Beware that this repository might on its own deliver a `data` folder.

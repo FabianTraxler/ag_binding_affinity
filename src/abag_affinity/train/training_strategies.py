@@ -62,7 +62,7 @@ def model_train(args:Namespace, validation_set: int = None) -> Tuple[AffinityGNN
 
     results, best_model = train_loop(model, train_data, val_data, args)
 
-    if args.pretrained_model in ["Binding_DDG", "DeepRefine", "IPA"]:
+    if args.pretrained_model in ["Binding_DDG", "DeepRefine", "IPA", "Diffusion"]:
         results, best_model = finetune_pretrained(best_model, train_data, val_data, args)
     return best_model, results
 
@@ -106,7 +106,7 @@ def pretrain_model(args:Namespace) -> Tuple[AffinityGNN, Dict]:
         logger.debug(results)
         all_results[dataset_name] = results
 
-    if args.pretrained_model in ["Binding_DDG", "DeepRefine", "IPA"]:
+    if args.pretrained_model in ["Binding_DDG", "DeepRefine", "IPA", "Diffusion"]:
         train_data, val_data = load_datasets(config, datasets[-1], args.validation_set, args)
         results, model = finetune_pretrained(model, train_data, val_data, args)
         all_results["finetuning"] = results
@@ -161,7 +161,7 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
     results, model = bucket_learning(model, train_datasets, val_datasets, args)
     logger.info("Training with {} completed".format(datasets))
 
-    if args.pretrained_model in ["Binding_DDG", "DeepRefine", "IPA"]:
+    if args.pretrained_model in ["Binding_DDG", "DeepRefine", "IPA", "Diffusion"]:
         results, model = finetune_pretrained(model, train_datasets, val_datasets, args)
 
     logger.debug(results)

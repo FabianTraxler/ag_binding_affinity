@@ -109,6 +109,8 @@ MODELS:
     model_path: "../other_repos/DeepRefine/project/checkpoints/EGR_All_Atom_Models/LitPSR_EGR_AllAtomModel1_Seed42.ckpt"
   IPA:
     model_path: "../../resources/openfold_params/finetuning_ptm_2.pt"
+  Diffusion:
+    model_path: "../../resources/openfold_params/finetuning_ptm_2.pt"
 
 HYPERPARAMETER_SEARCH:
   method: 'random'
