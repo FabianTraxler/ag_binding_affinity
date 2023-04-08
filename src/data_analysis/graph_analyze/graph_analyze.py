@@ -12,11 +12,13 @@ from abag_affinity.utils.pdb_processing import get_residue_infos, get_distances,
 from abag_affinity.utils.pdb_reader import read_file
 
 
+dataset_name = "abag_affinity"
+
 def write_selection_for_residue_interface_hull(pdb_id: str, interface_cutoff: int = 5, hull_size:int = 7, use_dataloader: bool = False,
                                   pdb_path: str = None, chain_id2protein: Dict = None):
     if use_dataloader:
         config = read_config("../../config.yaml")
-        dataset = AffinityDataset(config, "Dataset_v1", pdb_ids=[pdb_id],
+        dataset = AffinityDataset(config, dataset_name, pdb_ids=[pdb_id],
                                      node_type="residue",interface_hull_size=hull_size,
                                      save_graphs=False, force_recomputation=True)
 
@@ -69,7 +71,7 @@ def write_selection_for_atom_interface_hull(pdb_id: str, interface_cutoff: int =
                                   pdb_path: str = None, chain_id2protein: Dict = None):
     if use_dataloader:
         config = read_config("../../config.yaml")
-        dataset = AffinityDataset(config, "Dataset_v1", pdb_ids=[pdb_id],
+        dataset = AffinityDataset(config, dataset_name, pdb_ids=[pdb_id],
                                      node_type="atom", interface_hull_size=hull_size,
                                      save_graphs=False, force_recomputation=True)
 
@@ -128,7 +130,7 @@ def write_selection_for_interface(pdb_id: str, hull_size: int = None, n_closest:
 
     if use_dataloader:
         config = read_config("../../config.yaml")
-        dataset = AffinityDataset(config, "Dataset_v1", pdb_ids=[pdb_id], max_nodes=n_closest,
+        dataset = AffinityDataset(config, dataset_name, pdb_ids=[pdb_id], max_nodes=n_closest,
                                      node_type="atom", interface_hull_size=hull_size,
                                      save_graphs=False, force_recomputation=True)
 
@@ -185,7 +187,7 @@ def write_connection_lines(pdb_id: str, hull_size: int = 5, graph_dict = None, u
                            pdb_path: str = None, chain_id2protein: Dict = None):
     if graph_dict is None and use_dataloader:
         config = read_config("../../config.yaml")
-        dataset = AffinityDataset(config, "Dataset_v1",  pdb_ids=[pdb_id],
+        dataset = AffinityDataset(config, dataset_name,  pdb_ids=[pdb_id],
                                      node_type="residue", interface_hull_size=hull_size,
                                      save_graphs=False, force_recomputation=True)
 
@@ -228,7 +230,7 @@ def write_atom_connection_lines(pdb_id: str, hull_size: int = 5, use_dataloader:
                            pdb_path: str = None, chain_id2protein: Dict = None):
     if use_dataloader:
         config = read_config("../../config.yaml")
-        dataset = AffinityDataset(config, "Dataset_v1",  pdb_ids=[pdb_id],
+        dataset = AffinityDataset(config, dataset_name,  pdb_ids=[pdb_id],
                                      node_type="atom",interface_hull_size=hull_size,
                                      save_graphs=False, force_recomputation=True)
 
@@ -301,9 +303,10 @@ def write_graph_connection_lines(pdb_id: str, hull_size: int = 7, node_distance:
                            pdb_path: str = None, chain_id2protein: Dict = None):
     if use_dataloader:
         config = read_config("../../config.yaml")
-        dataset = AffinityDataset(config, "Dataset_v1",  pdb_ids=[pdb_id],
-                                     node_type=node_type, interface_hull_size=hull_size,
-                                     save_graphs=False, force_recomputation=True)
+        dataset = AffinityDataset(config, dataset_name,  pdb_ids=[pdb_id],
+                                    node_type=node_type, interface_hull_size=hull_size,
+                                    save_graphs=False, force_recomputation=True,
+                                  max_edge_distance=5)
 
         graph_dict = dataset.get_graph_dict(pdb_id)
         A = graph_dict["adjacency_tensor"]
@@ -314,9 +317,14 @@ def write_graph_connection_lines(pdb_id: str, hull_size: int = 7, node_distance:
     elif pdb_path is not None and chain_id2protein is not None:
         structure, header = read_file(pdb_id, pdb_path)
         structure_info, node_infos, residue_atom_coordinates = get_residue_infos(structure, chain_id2protein)
-        distances, closest_atoms = get_distances(node_infos, residue_distance=False, ca_distance=False)
-        node_features, atom_names = get_atom_encodings(node_infos, structure_info, chain_id2protein)
-        A = get_atom_edge_encodings(distances, node_features, distance_cutoff=5)
+        residue_distances = node_type == "residue"
+        distances, closest_atoms = get_distances(node_infos, residue_distance=residue_distances, ca_distance=residue_distances)
+        if node_type == "residue":
+            node_features = get_residue_encodings(node_infos, structure_info, chain_id2protein)
+            A = get_residue_edge_encodings(distances, node_infos, chain_id2protein, distance_cutoff=5)
+        else:
+            node_features, atom_names = get_atom_encodings(node_infos, structure_info, chain_id2protein)
+            A = get_atom_edge_encodings(distances, node_features, distance_cutoff=5)
     else:
         return ""
 
@@ -378,7 +386,7 @@ def write_peptide_bond_connection_lines(pdb_id: str, hull_size: int = 7, node_di
                            pdb_path: str = None, chain_id2protein: Dict = None):
     if use_dataloader:
         config = read_config("../../config.yaml")
-        dataset = AffinityDataset(config, "Dataset_v1",  pdb_ids=[pdb_id],
+        dataset = AffinityDataset(config, dataset_name,  pdb_ids=[pdb_id],
                                      node_type=node_type, interface_hull_size=hull_size,
                                      save_graphs=False, force_recomputation=True)
 
@@ -451,8 +459,8 @@ def write_peptide_bond_connection_lines(pdb_id: str, hull_size: int = 7, node_di
 def load_pdb(pdb_id: str, file_path: str = None):
     if file_path is None:
         config = read_config("../../config.yaml")
-        dataset = AffinityDataset(config, "Dataset_v1", pdb_ids=[pdb_id], save_graphs=False)
-        _, pdb_path = get_resources_paths(config, "Dataset_v1")
+        dataset = AffinityDataset(config, dataset_name, pdb_ids=[pdb_id], save_graphs=False)
+        _, pdb_path = get_resources_paths(config, dataset_name)
         file_name = dataset.data_df[dataset.data_df["pdb"] == pdb_id]["abdb_file"].values[0]
         file_path = os.path.join(pdb_path, file_name)
 
@@ -473,7 +481,7 @@ def start_pymol(pymol_path: str):
 
 def get_deeprefine_edges(pdb_id: str):
     config = read_config("../../config.yaml")
-    dataset = AffinityDataset(config, "Dataset_v1", pdb_ids=[pdb_id], interface_hull_size= 7, node_type="atom",
+    dataset = AffinityDataset(config, dataset_name, pdb_ids=[pdb_id], interface_hull_size= 7, node_type="atom",
                                  save_graphs=False, force_recomputation=True, pretrained_model="DeepRefine")
 
     datapoint = dataset.load_data_point(pdb_id)
@@ -552,11 +560,11 @@ def main():
             print("Invalid PDB Id or not in dataset")
 
 
-def generate_graph_reasons(pdb_id: str, file_path: str, image_path: str, node_distance=3):
+def generate_graph_reasons(pdb_id: str, file_path: str, image_path: str, chain2protein: Dict, rotations: List, zoom:int,
+                           node_distance=3 ):
     Path(image_path).mkdir(parents=True, exist_ok=True)
 
     load_command = load_pdb(pdb_id,  os.path.join(file_path, f'{pdb_id}.pdb'))
-    chain2protein = {"p": 1, "h": 0, "l": 0}
 
     use_dataloader = True
 
@@ -566,14 +574,20 @@ def generate_graph_reasons(pdb_id: str, file_path: str, image_path: str, node_di
     pm("set dash_gap, 0")
     pm("set dash_color, grey")
     pm(load_command)
-    pm(f"zoom ({pdb_id}), buffer=-25")
+    for axis, angle in rotations:
+        pm(f"rotate {axis}, {angle}")
+
+    pm(f"zoom ({pdb_id}), buffer={zoom}")
 
 
     pm("spectrum chain, tv_blue marine teal")
 
     pm(f"png {os.path.join(image_path, 'full_cartoon.png')}, dpi=300")
     pm("show sticks")
+    pm(f"png {os.path.join(image_path, 'full_sticks_cartoon.png')}, dpi=300")
+    pm("hide cartoon")
     pm(f"png {os.path.join(image_path, 'full_sticks.png')}, dpi=300")
+
 
     residue_graph_edges = write_graph_connection_lines(pdb_id, hull_size=None, pdb_path=file_path,
                                                        chain_id2protein=chain2protein,
@@ -593,14 +607,94 @@ def generate_graph_reasons(pdb_id: str, file_path: str, image_path: str, node_di
     return
 
 
-def generate_graph_story(pdb_id: str, file_path: str, image_path: str):
+def antibody_antigen_binding(pdb_id: str, file_path: str, image_path: str, chain2protein: Dict, rotations: List,
+                             zoom: int):
+    Path(image_path).mkdir(parents=True, exist_ok=True)
+
+    load_command = load_pdb(pdb_id,  os.path.join(file_path, f'{pdb_id}.pdb'))
+
+    ab_chains = [ chain.upper() for chain, ag in chain2protein.items() if ag == 0]
+    ag_chains = [ chain.upper() for chain, ag in chain2protein.items() if ag == 1]
+
+    pm = start_pymol("/home/fabian/Downloads/pymol/bin")
+    pm("bg_color white")
+    pm(load_command)
+    for axis, angle in rotations:
+        pm(f"rotate {axis}, {angle}")
+
+    pm(f"zoom ({pdb_id}),  buffer={zoom}")
+
+
+    pm("spectrum chain, tv_blue marine teal")
+    pm(f"png {os.path.join(image_path, 'full_cartoon.png')}, dpi=300")
+
+    for chain in ab_chains:
+        pm(f"hide (chain {chain.upper()})")
+    pm(f"png {os.path.join(image_path, 'ag_only_cartoon.png')}, dpi=300")
+
+    pm("show cartoon, all")
+    for chain in ag_chains:
+        pm(f"hide (chain {chain.upper()})")
+    pm(f"png {os.path.join(image_path, 'ab_only_cartoon.png')}, dpi=300")
+
+    return
+
+
+def show_mutation(pdb_id: str, file_path: str, image_path: str, chain2protein: Dict, mutation_code: str, rotations: List,
+                  zoom: int):
+    Path(image_path).mkdir(parents=True, exist_ok=True)
+
+    load_command = load_pdb(pdb_id,  os.path.join(file_path, f'{pdb_id}.pdb'))
+    load_command_mutant = load_pdb("mutant",  os.path.join(file_path, f'{pdb_id}-{mutation_code}.pdb'))
+
+
+    pm = start_pymol("/home/fabian/Downloads/pymol/bin")
+    pm("bg_color white")
+    pm(load_command)
+    pm(load_command_mutant)
+    pm(f"hide mutant")
+
+    for axis, angle in rotations:
+        pm(f"rotate {axis}, {angle}")
+
+    pm(f"zoom ({pdb_id}), buffer= buffer={zoom}")
+    pm("spectrum chain, tv_blue marine teal")
+
+
+    pm(f"png {os.path.join(image_path, 'wt_cartoon.png')}, dpi=300")
+
+    pm(f"select mutation_side, ({pdb_id} and chain {mutation_code[1].upper()} and resi {mutation_code[2:-1]})")
+    pm(f"zoom (mutation_side)")
+    pm(f"show sticks, (mutation_side)")
+    pm(f"spectrum elem, selection=mutation_side")
+    pm("deselect")
+    pm(f"png {os.path.join(image_path, 'wt_zoom.png')}, dpi=300")
+
+    pm(f"hide {pdb_id}")
+    pm(f"show mutant")
+
+    pm(f"zoom (mutant),  buffer={zoom}")
+    pm("spectrum chain, tv_blue marine teal")
+
+    pm(f"png {os.path.join(image_path, 'mut_cartoon.png')}, dpi=300")
+
+    pm(f"select mutation_side, (mutant and chain {mutation_code[1].upper()} and resi {mutation_code[2:-1]})")
+    pm(f"zoom (mutation_side)")
+    pm(f"show sticks, (mutation_side)")
+    pm(f"spectrum elem, selection=mutation_side")
+    pm("deselect")
+    pm(f"png {os.path.join(image_path, 'mut_zoom.png')}, dpi=300")
+
+    return
+
+
+def generate_graph_story(pdb_id: str, file_path: str, image_path: str, chain2protein: Dict, rotations: List, zoom: int):
 
     Path(image_path).mkdir(parents=True, exist_ok=True)
 
     hull_file_path = os.path.join(file_path, f'interface_hull_7/{pdb_id}.pdb')
     load_command = load_pdb(pdb_id, hull_file_path)
     load_full = load_pdb(pdb_id + "_full", os.path.join(file_path, f'{pdb_id}.pdb'))
-    chain2protein = {"p": 1, "h": 0, "l": 0}
 
     use_dataloader = True
     hull_size = 7
@@ -611,13 +705,16 @@ def generate_graph_story(pdb_id: str, file_path: str, image_path: str):
     pm("set dash_gap, 0")
     pm(load_command)
     pm(load_full)
-    pm(f"zoom ({pdb_id}_full), complete=1")
+    for axis, angle in rotations:
+        pm(f"rotate {axis}, {angle}")
+
+    pm(f"zoom ({pdb_id}_full), buffer={zoom}")
     pm("spectrum chain, tv_blue marine teal")
 
-    pm(f"png {os.path.join(image_path, 'full_cartoon.png')}, dpi=300")
+    pm(f"png {os.path.join(image_path, 'full_cartoon.png')}, dpi=500")
     pm("show sticks")
     pm("show cartoon")
-    pm(f"png {os.path.join(image_path, 'full_cartoon_sticks.png')}, dpi=300")
+    pm(f"png {os.path.join(image_path, 'full_cartoon_sticks.png')}, dpi=500")
 
     pm(f"disable ({pdb_id}_full)")
     pm(f"zoom ({pdb_id}), complete=1")
@@ -633,7 +730,7 @@ def generate_graph_story(pdb_id: str, file_path: str, image_path: str):
     pm("deselect")
     pm(f"png {os.path.join(image_path, 'hull_nodes.png')}, dpi=300")
 
-    residue_graph_edges = write_graph_connection_lines(pdb_id, hull_size=None, pdb_path=file_path,
+    residue_graph_edges = write_graph_connection_lines(pdb_id, hull_size=hull_size, pdb_path=file_path,
                                                        chain_id2protein=chain2protein,
                                                        use_dataloader=use_dataloader, node_distance=5,
                                                        node_type="residue")
@@ -641,7 +738,7 @@ def generate_graph_story(pdb_id: str, file_path: str, image_path: str):
     for edge in residue_graph_edges.split("\n"):
         pm(edge)
     pm("hide label")
-    pm("set dash_color, grey, 5A_1e6j_residue_graph")
+    pm(f"set dash_color, grey, 5A_{pdb_id}_residue_graph")
     pm(f"png {os.path.join(image_path, 'hull_graph.png')}, dpi=300")
 
     residue_interface_graph_connections = write_connection_lines(pdb_id, hull_size=hull_size, pdb_path=file_path,
@@ -650,11 +747,11 @@ def generate_graph_story(pdb_id: str, file_path: str, image_path: str):
 
     for edge in residue_interface_graph_connections.split("\n"):
         pm(edge)
-    pm("set dash_color, red, 1e6j_interaction")
+    pm(f"set dash_color, red, {pdb_id}_interaction")
     pm("hide label")
-    pm("disable 5A_1e6j_residue_graph")
-    pm("enable 5A_1e6j_residue_graph")
-    pm("set dash_width, 1, 5A_1e6j_residue_graph")
+    pm(f"disable 5A_{pdb_id}_residue_graph")
+    pm(f"enable 5A_{pdb_id}_residue_graph")
+    pm(f"set dash_width, 1, 5A_{pdb_id}_residue_graph")
     pm(f"png {os.path.join(image_path, 'hull_graph_interface_highlight.png')}, dpi=300")
 
 
@@ -665,20 +762,20 @@ def generate_graph_story(pdb_id: str, file_path: str, image_path: str):
 
     for edge in residue_peptide_graph_connections.split("\n"):
         pm(edge)
-    pm("set dash_color, red, 1e6j_peptide_bond_graph")
+    pm(f"set dash_color, red, {pdb_id}_peptide_bond_graph")
     pm("hide label")
-    pm("disable 1e6j_interaction")
-    pm("disable 5A_1e6j_residue_graph")
-    pm("enable 5A_1e6j_residue_graph")
+    pm(f"disable {pdb_id}_interaction")
+    pm(f"disable 5A_{pdb_id}_residue_graph")
+    pm(f"enable 5A_{pdb_id}_residue_graph")
     pm(f"png {os.path.join(image_path, 'hull_graph_peptide_bond_highlight.png')}, dpi=300")
 
     pm("spectrum resn")
-    pm("disable 1e6j_interaction")
-    pm("enable 5A_1e6j_residue_graph")
-    pm("disable 1e6j_peptide_bond_graph")
+    pm(f"disable {pdb_id}_interaction")
+    pm(f"enable 5A_{pdb_id}_residue_graph")
+    pm(f"disable {pdb_id}_peptide_bond_graph")
     pm(f"png {os.path.join(image_path, 'graph_residue_type.png')}, dpi=300")
 
-    pm("disable 5A_1e6j_residue_graph")
+    pm(f"disable 5A_{pdb_id}_residue_graph")
     pm(f"png {os.path.join(image_path, 'nodes_residue_type.png')}, dpi=300")
 
     return
@@ -821,15 +918,22 @@ def pdb_analysis():
 
 
 if __name__ == "__main__":
-    pdb_id = "1e6j".lower() # "3sdy"
-    file_path = '/home/fabian/Desktop/Uni/Masterthesis/ag_binding_affinity/results/cleaned_pdb/Dataset_v1/'
-    #generate_graph_story(pdb_id, file_path, "~/pymol_images/graph_story")
-    generate_graph_reasons(pdb_id, file_path, "~/pymol_images/graph_reasons")
+    pdb_id = "5w6g".lower() # "3sdy"
+    chain2protein = {"c": 1, "a": 0, "b": 0}
+    #mutation_code = "dc167a"
+    rotations = [("y", 40), ("x", 20), ("z", -15), ("x", -20)]
+    zoom = -15
+
+    file_path = '/home/fabian/Desktop/Uni/Masterthesis/ag_binding_affinity/results/cleaned_pdb/abag_affinity'
+    #generate_graph_story(pdb_id, file_path, "/home/fabian/Desktop/Uni/Masterthesis/MA-images/graph_story", chain2protein, rotations , zoom)
+    generate_graph_reasons(pdb_id, file_path, "/home/fabian/Desktop/Uni/Masterthesis/MA-images/graph_reasons", chain2protein, rotations , zoom)
+    #antibody_antigen_binding(pdb_id, file_path, "/home/fabian/pymol_images/abag_binding", chain2protein, rotations , zoom)
+    #show_mutation(pdb_id, file_path, "/home/fabian/pymol_images/relative_binding", chain2protein, mutation_code, rotations , zoom)
     #pdb_analysis()
     exit(0)
     #main()
 
-    pdb_id = "1bj1"
+    #pdb_id = "1bj1"
 
     sel, graph_dict = write_selection_for_interface(pdb_id, cutoff=5, use_dataloader=True)
     conn = write_connection_lines(pdb_id, cutoff=5, use_dataloader=True)

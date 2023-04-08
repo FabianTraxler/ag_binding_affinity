@@ -17,6 +17,9 @@ from ..model.gnn_model import AffinityGNN
 
 # TODO: create global seeding mechanism
 random.seed(123)
+np.random.seed(123)
+torch.manual_seed(123)
+
 
 torch.cuda.empty_cache()
 torch.multiprocessing.set_sharing_strategy('file_system') # cluster mulitple dataloader
@@ -176,6 +179,8 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
     """
     import pandas as pd
 
+    experiment_name = "CV_experiment_transfer_learning"
+
     Path(args.config["model_path"]).mkdir(exist_ok=True, parents=True)
     losses = []
     correlations = []
@@ -213,9 +218,9 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
 
         all_results[i] = results
 
-        benchmark_plot_path = os.path.join(args.config["plot_path"], "CV_experiment",
+        benchmark_plot_path = os.path.join(args.config["plot_path"], experiment_name,
                                            f"benchmark_cv{args.validation_set}.png")
-        benchmark_results_path = os.path.join(args.config["prediction_path"], "CV_experiment",
+        benchmark_results_path = os.path.join(args.config["prediction_path"], experiment_name,
                                            f"benchmark_cv{args.validation_set}.csv")
         benchmark_pearson, benchmark_loss = get_benchmark_score(best_model, args, tqdm_output=args.tqdm_output,
                                                                 plot_path=benchmark_plot_path,
@@ -225,13 +230,14 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
         benchmark_correlation.append(benchmark_pearson)
         logger.info(f"Benchmark results >>> {benchmark_pearson}")
 
-        abag_test_plot_path = os.path.join(args.config["plot_path"], "CV_experiment",
+        abag_test_plot_path = os.path.join(args.config["plot_path"], experiment_name,
                                            f"abag_affinity_test_cv{args.validation_set}.png")
-        abag_test_results_path = os.path.join(args.config["prediction_path"], "CV_experiment",
+        abag_test_results_path = os.path.join(args.config["prediction_path"], experiment_name,
                                               f"abag_affinity_test_cv{args.validation_set}.csv")
         test_pearson, test_loss = get_abag_test_score(best_model, args, tqdm_output=args.tqdm_output,
                                                       plot_path=abag_test_plot_path,
-                                                      results_path=abag_test_results_path)
+                                                      results_path=abag_test_results_path,
+                                                      validation_set=i)
         test_losses.append(test_loss)
         test_correlation.append(test_pearson)
         logger.info(f"AbAg-Affinity testset results >>> {test_pearson}")
