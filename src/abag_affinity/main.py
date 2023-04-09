@@ -166,7 +166,7 @@ def main() -> Dict:
                 except KeyError:
                     print(f"Key {param_name} not found")
 
-            path = Path(args.config["model_path"]) / datetime.now().strftime("%Y-%m-%d_%H-%M-%S") / "model.pt"
+            path = Path(args.config["model_path"]) / (datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + "_" + args.wandb_name.replace(" ", "")) / "model.pt"
             path.parent.mkdir(parents=True, exist_ok=True)
             torch.save(state_dict, path)
             # TODO make sure (when loading) that the model is initialized with the same seed

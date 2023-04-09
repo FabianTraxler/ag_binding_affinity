@@ -124,7 +124,7 @@ class IPABindingEmbedder(torch.nn.Module):
         self.model_type = "IPA"
 
         # default arguments fit pretrained weights
-        self.model = IPADenoiser(no_blocks=2, only_s_updates=True)
+        self.model = IPADenoiser(no_blocks=1, only_s_updates=True)
 
         of_weights = torch.load(pretrained_model_path, map_location=torch.device(device))
 
