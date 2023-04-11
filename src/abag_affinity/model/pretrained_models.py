@@ -156,19 +156,19 @@ class IPABindingEmbedder(torch.nn.Module):
 
         # the normal z is built from pairwise_rel_pos + the sum of embeddings of the two nodes. we ignore these embeddings for now, as we will later use the original z. instead, we
 
-        A = torch.zeros(nodes.x.shape[0], nodes.x.shape[0], 3).to(nodes.x)
-        A[edges.edge_index[0], edges.edge_index[1]] = edges.edge_attr
+        A = torch.zeros(nodes.x.shape[0], nodes.x.shape[0], 3, device=nodes.x.device)
+        A[edges.edge_index[0], edges.edge_index[1]] = edges.edge_attr.to(torch.float32)  # for some reason, edge_attr is float64
         try:
             z = data_dict["z"]
         except KeyError:
-            z = self.pairwise_rel_pos(nodes.residue_index.squeeze(-1).to(A))
+            z = self.pairwise_rel_pos(nodes.residue_index.squeeze(0).to(A))
         z = self.layer_norm_z(z + self.z_linear(A))
 
         outputs = self.model(
             data={"positions": nodes.positions, "orientations": nodes.orientations},
             context={"residue_index": nodes.residue_index},
             s=nodes.x,
-            z=z,  # TODO generate z via linear layer from edge features
+            z=z,
         )
 
         # Use the final <s> embedding

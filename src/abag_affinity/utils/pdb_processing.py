@@ -242,13 +242,13 @@ def get_residue_encodings(residue_infos: List, structure_info: Dict) -> np.ndarr
 
 
 def get_residue_edge_encodings(distance_matrix: np.ndarray, residue_infos: List, distance_cutoff: int = 5) -> np.ndarray:
-    """ Convert the distance matrix and residue information to an adjacency tensor
+    """
+    Convert the distance matrix and residue information to an adjacency tensor
     Information:
         A[0,:,:] = inverse pairwise distances - only below distance cutoff otherwise 0
         A[1,:,:] = neighboring amino acid - 1 if connected by peptide bond
         A[2,:,:] = same protein - 1 if same chain
         A[3,:,:] = distances
-
 
     Args:
         distance_matrix: matrix with node distances
@@ -263,6 +263,10 @@ def get_residue_edge_encodings(distance_matrix: np.ndarray, residue_infos: List,
 
     # scale distances
     A[0, contact_map] = distance_matrix[contact_map] / distance_cutoff
+
+    # Test whether "L" or "H" in residue_infos["chain_id"]
+    lh_present = np.any(["chain_id" in res_info and res_info["chain_id"].upper() in "LH" for res_info in residue_infos])
+
     for i, res_info in enumerate(residue_infos):
         for j, other_res_info in enumerate(residue_infos[i:]):
             j += i
@@ -270,9 +274,14 @@ def get_residue_edge_encodings(distance_matrix: np.ndarray, residue_infos: List,
                 A[1, i, j] = 1
                 A[1, j, i] = 1
 
-            if "chain_id" in res_info and (res_info["chain_id"].upper() in "LH") == (other_res_info["chain_id"].upper() in "LH"):
-                A[2, i, j] = 1
-                A[2, j, i] = 1
+            if lh_present:
+                if "chain_id" in res_info and (res_info["chain_id"].upper() in "LH") == (other_res_info["chain_id"].upper() in "LH"):
+                    A[2, i, j] = 1
+                    A[2, j, i] = 1
+            else:
+                if "chain_id" in res_info and res_info["chain_id"].upper() == other_res_info["chain_id"].upper():
+                    A[2, i, j] = 1
+                    A[2, j, i] = 1
 
     A[3, :, :] = distance_matrix
 
