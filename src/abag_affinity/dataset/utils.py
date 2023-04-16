@@ -56,7 +56,7 @@ def get_pdb_path_and_id(row: pd.Series, dataset_name: str, config: Dict):
 
 
 def get_graph_dict(pdb_id: str, pdb_file_path: str, of_emb_path: str, affinity: float,
-                   node_type: str, distance_cutoff: int = 5, interface_hull_size: int = 10,
+                   node_type: str, distance_cutoff: int = 5,
                    ca_alpha_contact: bool = False,) -> Dict:
     """ Generate a dictionary with node, edge and meta-information for a given PDB File
 
@@ -72,7 +72,6 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, of_emb_path: str, affinity: 
         affinity: Binding affinity of the complex
         node_type: Type of nodes (residue, atom)
         distance_cutoff: Max. interface distance
-        interface_hull_size: Hull size expanding interface
         ca_alpha_contact: Indicator if only C-alpha atoms should be used for residue distance calculation
 
     Returns:
@@ -151,15 +150,15 @@ def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, interface_f
     affinity = row[affinity_type]
 
     if interface_hull_size is not None:
-        interface_path = reduce2interface_hull(pdb_id, pdb_file_path, interface_distance_cutoff, interface_hull_size)
+        pdb_file_path = reduce2interface_hull(pdb_id, pdb_file_path, interface_distance_cutoff, interface_hull_size)
 
     if 'of_embeddings' in config['DATASETS'][dataset_name]:
         of_emb_path = os.path.join(config['DATASETS']["path"],config['DATASETS'][dataset_name]['folder_path'],config['DATASETS'][dataset_name]['of_embeddings'], pdb_id + '.pt')
     else:
         of_emb_path = None
 
-    return get_graph_dict(pdb_id, interface_path, of_emb_path, affinity, distance_cutoff=max_edge_distance,
-                          interface_hull_size=interface_hull_size, node_type=node_type)
+    return get_graph_dict(pdb_id, pdb_file_path, of_emb_path, affinity, distance_cutoff=max_edge_distance,
+                          node_type=node_type)
 
 
 def load_deeprefine_graph(file_name: str, input_filepath: str, pdb_clean_dir: str,

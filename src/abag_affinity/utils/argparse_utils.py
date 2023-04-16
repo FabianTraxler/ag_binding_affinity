@@ -101,8 +101,8 @@ def parse_args() -> Namespace:
                           default=None)
     optional.add_argument("--interface_distance_cutoff", type=int, help="Max distance of nodes to be regarded as interface",
                           default=5)
-    optional.add_argument("--interface_hull_size", type=int,
-                          help="Size of the extension from interface to generate interface hull", default=7)
+    optional.add_argument("--interface_hull_size", type=lambda x: None if x is None or x.lower() == 'none' else int(x),
+                          help="Size of the extension from interface to generate interface hull. Provide None to include whole protein", default=7)
     optional.add_argument("--scale_values", action=BooleanOptionalAction, help="Scale affinity values between 0 and 1",
                           default=True)
     optional.add_argument("--scale_min", type=int, help="The minimal affinity value -> gets mapped to 0",
