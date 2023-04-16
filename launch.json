@@ -1,0 +1,32 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python :: Run ABAG affinity training",
+            "type": "python",
+            "request": "launch",
+            "program": "/home/moritz/Projects/guided-protein-diffusion/modules/ag_binding_affinity/src/abag_affinity/main.py",
+            "args": [
+                "-t",
+                "model_train",
+                "-b",
+                "1",
+                "-e",
+                "1",
+                "-n",
+                "residue",
+                "--target_dataset",
+                "abag_affinity_of_embeddings:absolute",
+                "--validation_size",
+                "1",
+                "--gnn_type",
+                "identity",
+                "--pretrained_model",
+                "IPA",
+                "--aggregation_method",
+                "interface_sum"
+            ],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
