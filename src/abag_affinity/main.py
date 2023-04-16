@@ -9,8 +9,10 @@ from argparse import Namespace
 from typing import Dict
 
 import torch
+from torch.utils.data import DataLoader
 import wandb
 import subprocess
+import pytorch_lightning as pl
 
 from abag_affinity.utils.argparse_utils import parse_args, enforced_node_type
 from abag_affinity.train import (bucket_train, cross_validation, model_train,
@@ -155,21 +157,14 @@ def main() -> Dict:
         else:
             model, results = training[args.train_strategy](args)
 
-            # save model
-            state_dict = model.state_dict()
-
-            for param_name in [
-                param_name for param_name, param in model.named_parameters() if not param.requires_grad
-            ]:
-                try:
-                    del state_dict[param_name]
-                except KeyError:
-                    print(f"Key {param_name} not found")
-
             path = Path(args.config["model_path"]) / (datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + "_" + args.wandb_name.replace(" ", "")) / "model.pt"
             path.parent.mkdir(parents=True, exist_ok=True)
-            torch.save(state_dict, path)
-            # TODO make sure (when loading) that the model is initialized with the same seed
+
+            # Minor hack to exploit PyTorch Lightnings model+argument-saving mechanism
+            trainer = pl.Trainer()
+            trainer.fit(model, DataLoader([]))
+            trainer.save_checkpoint(path)
+            # TODO make sure (when loading) that the model is initialized with the same seed. <- why did I write this comment? If no-one finds a reason, delete the comment
         return results
 
 

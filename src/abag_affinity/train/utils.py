@@ -396,7 +396,7 @@ def load_model(num_node_features: int, num_edge_features: int, args: Namespace,
                         aggregation_method=args.aggregation_method,
                         nonlinearity=args.nonlinearity,
                         num_fc_layers=args.num_fc_layers, fc_size_halving=args.fc_size_halving,
-                        device=device)
+                        device=device, args=args)
 
     return model
 
