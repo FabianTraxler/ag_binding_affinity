@@ -141,6 +141,7 @@ def parse_args() -> Namespace:
     optional.add_argument("--wandb_mode", type=str, help="Mode of Weights&Bias Process", choices=["online", "offline"],
                           default="offline")
     optional.add_argument("--wandb_name", type=str, help="Name of the Weight&Bias logs", default="")
+    optional.add_argument("--model_path", type=str, help="Target filename for model. Default is defined in main.py", default=None)
     optional.add_argument("--init_sweep", action=BooleanOptionalAction,
                           help="Use Weight&Bias sweep to search hyperparameter space", default=False)
     optional.add_argument("--sweep_config", type=str, help="Path to the configuration file of the sweep",

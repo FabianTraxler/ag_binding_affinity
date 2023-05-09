@@ -157,7 +157,10 @@ def main() -> Dict:
         else:
             model, results = training[args.train_strategy](args)
 
-            path = Path(args.config["model_path"]) / (datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + "_" + args.wandb_name.replace(" ", "")) / "model.pt"
+            if args.model_path is not None:
+                path = Path(args.model_path)
+            else:
+                path = Path(args.config["model_path"]) / (datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + "_" + args.wandb_name.replace(" ", "")) / "model.pt"
             path.parent.mkdir(parents=True, exist_ok=True)
 
             # Minor hack to exploit PyTorch Lightnings model+argument-saving mechanism

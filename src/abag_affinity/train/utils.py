@@ -921,7 +921,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
 
 
 def finetune_pretrained(model: AffinityGNN, train_dataset: Union[AffinityDataset, List[AffinityDataset]], val_dataset: Union[AffinityDataset, List[AffinityDataset]],
-                      args: Namespace, lr_reduction: float = 1e-01) -> Tuple[Dict, AffinityGNN]:
+                      args: Namespace, lr_reduction: float = 5e-02) -> Tuple[Dict, AffinityGNN]:
     """ Utility to finetune the pretrained model using a lowered learning rate
 
     Args:
