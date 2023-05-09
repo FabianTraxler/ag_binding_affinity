@@ -26,7 +26,7 @@ from .utils import scale_affinity, load_graph_dict, get_hetero_edges, get_pdb_pa
 logger = logging.getLogger(__name__)
 
 
-class AffinityDataset(Dataset, ABC):
+class AffinityDataset(Dataset):
     """Dataset class all protein-protein binding affinity datasets
 
     Provides functionality to:
@@ -208,6 +208,13 @@ class AffinityDataset(Dataset, ABC):
     def len(self) -> int:
         """Returns the length of the dataset"""
         return len(self.data_points)
+
+    def get(self, idx: int):
+        """
+        Needs to be added, otherwise, there is an abstract class->get not implemented error
+        """
+        raise NotImplementedError
+
 
     def preprocess(self):
         """ Preprocess graphs to reduce redundant processing during training +
