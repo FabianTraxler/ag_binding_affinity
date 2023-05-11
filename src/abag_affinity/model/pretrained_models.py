@@ -161,7 +161,11 @@ class IPABindingEmbedder(torch.nn.Module):
         try:
             z = data_dict["z"]
         except KeyError:
-            z = self.pairwise_rel_pos(nodes.residue_index.squeeze(0).to(A))
+            res_idx = nodes.residue_index.squeeze(0).to(A)
+            rel_residx = res_idx[..., None] - res_idx[..., None, :]
+            z = self.pairwise_rel_pos(rel_residx)
+
+        # Add edge attributes (A) to z (alternative: leave z at None and initate it in ipa_denoiser)
         z = self.layer_norm_z(z + self.z_linear(A))
 
         outputs = self.model(
