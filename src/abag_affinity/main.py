@@ -1,11 +1,18 @@
 """This module provides all training utilities for the antibody-antigen binding affinity prediction"""
+from datetime import datetime
 import logging
+from pathlib import Path
 import random
 import sys
+import time
 from argparse import Namespace
 from typing import Dict
+
+import torch
+from torch.utils.data import DataLoader
 import wandb
 import subprocess
+import pytorch_lightning as pl
 
 from abag_affinity.utils.argparse_utils import parse_args, enforced_node_type
 from abag_affinity.train import (bucket_train, cross_validation, model_train,
@@ -71,7 +78,12 @@ def run_sweep(args: Namespace, logger):
                     "pretrained_model"] in enforced_node_type:
                     continue  # ignore since it is manually overwritten below
                 if param == "transfer_learning_datasets" and isinstance(param_value, str):
-                    args.__dict__[param] = [param_value]
+                    if param_value == "DMS-taft22_deep_mutat_learn_predic_ace2:relative":
+                        raise ValueError("This dataset leads to timeouts during training and is therefore skipped")
+                    if ";" in param_value:
+                        args.__dict__[param] = param_value.split(";")
+                    else:
+                        args.__dict__[param] = [param_value]
                     continue
 
                 args.__dict__[param] = param_value
@@ -113,6 +125,7 @@ def run_sweep(args: Namespace, logger):
         if args.wandb_mode == "offline":
             command = f'wandb sync --id {run.id} {run_dir}'
             subprocess.run(command, shell=True)
+            time.sleep(10)
 
     logger.info(f"Starting {args.sweep_runs} runs in this instance")
     wandb.agent(args.sweep_id, function=sweep_train, count=args.sweep_runs, project="abag_binding_affinity")
@@ -140,10 +153,21 @@ def main() -> Dict:
     else:
         logger.info(f"Performing {args.train_strategy}")
         if args.cross_validation:
-            results = cross_validation(args)
+            model, results = cross_validation(args)
         else:
-            results = training[args.train_strategy](args)
+            model, results = training[args.train_strategy](args)
 
+            if args.model_path is not None:
+                path = Path(args.model_path)
+            else:
+                path = Path(args.config["model_path"]) / (datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + "_" + args.wandb_name.replace(" ", "")) / "model.pt"
+            path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Minor hack to exploit PyTorch Lightnings model+argument-saving mechanism
+            trainer = pl.Trainer()
+            trainer.fit(model, DataLoader([]))
+            trainer.save_checkpoint(path)
+            # TODO make sure (when loading) that the model is initialized with the same seed. <- why did I write this comment? If no-one finds a reason, delete the comment
         return results
 
 

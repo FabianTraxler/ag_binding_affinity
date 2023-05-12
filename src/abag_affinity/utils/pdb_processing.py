@@ -1,18 +1,19 @@
 """Process PDB file to get residue and atom encodings, node distances and edge encodings"""
 import os
+import re
 import shutil
+import string
 import subprocess
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Tuple, Union
 import numpy as np
+import pandas as pd
 import scipy.spatial as sp
 from Bio.PDB.PDBIO import PDBIO
 from Bio.PDB.Structure import Structure
 from Bio.SeqUtils import seq1
 from biopandas.pdb import PandasPdb
-from rdkit import Chem
-import re
 
 from abag_affinity.binding_ddg_predictor.utils.protein import (
     ATOM_CA, NON_STANDARD_SUBSTITUTIONS, RESIDUE_SIDECHAIN_POSTFIXES,
@@ -20,8 +21,9 @@ from abag_affinity.binding_ddg_predictor.utils.protein import (
 from .pdb_reader import read_file
 from .feature_extraction import residue_features, atom_features
 
-# Definition of standard amino acids and objects to quickly access them
-AMINO_ACIDS = ["ala","cys","asp","glu","phe","gly","his","ile","lys","leu","met","asn","pro","gln","arg","ser","thr","val","trp","tyr"]
+# Definition of standard amino acids and objects to quickly access them (order corresponds to AF2/OF)
+AMINO_ACIDS = ["ala", "arg", "asn", "asp", "cys", "gln", "glu", "gly", "his", "ile", "leu", "lys", "met", "phe", "pro", "ser", "thr", "trp", "tyr", "val"]
+
 AAA2ID = {aa: i for i, aa in enumerate(AMINO_ACIDS)}
 ID2AA = {i: aa for i, aa in enumerate(AMINO_ACIDS)}
 
@@ -62,7 +64,7 @@ def remove_redundant_chains(structure: Structure):
             structure[model].detach_child(redundant_chain)
 
 
-def convert_aa_info(info: Dict, structure_info: Dict, chain_id2protein: Dict) -> np.ndarray:
+def convert_aa_info(info: Dict, structure_info: Dict) -> np.ndarray:
     """ Convert the information about amino acids to a feature matrix
     1. One-Hot Encode the Amino Acid Type
     2. Encode Chain ID as integer
@@ -72,7 +74,6 @@ def convert_aa_info(info: Dict, structure_info: Dict, chain_id2protein: Dict) ->
     Args:
         info: residue information (from get_residue_info)
         structure_info: structure information (from get_residue_info)
-        chain_id2protein: Dict with protein information for each chain
     Returns:
         np.ndarray: numerical encoding of residue - shape: (23,)
     """
@@ -81,9 +82,9 @@ def convert_aa_info(info: Dict, structure_info: Dict, chain_id2protein: Dict) ->
     type_encoding[AAA2ID[info["residue_type"].lower()]] = 1
 
     protein_encoding = np.zeros(2)
-    if chain_id2protein[info["chain_id"].lower()] == 0:
+    if info["chain_id"].upper() in "HL":
         protein_encoding[0] = 1
-    elif chain_id2protein[info["chain_id"].lower()] == 1:
+    else:  # info["chain_id"].upper() not in "HL"
         protein_encoding[1] = 1
 
     relative_residue_position = info["residue_id"] / structure_info["chain_length"][info["chain_id"].lower()]
@@ -94,7 +95,7 @@ def convert_aa_info(info: Dict, structure_info: Dict, chain_id2protein: Dict) ->
     return np.concatenate([type_encoding, protein_encoding, manual_features, np.array([relative_residue_position])])
 
 
-def get_residue_infos(structure: Structure, chain_id2protein: Dict) -> Tuple[Dict, List[Dict], np.ndarray]:
+def get_residue_infos(structure: Structure) -> Tuple[Dict, List[Dict], np.ndarray]:
     """ Calculate all distances of the amino acids in this structure
     1. Remove duplicate chains
     2. Get position of amino acid C-alpha atoms + Chain Id, AA type, AA number
@@ -102,7 +103,6 @@ def get_residue_infos(structure: Structure, chain_id2protein: Dict) -> Tuple[Dic
 
     Args:
         structure: PDB Structure Object to be used for distance calculation
-        chain_id2protein: Dict with protein information for each chain
     Returns:
         np.ndarray: Matrix of all distances
         List: information about every amino acid (chain_id, aa_type, aa_number on chain)
@@ -137,10 +137,7 @@ def get_residue_infos(structure: Structure, chain_id2protein: Dict) -> Tuple[Dic
             # extract names of atoms (for atom encodings)
             atom_names = [atom.get_name() for atom in residue.get_atoms()]
 
-            try:
-                antibody = chain_id2protein[chain.id.lower()]
-            except Exception as e:
-                raise RuntimeError(f"Error getting chains for {structure.id}: {e}")
+            antibody = (chain.id.upper() in 'LH')
 
             residue_info = {
                 "chain_id": chain.id,
@@ -228,31 +225,30 @@ def get_distances(residue_info: List[Dict], residue_distance: bool = True, ca_di
     return distances, closest_residue_indices
 
 
-def get_residue_encodings(residue_infos: List, structure_info: Dict, chain_id2protein: Dict) -> np.ndarray:
+def get_residue_encodings(residue_infos: List, structure_info: Dict) -> np.ndarray:
     """ Convert the residue infos to numerical encodings in a numpy array
     Args:
         residue_infos: List of residue infos
         structure_info: Dict containing information about the structure
-        chain_id2protein: Dict with protein information for each chain
 
     Returns:
         np.ndarray: Array with numerical encodings - shape (n, 23)
     """
     residue_encodings = []
     for res_info in residue_infos:
-        aa_protein_chain_encoding = convert_aa_info(res_info, structure_info, chain_id2protein)
+        aa_protein_chain_encoding = convert_aa_info(res_info, structure_info)
         residue_encodings.append(aa_protein_chain_encoding)
     return np.array(residue_encodings)
 
 
-def get_residue_edge_encodings(distance_matrix: np.ndarray, residue_infos: List, chain_id2protein: Dict, distance_cutoff: int = 5) -> np.ndarray:
-    """ Convert the distance matrix and residue information to an adjacency tensor
+def get_residue_edge_encodings(distance_matrix: np.ndarray, residue_infos: List, distance_cutoff: int = 5) -> np.ndarray:
+    """
+    Convert the distance matrix and residue information to an adjacency tensor
     Information:
         A[0,:,:] = inverse pairwise distances - only below distance cutoff otherwise 0
         A[1,:,:] = neighboring amino acid - 1 if connected by peptide bond
         A[2,:,:] = same protein - 1 if same chain
         A[3,:,:] = distances
-
 
     Args:
         distance_matrix: matrix with node distances
@@ -267,6 +263,10 @@ def get_residue_edge_encodings(distance_matrix: np.ndarray, residue_infos: List,
 
     # scale distances
     A[0, contact_map] = distance_matrix[contact_map] / distance_cutoff
+
+    # Test whether "L" or "H" in residue_infos["chain_id"]
+    lh_present = np.any(["chain_id" in res_info and res_info["chain_id"].upper() in "LH" for res_info in residue_infos])
+
     for i, res_info in enumerate(residue_infos):
         for j, other_res_info in enumerate(residue_infos[i:]):
             j += i
@@ -274,30 +274,35 @@ def get_residue_edge_encodings(distance_matrix: np.ndarray, residue_infos: List,
                 A[1, i, j] = 1
                 A[1, j, i] = 1
 
-            if "chain_id" in res_info and chain_id2protein[res_info["chain_id"].lower()] == chain_id2protein[other_res_info["chain_id"].lower()]:
-                A[2, i, j] = 1
-                A[2, j, i] = 1
+            if lh_present:
+                if "chain_id" in res_info and (res_info["chain_id"].upper() in "LH") == (other_res_info["chain_id"].upper() in "LH"):
+                    A[2, i, j] = 1
+                    A[2, j, i] = 1
+            else:
+                if "chain_id" in res_info and res_info["chain_id"].upper() == other_res_info["chain_id"].upper():
+                    A[2, i, j] = 1
+                    A[2, j, i] = 1
 
     A[3, :, :] = distance_matrix
 
     return A
 
 
-def get_atom_encodings(residue_infos: List[Dict], structure_info: Dict, chain_id2protein: Dict):
+def get_atom_encodings(residue_infos: List[Dict], structure_info: Dict):
     """ Convert the atom infos to numerical encodings in a numpy array
 
     Args:
         residue_infos: List of residue infos
         structure_info: Dict containing information about the structure
-        chain_id2protein: Dict with protein information for each chain
 
     Returns:
         np.ndarray: Array with numerical encodings - shape (n, 115)
     """
+    from rdkit import Chem
     atom_encoding = []
     atom_names = []
     for res_idx, res_info in enumerate(residue_infos):
-        res_encoding = convert_aa_info(res_info, structure_info, chain_id2protein)
+        res_encoding = convert_aa_info(res_info, structure_info)
 
         atom_order = ['N', 'CA', 'C', 'O'] + RESIDUE_SIDECHAIN_POSTFIXES[augmented_three_to_one(res_info["residue_type"].upper())]
 
@@ -374,7 +379,7 @@ def get_atom_edge_encodings(distance_matrix: np.ndarray, atom_encodings: np.ndar
     return A
 
 
-def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_file_path: Union[str, Path]):
+def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_file_path: Union[str, Path], fix_insert=True):
     Path(cleaned_file_path).parent.mkdir(exist_ok=True, parents=True)
 
     tmp_pdb_filepath = f'{pdb_file_path}.{os.getpid()}.tmp'
@@ -387,11 +392,23 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_fil
     io.set_structure(model)
     io.save(tmp_pdb_filepath)
 
+    # identify antigen chain
+    rename_fixinsert_command = ""
+    df_map = pdb_chain_mapping(pdb_file_path)
+    antigen_chains = sorted(df_map[df_map["type"] == "A"]["abdb_label"].values)
+
+    # assign chains ids from A to Z. I checked that this will not lead to conflicts with the original chain ids (in case of 2 or more antigen chains)
+    for new_id, chain in zip(string.ascii_uppercase, antigen_chains):
+        rename_fixinsert_command += f" | pdb_rplchain -{chain}:{new_id}"
+
+    if fix_insert:
+        rename_fixinsert_command += " | pdb_fixinsert "
+
     # Clean temporary PDB file and then save its cleaned version as the original PDB file
     # retry 3 times because these commands sometimes do not properly write to disc
     retries = 0
     while not os.path.exists(cleaned_file_path):
-        command = f'pdb_sort "{tmp_pdb_filepath}" | pdb_tidy | pdb_fixinsert | pdb_delhetatm  > "{cleaned_file_path}"'
+        command = f'pdb_sort "{tmp_pdb_filepath}" | pdb_tidy {rename_fixinsert_command} | pdb_delhetatm  > "{cleaned_file_path}"'
         subprocess.run(command, shell=True)
         retries += 1
         if retries >= 3:
@@ -401,7 +418,7 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_fil
     input_atom_df = cleaned_pdb.df['ATOM']
 
     # remove all duplicate (alternate location residues)
-    filtered_df = input_atom_df.drop_duplicates(subset=["atom_name", "chain_id", "residue_number"])
+    filtered_df = input_atom_df.drop_duplicates(subset=["atom_name", "chain_id", "residue_number", "insertion"])
 
     # remove all residues that do not have at least N, CA, C atoms
     filtered_df = filtered_df.groupby(["chain_id", "residue_number", "residue_name"]).filter(
@@ -409,9 +426,6 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_fil
 
     # drop H atoms
     filtered_df = filtered_df[filtered_df['element_symbol'] != 'H']
-
-    # Enforce uppercase chain IDs
-    filtered_df["chain_id"] = filtered_df["chain_id"].apply(lambda x: x.upper() if re.match("[a-zA-Z]", x) else chr(ord('M') + int(x) - 1))
 
     # remove all non-standard atoms - used in Binding_DDG preprocessing
     all_postfixes = [ "" ]
@@ -445,3 +459,19 @@ def get_atom_postfixes(atom_name: str):
         return atom_name[-2:]
     else:
         return atom_name[-1:]
+
+def pdb_chain_mapping(pdb_file: Union[str, Path]) -> pd.DataFrame:
+    """
+    Return the chain mapping as provided by AbDb
+    """
+    mapping = []
+
+    with open(pdb_file) as f:
+        for l in f:
+            if l.startswith("REMARK 950 CHAIN "):
+                mapping.append(l.replace("REMARK 950 CHAIN ", "").split())
+            elif len(mapping) > 0:
+                break
+        else:
+            raise ValueError("pdb_file did not contain chain mapping")
+    return pd.DataFrame(data=mapping, columns=("type", "abdb_label", "original_label"))

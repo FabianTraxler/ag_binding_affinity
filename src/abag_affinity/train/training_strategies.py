@@ -17,6 +17,9 @@ from ..model.gnn_model import AffinityGNN
 
 # TODO: create global seeding mechanism
 random.seed(123)
+np.random.seed(123)
+torch.manual_seed(123)
+
 
 torch.cuda.empty_cache()
 torch.multiprocessing.set_sharing_strategy('file_system') # cluster mulitple dataloader
@@ -59,7 +62,7 @@ def model_train(args:Namespace, validation_set: int = None) -> Tuple[AffinityGNN
 
     results, best_model = train_loop(model, train_data, val_data, args)
 
-    if args.pretrained_model in ["Binding_DDG", "DeepRefine"]:
+    if args.pretrained_model in ["Binding_DDG", "DeepRefine", "IPA", "Diffusion"]:
         results, best_model = finetune_pretrained(best_model, train_data, val_data, args)
     return best_model, results
 
@@ -103,7 +106,7 @@ def pretrain_model(args:Namespace) -> Tuple[AffinityGNN, Dict]:
         logger.debug(results)
         all_results[dataset_name] = results
 
-    if args.pretrained_model in ["Binding_DDG", "DeepRefine"]:
+    if args.pretrained_model in ["Binding_DDG", "DeepRefine", "IPA", "Diffusion"]:
         train_data, val_data = load_datasets(config, datasets[-1], args.validation_set, args)
         results, model = finetune_pretrained(model, train_data, val_data, args)
         all_results["finetuning"] = results
@@ -158,7 +161,7 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
     results, model = bucket_learning(model, train_datasets, val_datasets, args)
     logger.info("Training with {} completed".format(datasets))
 
-    if args.pretrained_model in ["Binding_DDG", "DeepRefine"]:
+    if args.pretrained_model in ["Binding_DDG", "DeepRefine", "IPA", "Diffusion"]:
         results, model = finetune_pretrained(model, train_datasets, val_datasets, args)
 
     logger.debug(results)
@@ -175,6 +178,8 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
         Tuple: None and the results and statistics of training
     """
     import pandas as pd
+
+    experiment_name = "CV_experiment_transfer_learning"
 
     Path(args.config["model_path"]).mkdir(exist_ok=True, parents=True)
     losses = []
@@ -213,9 +218,9 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
 
         all_results[i] = results
 
-        benchmark_plot_path = os.path.join(args.config["plot_path"], "CV_experiment",
+        benchmark_plot_path = os.path.join(args.config["plot_path"], experiment_name,
                                            f"benchmark_cv{args.validation_set}.png")
-        benchmark_results_path = os.path.join(args.config["prediction_path"], "CV_experiment",
+        benchmark_results_path = os.path.join(args.config["prediction_path"], experiment_name,
                                            f"benchmark_cv{args.validation_set}.csv")
         benchmark_pearson, benchmark_loss = get_benchmark_score(best_model, args, tqdm_output=args.tqdm_output,
                                                                 plot_path=benchmark_plot_path,
@@ -225,13 +230,14 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
         benchmark_correlation.append(benchmark_pearson)
         logger.info(f"Benchmark results >>> {benchmark_pearson}")
 
-        abag_test_plot_path = os.path.join(args.config["plot_path"], "CV_experiment",
+        abag_test_plot_path = os.path.join(args.config["plot_path"], experiment_name,
                                            f"abag_affinity_test_cv{args.validation_set}.png")
-        abag_test_results_path = os.path.join(args.config["prediction_path"], "CV_experiment",
+        abag_test_results_path = os.path.join(args.config["prediction_path"], experiment_name,
                                               f"abag_affinity_test_cv{args.validation_set}.csv")
         test_pearson, test_loss = get_abag_test_score(best_model, args, tqdm_output=args.tqdm_output,
                                                       plot_path=abag_test_plot_path,
-                                                      results_path=abag_test_results_path)
+                                                      results_path=abag_test_results_path,
+                                                      validation_set=i)
         test_losses.append(test_loss)
         test_correlation.append(test_pearson)
         logger.info(f"AbAg-Affinity testset results >>> {test_pearson}")

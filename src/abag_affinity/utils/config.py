@@ -31,7 +31,7 @@ def read_config(file_path: str, use_relaxed: bool = False) -> Dict:
     config["prediction_path"] = os.path.join(folder_path, config["RESULTS"]["path"], config["RESULTS"]["prediction_path"])
     config["model_path"] = os.path.join(folder_path, config["RESULTS"]["path"], config["RESULTS"]["model_path"])
     config["processed_graph_path"] = os.path.join(folder_path, config["RESULTS"]["path"], config["RESULTS"]["processed_graph_path"])
-    config["cleaned_pdbs"] = os.path.join(folder_path, config["RESULTS"]["path"], config["RESULTS"]["cleaned_pdbs"])
+    config["interface_pdbs"] = os.path.join(folder_path, config["RESULTS"]["path"], config["RESULTS"]["interface_pdbs"])
     config["force_field_results"] = os.path.join(folder_path, config["RESULTS"]["path"], config["RESULTS"]["force_field_results"])
 
     for model in config["MODELS"].keys():
@@ -44,7 +44,7 @@ def read_config(file_path: str, use_relaxed: bool = False) -> Dict:
             elif "relaxed_mutated_pdb_path" in config["DATASETS"][dataset]:
                 config["DATASETS"][dataset]["mutated_pdb_path"] = config["DATASETS"][dataset]["relaxed_mutated_pdb_path"]
 
-        config["cleaned_pdbs"] = os.path.join(folder_path, config["RESULTS"]["path"], config["RESULTS"]["cleaned_pdbs"], "relaxed")
+        config["interface_pdbs"] = os.path.join(folder_path, config["RESULTS"]["path"], config["RESULTS"]["interface_pdbs"], "relaxed")
 
     return config
 

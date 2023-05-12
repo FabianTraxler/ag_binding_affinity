@@ -7,7 +7,9 @@ from .config import read_config
 
 enforced_node_type = {
     "Binding_DDG": "residue",
-    "DeepRefine": "atom"
+    "DeepRefine": "atom",
+    "IPA": "residue",
+    "Diffusion": "residue"
 }
 
 
@@ -68,20 +70,20 @@ def parse_args() -> Namespace:
     optional.add_argument("--target_dataset", type=str, help='The datasize used for final and patience',
                           default="abag_affinity:absolute")
     optional.add_argument("-tld", "--transfer_learning_datasets", type=str,
-                          help='Datasets used for transfer-learning in addition to goal_dataset', default="", nargs='+')
+                          help='Datasets used for transfer-learning in addition to goal_dataset', default=[], nargs='+')
     optional.add_argument("--relaxed_pdbs", action=BooleanOptionalAction, help="Use the relaxed pdbs for training "
-                                                                               "and validation", default=False)
+                                                                               "and validation", default=True)
     optional.add_argument("--validation_size", type=int, help="Percent of target dataset used to validate model (only DMS)",
                           default=10)
     # -train strategy
     optional.add_argument("-t", "--train_strategy", type=str, help='The training strategy to use',
-                          choices=["bucket_train", "pretrain_model", "model_train", "cross_validation"],
+                          choices=["bucket_train", "pretrain_model", "model_train"],
                           default="model_train")
     optional.add_argument("--bucket_size_mode", type=str, help="Mode to determine the size of the training buckets",
                           default="min", choices=["min", "geometric_mean", "double_geometric_mean"])
     optional.add_argument("-m", "--pretrained_model", type=str,
                           help='Name of the pretrained model to use for node embeddings',
-                          choices=["", "DeepRefine", "Binding_DDG"], default="")
+                          choices=["", "DeepRefine", "Binding_DDG", "IPA", "Diffusion"], default="")
     optional.add_argument("--transfer_learning_validation_size", type=int,
                           help="Percent of transfer learning dataset(s) used to validate model (only DMS)",
                           default=10)
@@ -99,39 +101,39 @@ def parse_args() -> Namespace:
                           default=None)
     optional.add_argument("--interface_distance_cutoff", type=int, help="Max distance of nodes to be regarded as interface",
                           default=5)
-    optional.add_argument("--interface_hull_size", type=int,
-                          help="Size of the extension from interface to generate interface hull", default=7)
+    optional.add_argument("--interface_hull_size", type=lambda x: None if x is None or x.lower() == 'none' else int(x),
+                          help="Size of the extension from interface to generate interface hull. Provide None to include whole protein", default=7)
     optional.add_argument("--scale_values", action=BooleanOptionalAction, help="Scale affinity values between 0 and 1",
-                          default=False)
+                          default=True)
     optional.add_argument("--scale_min", type=int, help="The minimal affinity value -> gets mapped to 0",
-                          default=2)
+                          default=0)
     optional.add_argument("--scale_max", type=int, help="The maximal affinity value -> gets mapped to 1",
                           default=19)
-    optional.add_argument("--max_edge_distance", type=int, help="Maximal distance of proximity edges", default=5)
+    optional.add_argument("--max_edge_distance", type=int, help="Maximal distance of proximity edges", default=3)
 
     # model config arguments
     optional.add_argument("--loss_function", type=str, help="Type of Loss Function", default="L1",
                           choices=["L1", "L2"] )
-    optional.add_argument("--layer_type", type=str, help="Type of GNN Layer", default="GAT",
+    optional.add_argument("--layer_type", type=str, help="Type of GNN Layer", default="GCN",
                           choices=["GAT", "GCN"] )
-    optional.add_argument("--gnn_type", type=str, help="Type of GNN Layer", default="proximity",
-                          choices=["proximity", "guided"] )
-    optional.add_argument("--num_gnn_layers", type=int, help="Number of GNN Layers", default=3)
+    optional.add_argument("--gnn_type", type=str, help="Type of GNN Layer", default="guided",
+                          choices=["proximity", "guided", "identity"])
+    optional.add_argument("--num_gnn_layers", type=int, help="Number of GNN Layers", default=5)
     optional.add_argument("--attention_heads", type=int, help="Number of attention heads for GAT layer type",
-                          default=3)
+                          default=5)
     optional.add_argument("--channel_halving", action=BooleanOptionalAction,
                           help="Indicator if after every layer the embedding size should be halved", default=True)
     optional.add_argument("--channel_doubling", action=BooleanOptionalAction,
                           help="Indicator if after every layer the embedding size should be doubled", default=False)
     optional.add_argument("--aggregation_method", type=str, help="Type aggregation method to get graph embeddings",
-                          default="max",  choices=["max", "sum", "mean", "attention", "fixed_size", "edge"])
+                          default="interface_sum",  choices=["max", "sum", "mean", "attention", "fixed_size", "edge", "interface_sum"])
     optional.add_argument("--nonlinearity", type=str, help="Type of activation function", default="gelu",
-                          choices=["relu", "leaky", "gelu"])
+                          choices=["relu", "leaky", "gelu", "silu"])
     optional.add_argument("--num_fc_layers", type=int, help="Number of FullyConnected Layers in regression head",
-                          default=3)
+                          default=10)
     optional.add_argument("--fc_size_halving", action=BooleanOptionalAction,
                           help="Indicator if after every FC layer the embedding sizeshould be halved",
-                          default=True)
+                          default=False)
 
     # weight and bias arguments
     optional.add_argument("-wdb", "--use_wandb", action=BooleanOptionalAction, help="Use Weight&Bias to log training process",
@@ -139,6 +141,7 @@ def parse_args() -> Namespace:
     optional.add_argument("--wandb_mode", type=str, help="Mode of Weights&Bias Process", choices=["online", "offline"],
                           default="offline")
     optional.add_argument("--wandb_name", type=str, help="Name of the Weight&Bias logs", default="")
+    optional.add_argument("--model_path", type=str, help="Target filename for model. Default is defined in main.py", default=None)
     optional.add_argument("--init_sweep", action=BooleanOptionalAction,
                           help="Use Weight&Bias sweep to search hyperparameter space", default=False)
     optional.add_argument("--sweep_config", type=str, help="Path to the configuration file of the sweep",
@@ -150,6 +153,8 @@ def parse_args() -> Namespace:
     # general config
     optional.add_argument("-w", "--num_workers", type=int, help="Number of workers to use for data loading", default=0)
     optional.add_argument("--cross_validation", action=BooleanOptionalAction, help="Perform CV on all validation datasets", default=False)
+    optional.add_argument("--number_cv_splits", type=int, help='The number of data splits for cross validation',
+                          default=10)
     optional.add_argument("-v", "--validation_set", type=int, help="Which validation set to use", default=1,
                           choices=[1, 2, 3, 4])
     optional.add_argument("-c", "--config_file", type=str,
@@ -196,6 +201,9 @@ def parse_args() -> Namespace:
     # check arguments
     if args.pretrained_model in enforced_node_type and args.pretrained_model != enforced_node_type[args.pretrained_model]:
         args.__dict__["node_type"] = enforced_node_type[args.pretrained_model]
+    if args.pretrained_model in ["IPA", "Diffusion"]:
+        print("Forcing batch_size to 1 for IPA model. Alternatively implement batch_size > 1 for IPA model.")
+        args.__dict__["batch_size"] = 1
 
     args.__dict__["learning_rate"] = args.__dict__["learning_rate"] * args.__dict__["batch_size"]
 
@@ -216,5 +224,13 @@ def read_args_from_file(args: Namespace) -> Namespace:
             value["value"] = None
         if key in args.__dict__ and key not in manually_passed_args:
             args.__dict__[key] = value["value"]
+            if key == "transfer_learning_datasets" and isinstance(value["value"], str):
+                if value["value"] == "DMS-taft22_deep_mutat_learn_predic_ace2:relative":
+                    raise ValueError("This dataset leads to timeouts during training and is therefore skipped")
+                if ";" in value["value"]:
+                    args.__dict__[key] = value["value"].split(";")
+                else:
+                    args.__dict__[key] = [value["value"]]
+                continue
 
     return args

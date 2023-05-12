@@ -16,6 +16,14 @@ DATASETS:
     summary: "abag_affinity_dataset.csv"
     affinity_type: "-log(Kd)"
 
+  abag_affinity_of_embeddings:
+    folder_path: "results/abag_affinity_dataset"
+    pdb_path: "pdbs"
+    relaxed_pdb_path: "pdbs"
+    summary: "abag_affinity_dataset.csv"
+    of_embeddings: "of_embeddings"
+    affinity_type: "-log(Kd)"
+
   PDBBind:
     folder_path: "results/PDBBind"
     pdb_path: "pdbs"
@@ -34,6 +42,7 @@ DATASETS:
     folder_path: "results/DMS"
     summary: "" # summary for every subdataset
     mutated_pdb_path: "mutated"
+    pdb_path: "mutated"
     relaxed_mutated_pdb_path: "mutated"
     affinity_types:
       phillips21_bindin: "-log(Kd)"
@@ -41,9 +50,12 @@ DATASETS:
       madan21_mutat_hiv: "E"
       wu17_in: "E"
       wu20_differ_ha_h3_h1: "E"
-      mason21: "E"
+      mason21_comb_optim_therap_antib_by_predic_combined_H3_3: "E"
+      mason21_comb_optim_therap_antib_by_predic_combined_L3_3: "E"
+      mason21_optim_therap_antib_by_predic_dms_H: "E"
+      mason21_optim_therap_antib_by_predic_dms_L: "E"
       b.20_funct_screen_strat_engin_chimer: "E"
-
+      taft22_deep_mutat_learn_predic_ace2: "E"
 
 RESOURCES:
   path: ""
@@ -51,21 +63,43 @@ RESOURCES:
   DMS:
     folder_path: "data/DMS"
     info: "dms_curated.csv"
+    pdb_path: ""
 
   SAbDab:
     folder_path: "resources/SAbDab"
-    summary: "summary.tsv"
+    summary: "sabdab_summary.tsv"
+    pdb_path: ""
 
   AbDb:
     folder_path: "resources/AbDb"
     summary: ""
+    pdb_path: "pdbs"
+
+  AntibodyBenchmark:
+    folder_path: "resources/antibody_benchmark"
+    pdb_path: "pdbs"
+    summary: "antibody_benchmark_cases.xlsx"
+
+  PDBBind:
+    folder_path: "resources/PDBBind"
+    pdb_path: "PP"
+    summary: "pp_infos.txt"
+    affinity_type: "-log(Kd)"
+
+  SKEMPI.v2:
+    folder_path: "resources/SKEMPI_v2"
+    summary: "skempi_v2.csv"
+    pdb_path: "PDBs"
 
 
 RESULTS:
   path: "results"
   plot_path: "plots"
+  prediction_path: "predictions"
+  model_path: "models"
+  force_field_results: "ff_res"
   processed_graph_path: "processed_graphs"
-  cleaned_pdbs: "cleaned_pdb"
+  interface_pdbs: "interface_pdb"
 
 MODELS:
   Binding_DDG:
@@ -73,27 +107,42 @@ MODELS:
 
   DeepRefine:
     model_path: "../other_repos/DeepRefine/project/checkpoints/EGR_All_Atom_Models/LitPSR_EGR_AllAtomModel1_Seed42.ckpt"
+  IPA:
+    model_path: "../../resources/openfold_params/finetuning_ptm_2.pt"
+  Diffusion:
+    model_path: "../../resources/openfold_params/finetuning_ptm_2.pt"
 
 HYPERPARAMETER_SEARCH:
   method: 'random'
-  name: 'Initial-Hyperparameter-Search'
+  name: 'Transfer-Learning-Hyperparameter-Search'
   metric:
     goal: 'minimize'
     name: 'abag_affinity:absolute_val_rmse'
   parameters:
     train_strategy:
       values:
-        - "model_train"
+        - "bucket_train"
+    bucket_size_mode:
+      values:
+        - "min"
+        - "geometric_mean"
+        - "double_geometric_mean"
+    transfer_learning_datasets:
+      values:
+        - "PDBBind:absolute;SKEMPI.v2:absolute;SKEMPI.v2:relative;DMS-phillips21_bindin:relative;DMS-b.20_funct_screen_strat_engin_chimer:relative;DMS-madan21_mutat_hiv:relative;DMS-mason21_optim_therap_antib_by_predic_dms_H:relative;DMS-mason21_optim_therap_antib_by_predic_dms_L:relative"
+    pretrained_model:
+      values:
+        - "Binding_DDG"
     batch_size:
       values:
         - 1
+        - 5
         - 10
     learning_rate:
       min: 0.000001
       max: 0.001
     node_type:
       values:
-        - "atom"
         - "residue"
     max_num_nodes:
       values:
@@ -124,7 +173,7 @@ HYPERPARAMETER_SEARCH:
       values:
         - 0
         - 3
-        - 7
+        - 5
     attention_heads:
       values:
         - 1
@@ -134,7 +183,7 @@ HYPERPARAMETER_SEARCH:
       values:
         - True
         - False
-    channel_doubling:
+    fc_size_halving:
       values:
         - True
         - False
@@ -152,5 +201,15 @@ HYPERPARAMETER_SEARCH:
     num_fc_layers:
       values:
         - 1
-        - 3
+        - 5
         - 10
+    relaxed_pdbs:
+      values:
+        - True
+        - False
+    max_epochs:
+      values:
+        - 500
+    patience:
+      values:
+        - 30

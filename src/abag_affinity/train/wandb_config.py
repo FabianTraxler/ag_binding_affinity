@@ -14,7 +14,7 @@ def configure(args: Namespace) -> Tuple:
         run = wandb.init(project="abag_binding_affinity", mode=args.wandb_mode)
         if args.wandb_mode == "online":
             wandb.run.name = args.wandb_name
-            run_id = "fabian22/abag_binding_affinity/{}".format(run.id)
+            run_id = "dachdiffusion/abag_binding_affinity/{}".format(run.id)
             api = wandb.Api()
             api.run(run_id)
         use_wandb = True
@@ -25,9 +25,9 @@ def configure(args: Namespace) -> Tuple:
     else:
         run = wandb.init(project="abag_binding_affinity", mode="disabled")
 
+    wandb.config.update({
+        parameter: args.__dict__[parameter]
+        for parameter in ["batch_size", "max_epochs", "learning_rate", "patience", "max_num_nodes", "node_type", "num_workers", "validation_set"]
+    }, allow_val_change=True)
 
-    config = wandb.config
-    for parameter in ["batch_size", "max_epochs", "learning_rate", "patience", "max_num_nodes", "node_type", "num_workers", "validation_set"]:
-        config[parameter] = args.__dict__[parameter]
-
-    return wandb, config, use_wandb, run
+    return wandb, wandb.config, use_wandb, run

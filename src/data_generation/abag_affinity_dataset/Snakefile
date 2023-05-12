@@ -3,18 +3,19 @@ from os.path import join
 from pathlib import Path
 
 DATASET_NAME = "abag_affinity_dataset"
-NUM_VALIDATION_SPLITS = 4
+NUM_VALIDATION_SPLITS = 10
 TESTSET_SIZE = 50
 REDUNDANCY_CUTOFF = 0.8
 
 # link changes every day - please copy link for "summary file" from  http://opig.stats.ox.ac.uk/webapps/newsabdab/sabdab/search/?ABtype=All&method=All&species=All&resolution=&rfactor=&antigen=All&ltype=All&constantregion=All&affinity=True&isin_covabdab=All&isin_therasabdab=All&chothiapos=&restype=ALA&field_0=Antigens&keyword_0=#downloads
-sabdab_link = "http://opig.stats.ox.ac.uk/webapps/newsabdab/sabdab/summary/20221216_0262929/"
+sabdab_link = "https://opig.stats.ox.ac.uk/webapps/newsabdab/sabdab/summary/20230301_0138378/"
+
 
 pdb_folder_name = "pdbs"
 redundancy_file = "abdb_redundancy_info.txt"
 
 
-project_root = Path(workflow.basedir).parents[2] # two directories above - absolute paths not working
+project_root = Path(workflow.basedir).parents[2]  # two directories above - absolute paths not working
 resource_folder = os.path.join(project_root, "resources")
 results_folder = os.path.join(project_root, "results")
 
@@ -24,7 +25,6 @@ benchmark_pdb_path = join(results_folder, "antibody_benchmark", "pdbs_bound")
 dataset_results_folder = os.path.join(results_folder, DATASET_NAME)
 
 pdb_relaxed_folder = os.path.join(dataset_results_folder, "pdbs_relaxed")
-
 
 
 def gather_pdb_ids(wildcards):
@@ -48,38 +48,68 @@ rule download_sabdab:
     shell:
         "scripts/download_sabdab.sh {params.dataset_resource_folder} {params.sabdab_link}"
 
-rule download_abdb:
+# use the cleaned version from guided_protein_diffusion
+
+rule download_redundancy:
     output:
         join(resource_folder, "AbDb", redundancy_file)
     params:
         dataset_resource_folder=join(resource_folder, "AbDb"),
         pdb_folder_name=pdb_folder_name,
         redundancy_file=redundancy_file,
-    shell:
-        "scripts/download_abdb.sh {params.dataset_resource_folder} {params.pdb_folder_name} {params.redundancy_file}"
+    shell: """
+        wget -O {output} http://www.abybank.org/abdb/Data/Redundant_files/Redundant_LH_Protein_Martin.txt
+    """
 
+#         "scripts/download_abdb.sh {params.dataset_resource_folder} {params.pdb_folder_name} {params.redundancy_file}"
+
+
+# cleaned_pdb_folder_name = "cleaned_pdbs"
+# rule clean_abdb:
+#     """Currently not supported because of snakemake bug in running the env"""
+#     input:
+#         directory(join(resource_folder, "AbDb", pdb_folder_name))
+#     output:
+#         directory(join(resource_folder, "AbDb", cleaned_pdb_folder_name))
+#     conda:
+#         "../../../../../env/diffusion_affinity_combined.yml"
+#     script:
+#         "scripts/clean_dataset.py"
 
 checkpoint generate_dataset:
     input:
-        join(resource_folder, "SAbDab", "sabdab_summary.tsv"),
-        join(resource_folder, "AbDb", redundancy_file)
+        sabdab_data=join(resource_folder, "SAbDab", "sabdab_summary.tsv"),
+        cleaned_abdb_folder=project_root.parents[1] / "data" / "abdb" / "raw",
+        uncleaned_abdb_folders=project_root.parents[1] / "data" / "abdb" / "raw" / "uncleaned",
+        # redundancy_file=join(resource_folder, "AbDb", redundancy_file),
     output:
         join(dataset_results_folder, "abag_affinity_dataset.csv"),
         directory(join(dataset_results_folder, pdb_folder_name))
     params:
         pdb_folder=join(dataset_results_folder, pdb_folder_name),
-        abdb_pdb_folder=join(resource_folder, "AbDb", pdb_folder_name),
-        redundancy_file=join(resource_folder, "AbDb", redundancy_file),
         benchmark_dataset_file=benchmark_dataset_file,
         benchmark_pdb_path=benchmark_pdb_path,
         n_val_splits=NUM_VALIDATION_SPLITS,
         test_size=TESTSET_SIZE,
-        redundancy_cutoff=REDUNDANCY_CUTOFF
+        redundancy_cutoff=REDUNDANCY_CUTOFF,
+        max_antigen_length=350  # should match what we use in diffusion pipeline. excluded because of the lack of OF embeddings..
     conda:
         join(project_root, "envs/generation_environment.yml")
     threads: 10
     script:
         "scripts/generate_dataset.py"
+
+# not sure if necessary
+# rule convert_openfold_res_ids:
+#     "Convert OpenFold embedding residue IDs (necessary?)"
+#     input:
+#         # ~/ag_binding_affinity/results/abag_affinity_dataset/abdb_openfold_embeddings_new.pt \
+#         #     ~/ag_binding_affinity/results/abag_affinity_dataset/abag_affinity_dataset.csv \
+#         #     ~/ag_binding_affinity/results/abag_affinity_dataset/pdbs \
+#         #     ~/ag_binding_affinity/results/abag_affinity_dataset/of_embeddings_new
+#     output:
+
+#     script: "scripts/convert_of_res_ids.py"
 
 
 rule relax_structures:
@@ -91,3 +121,19 @@ rule relax_structures:
         join(project_root, "envs/generation_environment.yml")
     script:
         "../scripts/relax.py"
+
+rule expand_openfold_embeddings:
+    input:
+        join(resource_folder, "abdb_openfold_embeddings.pt")
+    output:
+        directory(join(dataset_results_folder, "of_embeddings"))
+    run:
+        import torch
+        from pathlib import Path
+        dat = torch.load(input[0], map_location='cpu')
+        outdir = Path(output[0])
+        outdir.mkdir(exist_ok=True)
+
+        for d in dat:
+            pdb_id = d['pdb_fn']
+            torch.save(d, outdir / (pdb_id.lower() + '.pt'))

@@ -21,6 +21,7 @@ from tqdm import tqdm
 from scipy.stats.mstats import gmean
 from sklearn.metrics import accuracy_score
 import scipy.spatial as sp
+# import pdb
 
 from ..dataset import AffinityDataset
 from ..model import AffinityGNN, TwinWrapper
@@ -123,6 +124,7 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
     for data in tqdm(train_dataloader, disable=not tqdm_output):
         optimizer.zero_grad()
 
+        # pdb.set_trace()
         output, label = forward_step(model, data, device)
 
         loss = get_loss(criterion, label, output, min_log_kd, max_log_kd)
@@ -151,6 +153,14 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
             label = torch.argmax(label.detach().cpu(), dim=1)
             all_binary_labels = np.append(all_binary_labels, label.numpy())
             all_binary_predictions = np.append(all_binary_predictions, output["x"].flatten().detach().cpu().numpy())
+            pdb_ids_1 = [ filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
+            pdb_ids_2 = [ filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
+            all_pdbs.extend(list(zip(pdb_ids_1, pdb_ids_2)))
+        elif data["relative"] and data["affinity_type"] == "-log(Kd)":
+            label = label.detach().cpu()
+            all_continuous_predictions = np.append(all_continuous_predictions, output["x"].flatten().detach().cpu().numpy())
+            all_continuous_labels = np.append(all_continuous_labels, label.numpy())
+
             pdb_ids_1 = [ filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
             pdb_ids_2 = [ filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
             all_pdbs.extend(list(zip(pdb_ids_1, pdb_ids_2)))
@@ -375,6 +385,7 @@ def load_model(num_node_features: int, num_edge_features: int, args: Namespace,
         pretrained_model_path = args.config["MODELS"][args.pretrained_model]["model_path"]
     else:
         pretrained_model_path = ""
+    dataset_name = args.target_dataset.split(':')[0]
     model = AffinityGNN(num_node_features, num_edge_features,
                         num_nodes=args.max_num_nodes,
                         pretrained_model=args.pretrained_model, pretrained_model_path=pretrained_model_path,
@@ -385,7 +396,7 @@ def load_model(num_node_features: int, num_edge_features: int, args: Namespace,
                         aggregation_method=args.aggregation_method,
                         nonlinearity=args.nonlinearity,
                         num_fc_layers=args.num_fc_layers, fc_size_halving=args.fc_size_halving,
-                        device=device)
+                        device=device, args=args)
 
     return model
 
@@ -526,6 +537,10 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int, valida
 
         train_ids = list(train_ids)
         val_ids = list(val_ids)
+
+        #train_ids = ["phillips21_bindin:cr9114:h1wiscon05-SD166N;ID188S;AD194T;ND195A;KD210I".lower()] + train_ids[                                                                                               :5]
+        #val_ids = val_ids[:2]
+
     else:
         summary_path, _ = get_data_paths(config, dataset_name)
         summary_df = pd.read_csv(summary_path, index_col=0)
@@ -549,9 +564,6 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int, valida
 
         val_ids = summary_df[summary_df["pdb"].isin(val_pdbs)].index.tolist()
         train_ids = summary_df[summary_df["pdb"].isin(train_pdbs)].index.tolist()
-
-    #train_ids = val_ids[:2]
-    #val_ids = val_ids[:2]
 
     return train_ids, val_ids
 
@@ -641,6 +653,7 @@ def get_bucket_dataloader(args: Namespace, train_datasets: List[AffinityDataset]
     train_buckets = []
     absolute_data_indices = []
     relative_data_indices = []
+    relative_E_data_indices = []
 
     if args.bucket_size_mode == "min":
         train_bucket_size = [min([len(dataset) for dataset in train_datasets])] * len(train_datasets)
@@ -656,7 +669,7 @@ def get_bucket_dataloader(args: Namespace, train_datasets: List[AffinityDataset]
                          f"but expected one of [min, geometric_mean]")
     i = 0
     for idx, train_dataset in enumerate(train_datasets):
-        if train_dataset.dataset_name == args.target_dataset:
+        if train_dataset.dataset_name == args.target_dataset: # always take all data points from the target dataset
             indices = range(len(train_dataset))
         else:
             if len(train_dataset) >= train_bucket_size[idx]:
@@ -667,20 +680,22 @@ def get_bucket_dataloader(args: Namespace, train_datasets: List[AffinityDataset]
                 indices = random.choices(range(len(train_dataset)), k=train_bucket_size[idx])
 
         train_buckets.append(Subset(train_dataset, indices))
-        if train_dataset.relative_data:
+        if train_dataset.relative_data and train_dataset.affinity_type == "E":
+            relative_E_data_indices.extend(list(range(i, i + len(indices))))
+        elif train_dataset.relative_data and train_dataset.affinity_type == "-log(Kd)":
             relative_data_indices.extend(list(range(i, i + len(indices))))
         else:
             absolute_data_indices.extend(list(range(i, i + len(indices))))
         i += len(indices)
 
-    # shorten relative data for validation
+    # shorten relative data for validation because DMS datapoints tend to have a lot of validation data if we use 10% split
     # TODO: find better way
     for dataset in val_datasets:
         if dataset.relative_data:
             dataset.data_points = dataset.data_points[:100]
 
     train_dataset = ConcatDataset(train_buckets)
-    batch_sampler = generate_bucket_batch_sampler([absolute_data_indices, relative_data_indices], args.batch_size,
+    batch_sampler = generate_bucket_batch_sampler([absolute_data_indices, relative_data_indices, relative_E_data_indices], args.batch_size,
                                                   shuffle=args.shuffle)
 
     train_dataloader = DL_torch(train_dataset, num_workers=args.num_workers,
@@ -793,7 +808,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
             preds = epoch_results["all_predictions"][i:i + len(val_dataset)]
             labels = epoch_results["all_labels"][i:i + len(val_dataset)]
             val_loss = criterion(torch.from_numpy(preds).to(device),
-                                 torch.from_numpy(labels).to(device))  # mean_squared_error(labels, preds) / len(labels)
+                                 torch.from_numpy(labels).to(device)).detach().cpu()  # mean_squared_error(labels, preds) / len(labels)
 
             if val_dataset.affinity_type == "E":
                 pearson_corr = (np.nan, np.nan)
@@ -906,7 +921,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
 
 
 def finetune_pretrained(model: AffinityGNN, train_dataset: Union[AffinityDataset, List[AffinityDataset]], val_dataset: Union[AffinityDataset, List[AffinityDataset]],
-                      args: Namespace, lr_reduction: float = 1e-01) -> Tuple[Dict, AffinityGNN]:
+                      args: Namespace, lr_reduction: float = 5e-02) -> Tuple[Dict, AffinityGNN]:
     """ Utility to finetune the pretrained model using a lowered learning rate
 
     Args:
@@ -927,8 +942,10 @@ def finetune_pretrained(model: AffinityGNN, train_dataset: Union[AffinityDataset
 
     # make pretrained model trainable
     model.pretrained_model.requires_grad = True
-    if hasattr(model.pretrained_model, 'deep_refine'):
-        model.pretrained_model.deep_refine.unfreeze()
+    try:
+        model.pretrained_model.unfreeze()
+    except AttributeError:
+        logging.warning("Pretrained model does not have an unfreeze method")
 
     if args.train_strategy == "bucket_train":
         results, model = bucket_learning(model, train_dataset, val_dataset, args)
@@ -1048,13 +1065,17 @@ def get_benchmark_score(model: AffinityGNN, args: Namespace, tqdm_output: bool =
 
 
 def get_abag_test_score(model: AffinityGNN, args: Namespace, tqdm_output: bool = True, plot_path: str = None,
-                        results_path: str = None) -> Tuple[float, float]:
+                        results_path: str = None, validation_set: int = None) -> Tuple[float, float]:
 
     criterion = nn.MSELoss()
 
     summary_path, _ = get_data_paths(args.config, "abag_affinity")
     summary_df = pd.read_csv(summary_path, index_col=0)
-    summary_df = summary_df[summary_df["test"]]
+    if validation_set is None:
+        summary_df = summary_df[summary_df["test"]]
+    else:
+        summary_df = summary_df[summary_df["validation"] == validation_set]
+
     test_pdbs_ids = summary_df.index.tolist()
 
     dataset = AffinityDataset(args.config, "abag_affinity", test_pdbs_ids,

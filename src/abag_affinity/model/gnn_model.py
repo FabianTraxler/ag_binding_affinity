@@ -1,14 +1,17 @@
 """Submodule for Graph Neural Networks trained to predict binding affinity"""
 
 import torch
+import torch.nn as nn
+
 from typing import Dict
 
-from .utils import pretrained_models, pretraind_embeddings, NoOpModel
+from .utils import pretrained_models, pretrained_embeddings, NoOpModel
 from .regression_heads import EdgeRegressionHead, RegressionHead
 from .graph_conv_layers import NaiveGraphConv, GuidedGraphConv
+import pytorch_lightning as pl
 
 
-class AffinityGNN(torch.nn.Module):
+class AffinityGNN(pl.LightningModule):
     def __init__(self, node_feat_dim: int, edge_feat_dim: int,
                  num_nodes: int = None,
                  pretrained_model: str = "", pretrained_model_path: str = "",
@@ -19,8 +22,10 @@ class AffinityGNN(torch.nn.Module):
                  aggregation_method: str = "sum",
                  nonlinearity: str = "relu",
                  num_fc_layers: int = 3, fc_size_halving: bool = True,
-                 device: torch.device = torch.device("cpu")):
+                 device: torch.device = torch.device("cpu"),
+                 args=None):  # provide args so they can be saved by the LightningModule (hparams)
         super(AffinityGNN, self).__init__()
+        self.save_hyperparameters()
 
         # define pretrained embedding model
         if pretrained_model != "":
@@ -45,6 +50,9 @@ class AffinityGNN(torch.nn.Module):
                                              num_gnn_layers=num_gnn_layers,
                                              channel_halving=channel_halving, channel_doubling=channel_doubling,
                                              nonlinearity=nonlinearity)
+        elif gnn_type == "identity":
+            self.graph_conv = nn.Identity()
+            setattr(self.graph_conv, "embedding_dim", node_feat_dim)
         else:
             raise ValueError(f"Invalid gnn_type given: Got {gnn_type} but expected one of ('guided', 'proximity')")
         # define regression head
@@ -59,7 +67,6 @@ class AffinityGNN(torch.nn.Module):
 
         self.float()
 
-        self.device = device
         self.to(device)
 
     def forward(self, data: Dict) -> Dict:
@@ -72,7 +79,7 @@ class AffinityGNN(torch.nn.Module):
             torch.Tensor
         """
         # calculate pretrained node embeddings
-        data = pretraind_embeddings(data, self.pretrained_model)
+        data = pretrained_embeddings(data, self.pretrained_model)
 
         # calculate node embeddings
         graph = self.graph_conv(data["graph"])
@@ -84,3 +91,24 @@ class AffinityGNN(torch.nn.Module):
             "x": affinity
         }
         return output
+
+    def on_save_checkpoint(self, checkpoint):
+        """
+        Drop frozen parameters (don't save them)
+        """
+
+        for param_name in [
+            param_name for param_name, param in self.named_parameters() if not param.requires_grad
+        ]:
+            try:
+                del checkpoint["state_dict"][f"model.{param_name}"]
+            except KeyError:
+                print(f"Key {param_name} not found")
+
+    def training_step(self, *args):
+        pass
+
+    def train_dataloader(self, *args):
+        pass
+    def configure_optimizers(self, *args):
+        pass

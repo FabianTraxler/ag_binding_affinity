@@ -50,6 +50,7 @@ def get_complex_metadata(publication:str, antibody: str, antigen: str, metadata:
 
 
 def get_chain_infos(metadata: Dict) -> Dict:
+    "TODO delete"
     chain_info = {}
     for protein, chains in metadata["chains"].items():
         prot_id = 1 if protein == "antibody" else 0
@@ -91,8 +92,6 @@ def get_extended_df(complex_log: str, full_df: pd.DataFrame):
     complex_df["mutation_code"] = complex_df["mutation_code"].replace({"": "original"})
 
     complex_metadata = get_complex_metadata(publication, antibody, antigen, metadata)
-    chain_infos = get_chain_infos(complex_metadata)
-    complex_df["chain_infos"] = str(chain_infos)
 
     complex_df["mutation_code"] = complex_df["mutation_code"].fillna("original")
 
@@ -109,7 +108,7 @@ def get_extended_df(complex_log: str, full_df: pd.DataFrame):
     complex_df = complex_df.set_index("index")
     complex_df.index.name = ""
 
-    complex_df = complex_df[["pdb", "publication", "mutation_code", "data_location", "filename", "-log(Kd)", "E", "NLL", "chain_infos", "original_mutation"]]
+    complex_df = complex_df[["pdb", "publication", "mutation_code", "data_location", "filename", "-log(Kd)", "E", "NLL", "original_mutation"]]
 
     return complex_df
 
