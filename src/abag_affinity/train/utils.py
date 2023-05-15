@@ -233,13 +233,27 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_dataset: 
     criterion = get_loss_function(args, device)
     optimizer = Adam(model.parameters(), lr=args.learning_rate)
 
+    if args.lr_scheduler == "exponential":
+        scheduler = torch.optim.lr_scheduler.ExponentialLR(
+            optimizer, gamma=args.lr_decay_factor,
+            verbose=args.verbose)
+    elif args.lr_scheduler == "plateau":
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode='min', factor=args.lr_decay_factor,
+            patience=args.patience, verbose=args.verbose)
+    elif args.lr_scheduler == "constant":
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode='min', factor=args.lr_decay_factor,
+            patience=args.patience, verbose=args.verbose)
+        # Stop as soon as LR is reduced by one step -> constant LR with early stopping
+        args.stop_at_learning_rate = args.learning_rate
+
     scale_min = 0 if args.scale_values else args.scale_min
     scale_max = 1 if args.scale_values else args.scale_max
 
     best_loss = np.inf
     best_pearson_corr = -np.inf
     best_rmse = np.inf
-    patience = args.patience
 
     best_model = deepcopy(model)
 
@@ -250,6 +264,12 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_dataset: 
         results["epoch_loss"].append(epoch_results["val_loss"])
         results["epoch_corr"].append(epoch_results["pearson_correlation"])
         results["epoch_acc"].append(epoch_results["val_accuracy"])
+        if args.lr_scheduler == "exponential":
+            scheduler.step()
+            patience = None
+        else:
+            scheduler.step(metrics=epoch_results['val_loss'])
+            patience = args.patience - scheduler.num_bad_epochs 
 
         # scale back values before rsme calculation
         if len(epoch_results["all_labels"]) > 0:
@@ -265,7 +285,6 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_dataset: 
         results["epoch_rmse"].append(epoch_results["rmse"])
 
         if epoch_results["val_loss"] < best_loss: # or epoch_results["pearson_correlation"] > best_pearson_corr:
-            patience = args.patience
             best_loss = epoch_results["val_loss"]
             best_pearson_corr = epoch_results["pearson_correlation"]
             best_rmse = epoch_results["rmse"]
@@ -286,8 +305,6 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_dataset: 
                 result_df.to_csv(os.path.join(prediction_path, f"{train_dataset.full_dataset_name}-{data_type}.csv"),
                                  index=False)
             best_model = deepcopy(model)
-        else:
-            patience -= 1
 
         logger.info(
             f'Epochs: {i + 1} | Train-Loss: {epoch_results["total_train_loss"] / len(train_dataloader) : .3f}  | '
@@ -295,7 +312,8 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_dataset: 
             f'Val-r: {epoch_results["pearson_correlation"]: .4f} | '
             f'p-value r=0: {epoch_results["pearson_correlation_p"]: .4f} | RMSE: {epoch_results["rmse"]} | '
             f'Val-Acc: {epoch_results["val_accuracy"]: .4f} | '
-            f'Patience: {patience} ')
+            f'Patience: {patience} '
+            f'LR: {optimizer.param_groups[0]["lr"]: .6f}')
 
         if val_dataset.affinity_type == "-log(Kd)" and np.isnan(epoch_results["pearson_correlation"]):
             preds_nan = any(np.isnan(epoch_results["all_predictions"]))
@@ -323,7 +341,11 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_dataset: 
 
         wandb.log(wandb_log, commit=True)
 
-        if patience < 0:
+        stop_training = True
+        for param_group in optimizer.param_groups:
+            stop_training = stop_training and (
+                param_group['lr'] < args.stop_at_learning_rate)
+        if stop_training:
             if use_wandb:
                 run.summary[f"{val_dataset.full_dataset_name}:{data_type}_val_corr"] = best_pearson_corr
                 run.summary[f"{val_dataset.full_dataset_name}:{data_type}_val_loss"] = best_loss
@@ -339,7 +361,6 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_dataset: 
 
         if i == 0:
             logger.debug(f"Max memory usage in epoch: {torch.cuda.max_memory_allocated()/(1<<20):,.0f} MB")
-
 
     results["best_loss"] = best_loss
     results["best_correlation"] = best_pearson_corr
