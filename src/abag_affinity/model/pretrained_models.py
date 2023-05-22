@@ -277,7 +277,7 @@ class DiffusionPipelinePredictor(torch.nn.Module):
         diffusion_data = self._load_diffusion_data(affinity_data)
 
         # run the openfold model to get the embeddings (later, we should take these embeddings as input from somewhere)
-        of_data = self.of_embedding(diffusion_data)
+        of_data = self.of_embedding(diffusion_data)  # TODO check that the correct residue_index is here, when running with cond_fn
         of_data["input_data"] = diffusion_data
 
         # pass the single embeddings from OpenFold evoformer into the data dict

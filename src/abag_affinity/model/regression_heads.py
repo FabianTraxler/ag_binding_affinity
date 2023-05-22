@@ -1,4 +1,5 @@
 """Submodule for Knowledge primed networks (networks that derive its strucutre from previous knowledge)"""
+import logging
 import torch
 import torch.nn as nn
 from torch_geometric.nn import global_add_pool
@@ -129,6 +130,10 @@ class RegressionHead(torch.nn.Module):
             interface_node_indices = data["node", "interface", "node"].edge_index.view(-1).unique()
             batch = batch[interface_node_indices]
             x = x[interface_node_indices]
+
+        if len(x) == 0:
+            logging.warning("No interface. Returning None")
+            return None
 
         # compute node-wise affinity contribution from graph embedding
         for fc_layer in self.fc_layers[:-1]:

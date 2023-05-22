@@ -148,7 +148,7 @@ def get_residue_infos(structure: Structure) -> Tuple[Dict, List[Dict], np.ndarra
                 "on_chain_residue_idx": on_chain_residue_idx,
                 "all_atom_coordinates": all_atom_coordinates,
                 "antibody": antibody,
-                "atom_names": atom_names
+                "atom_names": atom_names  # TODO this is wrong! Here, CB is BEFORE 'O': ['N', 'CA', 'C', 'CB', 'O', 'CG', 'ND2', 'OD1']. In contrast, get_residue_pos14 returns order: ['N', 'CA', 'C', 'O', 'CB', 'CG', 'ND2', 'OD1']
             }
 
             residue_infos.append(residue_info)
@@ -193,8 +193,8 @@ def get_distances(residue_info: List[Dict], residue_distance: bool = True, ca_di
                 node_idx += 1
 
     coordinates = np.array(coordinates)
-    antibody_idx = np.array(antibody_idx).astype(np.int)
-    antigen_idx = np.array(antigen_idx).astype(np.int)
+    antibody_idx = np.array(antibody_idx).astype(int)
+    antigen_idx = np.array(antigen_idx).astype(int)
 
     if ca_distance or not residue_distance:
         distances = sp.distance_matrix(coordinates, coordinates)
