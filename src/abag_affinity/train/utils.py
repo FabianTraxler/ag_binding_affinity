@@ -943,6 +943,7 @@ def finetune_pretrained(model: AffinityGNN, train_dataset: Union[AffinityDataset
 
     # lower learning rate for pretrained model finetuning
     args.learning_rate = args.learning_rate * lr_reduction
+    args.stop_at_learning_rate = args.stop_at_learning_rate * lr_reduction
 
     logger.info(f"Fintuning pretrained model with lr={args.learning_rate}")
 
