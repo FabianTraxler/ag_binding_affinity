@@ -4,7 +4,7 @@ from pathlib import Path
 import torch
 from torch import device
 from typing import Dict
-from abag_affinity.dataset.utils import get_residue_of_embeddings
+from abag_affinity.dataset.utils import get_residue_embeddings
 
 from openfold.utils.tensor_utils import tensor_tree_map
 from guided_protein_diffusion.datasets import input_pipeline
@@ -286,7 +286,7 @@ class DiffusionPipelinePredictor(torch.nn.Module):
         residue_info_keys = ["chain_id", "residue_id"]
         residue_infos = [dict(zip(residue_info_keys, tuple)) for tuple in zip(*[affinity_data["graph"]["node"][key] for key in residue_info_keys])]
 
-        node_features, matched_positions, matched_orientations, matched_residue_index, indices = get_residue_of_embeddings(residue_infos, of_data)
+        node_features, matched_positions, matched_orientations, matched_residue_index, indices = get_residue_embeddings(residue_infos, of_data)
 
         affinity_data["graph"]["node"].update({
                 "x": torch.tensor(node_features, device=diffusion_args.device),  # x needs shape [num_nodes, num_features]

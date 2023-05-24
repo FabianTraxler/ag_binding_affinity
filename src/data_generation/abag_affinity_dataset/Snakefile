@@ -137,3 +137,20 @@ rule expand_openfold_embeddings:
         for d in dat:
             pdb_id = d['pdb_fn']
             torch.save(d, outdir / (pdb_id.lower() + '.pt'))
+
+rule expand_rfdiffusion_embeddings:
+    input:
+        join(resource_folder, "abdb_rfdiffusion_embeddings.pt")   # TODO not sure if this is the input we get from marco
+    output:
+        directory(join(dataset_results_folder, "rf_embeddings"))
+    run:
+        # TODO: convert data points such that they are compatible with the of_embeddings (facilitating loading during training)
+        import torch
+        from pathlib import Path
+        dat = torch.load(input[0], map_location='cpu')
+        outdir = Path(output[0])
+        outdir.mkdir(exist_ok=True)
+
+        for d in dat:
+            pdb_id = d['pdb_fn']
+            torch.save(d, outdir / (pdb_id.lower() + '.pt'))

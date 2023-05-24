@@ -55,7 +55,7 @@ def get_pdb_path_and_id(row: pd.Series, dataset_name: str, config: Dict):
     return pdb_file_path, pdb_id
 
 
-def get_graph_dict(pdb_id: str, pdb_file_path: str, of_emb_path: str, affinity: float,
+def get_graph_dict(pdb_id: str, pdb_file_path: str, emb_path: str, affinity: float,
                    node_type: str, distance_cutoff: int = 5,
                    ca_alpha_contact: bool = False,) -> Dict:
     """ Generate a dictionary with node, edge and meta-information for a given PDB File
@@ -68,7 +68,7 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, of_emb_path: str, affinity: 
     Args:
         pdb_id: ID of PDB
         pdb_file_path: Path to PDB File
-        of_emb_path: Path to OpenFold embeddings file
+        emb_path: Path to OpenFold embeddings file
         affinity: Binding affinity of the complex
         node_type: Type of nodes (residue, atom)
         distance_cutoff: Max. interface distance
@@ -87,10 +87,10 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, of_emb_path: str, affinity: 
 
         node_features = get_residue_encodings(residue_infos, structure_info)
 
-        if of_emb_path:  # I think we need to inject them so harshly here, to facilitate backpropagation later. An alternative would be to load the OF data closer to the model..
+        if emb_path:  # I think we need to inject them so harshly here, to facilitate backpropagation later. An alternative would be to load the OF data closer to the model..
 
-            of_embs = torch.load(of_emb_path, map_location='cpu')
-            node_features, matched_positions, matched_orientations, matched_residue_index, indices = get_residue_of_embeddings(residue_infos, of_embs)
+            embs = torch.load(emb_path, map_location='cpu')
+            node_features, matched_positions, matched_orientations, matched_residue_index, indices = get_residue_embeddings(residue_infos, embs)
             # fill residue_infos with matched positions and orientations
             for i in range(len(residue_infos)):
                 residue_infos[i]["matched_position"] = matched_positions[i]
@@ -152,12 +152,12 @@ def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, interface_f
     if interface_hull_size is not None:
         pdb_file_path = reduce2interface_hull(pdb_id, pdb_file_path, interface_distance_cutoff, interface_hull_size)
 
-    if 'of_embeddings' in config['DATASETS'][dataset_name]:
-        of_emb_path = os.path.join(config['DATASETS']["path"],config['DATASETS'][dataset_name]['folder_path'],config['DATASETS'][dataset_name]['of_embeddings'], pdb_id + '.pt')
+    if 'embeddings' in config['DATASETS'][dataset_name]:
+        emb_path = os.path.join(config['DATASETS']["path"],config['DATASETS'][dataset_name]['folder_path'],config['DATASETS'][dataset_name]['embeddings'], pdb_id + '.pt')
     else:
-        of_emb_path = None
+        emb_path = None
 
-    return get_graph_dict(pdb_id, pdb_file_path, of_emb_path, affinity, distance_cutoff=max_edge_distance,
+    return get_graph_dict(pdb_id, pdb_file_path, emb_path, affinity, distance_cutoff=max_edge_distance,
                           node_type=node_type)
 
 
@@ -399,8 +399,10 @@ def reduce2interface_hull(file_name: str, pdb_filepath: str,
 
         return interface_path
 
-def get_residue_of_embeddings(residue_infos: list, of_embs: Dict) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+def get_residue_embeddings(residue_infos: list, of_embs: Dict) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """
+    # TODO refactor function to make it understand both OF and RF embeddings
+
     Get embeddings calculated for each residue using OpenFold from an external file.
     1. Load embedding file
     2. Inject embeddings at correct position by matching chain ID and residue number between residue infos and embeddings,
