@@ -61,7 +61,7 @@ def parse_args() -> Namespace:
         Namespace: Class with all arguments
     """
 
-    parser = ArgumentParser(description='CLI for using the abag_affinity module')
+    parser = ArgumentParser(description='CLI for using the abag_affinity module', fromfile_prefix_chars='@')
 
     required = parser.add_argument_group('required arguments')
     optional = parser.add_argument_group('optional arguments')
@@ -94,6 +94,12 @@ def parse_args() -> Namespace:
     optional.add_argument("-p", "--patience", type=int,
                           help="Number of epochs with no improvement until end of training",
                           default=30)
+    optional.add_argument("--lr_scheduler", type=str, default="plateau",
+                          choices=["constant", "plateau", "exponential"],
+                          help="Type of learning rate scheduler",)
+    optional.add_argument("--stop_at_learning_rate", type=float, help="Stop training after learning rate" +
+                          "goes beneath this value", default=1e-4)
+    optional.add_argument("--lr_decay_factor", type=float, help="Factor to decay learning rate", default=0.5)
     # input graph config arguments
     optional.add_argument("-n", "--node_type", type=str, help="Type of nodes in the graphs", default="residue",
                           choices=["residue", "atom"])
