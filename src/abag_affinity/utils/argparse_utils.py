@@ -92,7 +92,7 @@ def parse_args() -> Namespace:
     optional.add_argument("-p", "--patience", type=int,
                           help="Number of epochs with no improvement until end of training",
                           default=30)
-    optional.add_argument("--lr_scheduler", type=str, default="constant",
+    optional.add_argument("--lr_scheduler", type=str, default="plateau",
                           choices=["constant", "plateau", "exponential"],
                           help="Type of learning rate scheduler",)
     optional.add_argument("--stop_at_learning_rate", type=float, help="Stop training after learning rate" +
