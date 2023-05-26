@@ -98,7 +98,7 @@ def parse_args() -> Namespace:
                           choices=["constant", "plateau", "exponential"],
                           help="Type of learning rate scheduler",)
     optional.add_argument("--stop_at_learning_rate", type=float, help="Stop training after learning rate" +
-                          "goes beneath this value", default=1e-4)
+                          "goes beneath this value", default=None)
     optional.add_argument("--lr_decay_factor", type=float, help="Factor to decay learning rate", default=0.5)
     # input graph config arguments
     optional.add_argument("-n", "--node_type", type=str, help="Type of nodes in the graphs", default="residue",
@@ -203,6 +203,9 @@ def parse_args() -> Namespace:
     if args.test:
         args.max_epochs = 1
         args.shuffle = False
+
+    if args.stop_at_learning_rate is None:
+        args.stop_at_learning_rate = args.learning_rate / 100
 
     # check arguments
     if args.pretrained_model in enforced_node_type and args.pretrained_model != enforced_node_type[args.pretrained_model]:
