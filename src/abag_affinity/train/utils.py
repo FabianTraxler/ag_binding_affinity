@@ -384,6 +384,8 @@ def get_loss_function(args: Namespace, device: torch.device):
         loss_fn = nn.L1Loss().to(device)
     elif args.loss_function == "L2":
         loss_fn = nn.MSELoss().to(device)
+    elif args.loss_function == "L1+L2":
+        loss_fn = lambda x, y: nn.L1Loss(x, y).to(device) + nn.MSELoss(x, y).to(device)
     else:
         raise ValueError("Loss_Function must either be 'L1' or 'L2'")
     return loss_fn

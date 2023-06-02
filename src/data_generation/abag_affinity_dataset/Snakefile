@@ -8,8 +8,12 @@ TESTSET_SIZE = 50
 REDUNDANCY_CUTOFF = 0.8
 
 # link changes every day - please copy link for "summary file" from  http://opig.stats.ox.ac.uk/webapps/newsabdab/sabdab/search/?ABtype=All&method=All&species=All&resolution=&rfactor=&antigen=All&ltype=All&constantregion=All&affinity=True&isin_covabdab=All&isin_therasabdab=All&chothiapos=&restype=ALA&field_0=Antigens&keyword_0=#downloads
+<<<<<<< Updated upstream
 sabdab_link = "https://opig.stats.ox.ac.uk/webapps/newsabdab/sabdab/summary/20230301_0138378/"
 
+=======
+sabdab_link = "https://opig.stats.ox.ac.uk/webapps/newsabdab/sabdab/summary/20230508_0647843/"
+>>>>>>> Stashed changes
 
 pdb_folder_name = "pdbs"
 redundancy_file = "abdb_redundancy_info.txt"
@@ -114,7 +118,7 @@ checkpoint generate_dataset:
 
 rule relax_structures:
     input:
-        join(dataset_results_folder, "pdbs/{pdb_id}.pdb")
+        ancient(join(dataset_results_folder, "pdbs/{pdb_id}.pdb"))
     output:
         join(dataset_results_folder, "pdbs_relaxed/{pdb_id}.pdb")
     conda:
