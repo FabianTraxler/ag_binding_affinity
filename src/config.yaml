@@ -102,6 +102,9 @@ RESOURCES:
 
 RESULTS:
   path: "results"
+  prediction_path: "predictions"
+  model_path: "model"
+  force_field_results: "force_fields"
   plot_path: "plots"
   prediction_path: "predictions"
   model_path: "models"
@@ -221,3 +224,5 @@ HYPERPARAMETER_SEARCH:
     patience:
       values:
         - 30
+        - 3
+        - 10
