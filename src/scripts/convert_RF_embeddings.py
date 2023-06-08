@@ -23,6 +23,7 @@ chain_type_order = [2, 1, 3]
 for key in dat_rf.keys():
     data = dat_rf[key]
     data_conv = {}
+    # going over all PDB IDs
     for d_key in data.keys():
         if d_key in mapping.keys():
             if d_key == 'input_data':
@@ -32,6 +33,7 @@ for key in dat_rf.keys():
                     if i_key in mapping['input_data'].keys():
                         data_conv['input_data'][mapping['input_data'][i_key]] = \
                             torch.tensor(input_data[i_key]).unsqueeze(0)
+                    # ref contains information about the residue index and chain ID
                     if i_key == 'ref':
                         data_conv['input_data']['chain_id_pdb'] = []
                         data_conv['input_data']['residue_index_pdb'] = []
@@ -42,27 +44,20 @@ for key in dat_rf.keys():
                             torch.tensor(data_conv['input_data']['chain_id_pdb']).unsqueeze(0)
                         data_conv['input_data']['residue_index_pdb'] = \
                             torch.tensor(data_conv['input_data']['residue_index_pdb']).unsqueeze(0)
-                chain_type_idx = [torch.where(data_conv['input_data']['context_chain_type'][0, :] == i)[0]
-                                  for i in chain_type_order]
-                chain_type_idx = torch.cat(chain_type_idx)
-                print(data_conv['input_data']['context_chain_type'])
-                print(data_conv['input_data']['chain_id_pdb'])
-                print(data_conv['input_data']['residue_index_pdb'])
-                print(data_conv['input_data']['aatype'])
-                data_conv['input_data']['context_chain_type'] = \
-                    data_conv['input_data']['context_chain_type'][:, chain_type_idx]
-                data_conv['input_data']['chain_id_pdb'] = \
-                    data_conv['input_data']['chain_id_pdb'][:, chain_type_idx]
-                data_conv['input_data']['residue_index_pdb'] = \
-                    data_conv['input_data']['residue_index_pdb'][:, chain_type_idx]
-                data_conv['input_data']['aatype'] = \
-                    data_conv['input_data']['aatype'][:, chain_type_idx]
-                print(data_conv['input_data']['context_chain_type'])
-                print(data_conv['input_data']['chain_id_pdb'])
-                print(data_conv['input_data']['residue_index_pdb'])
-                print(data_conv['input_data']['aatype'])
+
             else:
                 data_conv[mapping[d_key]] = torch.tensor(data[d_key])
-
+    # reordering the entries according to the chain type order
+    chain_type_idx = [torch.where(data_conv['input_data']['context_chain_type'][0, :] == i)[0]
+                      for i in chain_type_order]
+    chain_type_idx = torch.cat(chain_type_idx)
+    for d_key in data_conv.keys():
+        if d_key == 'input_data':
+            for i_key in data_conv['input_data'].keys():
+                if data_conv['input_data'][i_key].dim() >= 2 and \
+                   data_conv['input_data'][i_key].shape[1] == len(chain_type_idx):
+                    data_conv['input_data'][i_key] = data_conv['input_data'][i_key][:, chain_type_idx]
+        elif data_conv[d_key].dim() >= 2 and data_conv[d_key].shape[1] == len(chain_type_idx):
+            data_conv[d_key] = data_conv[d_key][:, chain_type_idx]
     save_file = os.path.join(args.rf_emb_save_dir, key[:4].lower() + '.pt')
     torch.save(data_conv, save_file)
