@@ -33,7 +33,7 @@ class GuidedGraphConv(torch.nn.Module):
 
         for _ in self.edges:
             type_gnn_layer = []
-            in_dim += node_feat_dim # add initial embedding after every edge_layer (skip connections)
+            in_dim += node_feat_dim  # add initial embedding after every edge_layer (skip connections)
             for i in range(int(num_gnn_layers / len(self.edges))):
                 out_dim = int(in_dim / 2) if channel_halving else in_dim
                 out_dim = int(out_dim * 2) if channel_doubling else out_dim

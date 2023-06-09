@@ -119,7 +119,7 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, emb_path: str, affinity: flo
         "residue_atom_coordinates": residue_atom_coordinates,
         "adjacency_tensor": adj_tensor,
         "affinity": affinity,
-        "closest_residues":closest_nodes,
+        "closest_residues": closest_nodes,
         "atom_names": atom_names
     }
 
@@ -404,7 +404,7 @@ def get_residue_embeddings(residue_infos: list, embs: Dict) -> Tuple[torch.Tenso
     """
     # TODO refactor function to make it understand both OF and RF embeddings
 
-    Get embeddings calculated for each residue using OpenFold from an external file.
+    Get latent embeddings calculated for each residue using external representation network from an external file.
     1. Load embedding file
     2. Inject embeddings at correct position by matching chain ID and residue number between residue infos and embeddings,
         because order of residues is different between the two structures
@@ -413,16 +413,19 @@ def get_residue_embeddings(residue_infos: list, embs: Dict) -> Tuple[torch.Tenso
 
     Args:
         residue_infos: List of residue infos
-        of_emb_path: Path to file containing OpenFold embeddings
+        emb: Dictionary containing latent embeddings
 
     Returns:
-        np.ndarray: Array with the OpenFold embeddings at the appropriate positions - shape (n, 384)
+        np.ndarray: Array with the latent embeddings at the appropriate positions - shape (n, 384)
     """
 
+    warned = False
 
-    # warned = False
-
-    assert torch.all(embs['input_data']['context_chain_type'] != 0)  # like this, incompatible with dockground dataset
+    if not torch.all(embs['input_data']['context_chain_type'] != 0):  # like this, incompatible with dockground dataset
+        msg = 'Context chain type not 0\n' + str(embs['input_data']['context_chain_type']) + '\n' + embs['pdb_fn']
+        raise ValueError(msg)
+        # print(embs['input_data']['context_chain_type'])
+        # print(embs['pdb_fn'])
     matched_embs = torch.zeros(len(residue_infos), embs['single'].shape[-1])
 
     matched_positions = torch.zeros(len(residue_infos), 3)
@@ -452,15 +455,16 @@ def get_residue_embeddings(residue_infos: list, embs: Dict) -> Tuple[torch.Tenso
             # All checks passed? Then
             matched_embs[i, :] = embs['single'][chain_res_id]
             matched_positions[i, :] = embs['input_data']['positions'][chain_res_id]
-            matched_orientations[i, :] = embs['input_data']['orientations'][chain_res_id]
-            assert embs['input_data']['residue_index'][chain_res_id] >= 0
-            matched_residue_index[i] = embs['input_data']['residue_index'][chain_res_id]
+            if 'orientations' in embs['input_data'].keys():
+                matched_orientations[i, :] = embs['input_data']['orientations'][chain_res_id]
+            assert embs['input_data']['residue_index_pdb'][chain_res_id] >= 0
+            matched_residue_index[i] = embs['input_data']['residue_index_pdb'][chain_res_id]
             indices[i] = chain_res_id[1][0]  # we made sure earlier that there is only one element in chain_res_id. The first coordinate is batch
 
-        except ValueError as e:
-            # if not warned:
-            #     warned = True
-            logger.warning(f'{e}: PDBID: {of_embs[-9:-3]}, chain ID: {ord(res["chain_id"])}, residue ID: {res["residue_id"]}.')  # (Won\'t warn again.)
+        except ValueError:
+            if not warned:
+                warned = True
+                # logger.warning(f'{e}: PDBID: {embs["pdb_fn"][:4]}, chain ID: {ord(res["chain_id"])}, residue ID: {res["residue_id"]}.')  # (Won\'t warn again.)
 
-    matched_of_embs = matched_of_embs.numpy()
-    return matched_of_embs, matched_positions, matched_orientations, matched_residue_index, indices
+    matched_embs = matched_embs.numpy()
+    return matched_embs, matched_positions, matched_orientations, matched_residue_index, indices
