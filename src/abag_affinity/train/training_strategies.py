@@ -16,9 +16,9 @@ from .utils import load_model, load_datasets, train_loop, finetune_pretrained, b
 from ..model.gnn_model import AffinityGNN
 
 # TODO: create global seeding mechanism
-random.seed(123)
-np.random.seed(123)
-torch.manual_seed(123)
+random.seed(125)
+np.random.seed(125)
+torch.manual_seed(125)
 
 
 torch.cuda.empty_cache()
