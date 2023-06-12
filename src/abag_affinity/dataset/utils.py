@@ -457,14 +457,14 @@ def get_residue_embeddings(residue_infos: list, embs: Dict) -> Tuple[torch.Tenso
             matched_positions[i, :] = embs['input_data']['positions'][chain_res_id]
             if 'orientations' in embs['input_data'].keys():
                 matched_orientations[i, :] = embs['input_data']['orientations'][chain_res_id]
-            assert embs['input_data']['residue_index_pdb'][chain_res_id] >= 0
             matched_residue_index[i] = embs['input_data']['residue_index_pdb'][chain_res_id]
             indices[i] = chain_res_id[1][0]  # we made sure earlier that there is only one element in chain_res_id. The first coordinate is batch
 
-        except ValueError:
+        except ValueError as e:
             if not warned:
                 warned = True
-                # logger.warning(f'{e}: PDBID: {embs["pdb_fn"][:4]}, chain ID: {ord(res["chain_id"])}, residue ID: {res["residue_id"]}.')  # (Won\'t warn again.)
+                logger.warning(f'{e}: PDBID: {embs["pdb_fn"][:4]}, chain ID: {ord(res["chain_id"])}, ' +
+                               f'residue ID: {res["residue_id"]} .')  # (Won\'t warn again.)
 
     matched_embs = matched_embs.numpy()
     return matched_embs, matched_positions, matched_orientations, matched_residue_index, indices

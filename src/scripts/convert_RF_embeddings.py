@@ -6,6 +6,7 @@ import os
 parser = argparse.ArgumentParser()
 parser.add_argument('rf_emb_location', type=str)
 parser.add_argument('rf_emb_save_dir', type=str)
+parser.add_argument('--keep_suffix', type=bool, default=False)
 
 args = parser.parse_args()
 
@@ -59,6 +60,10 @@ for key in dat_rf.keys():
                     data_conv['input_data'][i_key] = data_conv['input_data'][i_key][:, chain_type_idx]
         elif data_conv[d_key].dim() >= 2 and data_conv[d_key].shape[1] == len(chain_type_idx):
             data_conv[d_key] = data_conv[d_key][:, chain_type_idx]
-    data_conv['pdb_fn'] = key[:-4]
-    save_file = os.path.join(args.rf_emb_save_dir, key[:4].lower() + '.pt')
+    if args.keep_suffix:
+        save_key = key[:-4]
+    else:
+        save_key = key[:4]
+    data_conv['pdb_fn'] = save_key
+    save_file = os.path.join(args.rf_emb_save_dir, save_key.lower() + '.pt')
     torch.save(data_conv, save_file)

@@ -20,15 +20,15 @@ DATASETS:
     folder_path: "results/abag_affinity_dataset"
     pdb_path: "pdbs"
     relaxed_pdb_path: "pdbs"
-    summary: "abag_affinity_dataset_OF.csv"
-    embeddings: "of_embeddings_new"
+    summary: "abag_affinity_dataset.csv"
+    embeddings: "of_embeddings"
     affinity_type: "-log(Kd)"
 
   abag_affinity_rf_embeddings:
     folder_path: "results/abag_affinity_dataset"
     pdb_path: "pdbs"
     relaxed_pdb_path: "pdbs"
-    summary: "abag_affinity_dataset_RF.csv"
+    summary: "abag_affinity_dataset.csv"
     embeddings: "rf_embeddings"
     affinity_type: "-log(Kd)"
 
