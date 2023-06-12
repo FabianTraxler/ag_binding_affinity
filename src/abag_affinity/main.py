@@ -168,7 +168,7 @@ def main() -> Dict:
             trainer.fit(model, DataLoader([]))
             trainer.save_checkpoint(path)
             # TODO make sure (when loading) that the model is initialized with the same seed. <- why did I write this comment? If no-one finds a reason, delete the comment
-        return results
+        # return results  (leads to error code in bash)
 
 
 if __name__ == "__main__":
