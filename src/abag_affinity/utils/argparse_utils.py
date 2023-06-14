@@ -61,7 +61,7 @@ def parse_args() -> Namespace:
         Namespace: Class with all arguments
     """
 
-    parser = ArgumentParser(description='CLI for using the abag_affinity module', fromfile_prefix_chars='@')
+    parser = ArgumentParser(description='CLI for using abag_affinity module', fromfile_prefix_chars='@')
 
     required = parser.add_argument_group('required arguments')
     optional = parser.add_argument_group('optional arguments')
@@ -147,6 +147,7 @@ def parse_args() -> Namespace:
     optional.add_argument("--wandb_mode", type=str, help="Mode of Weights&Bias Process", choices=["online", "offline"],
                           default="offline")
     optional.add_argument("--wandb_name", type=str, help="Name of the Weight&Bias logs", default="")
+    optional.add_argument("--wandb_user", type=str, help="Name of the Weight&Bias user", default="dachdiffusion")
     optional.add_argument("--model_path", type=str, help="Target filename for model. Default is defined in main.py", default=None)
     optional.add_argument("--init_sweep", action=BooleanOptionalAction,
                           help="Use Weight&Bias sweep to search hyperparameter space", default=False)
