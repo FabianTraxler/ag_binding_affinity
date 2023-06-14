@@ -119,7 +119,7 @@ def parse_args() -> Namespace:
 
     # model config arguments
     optional.add_argument("--loss_function", type=str, help="Type of Loss Function", default="L1",
-                          choices=["L1", "L2", "L1+L2"] )
+                          choices=["L1", "L2", "L1+L2"])
     optional.add_argument("--layer_type", type=str, help="Type of GNN Layer", default="GCN",
                           choices=["GAT", "GCN"] )
     optional.add_argument("--gnn_type", type=str, help="Type of GNN Layer", default="guided",

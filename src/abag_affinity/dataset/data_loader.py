@@ -364,7 +364,7 @@ class AffinityDataset(Dataset):
 
         return all_edges, edge_attributes
 
-    def get_node_features(self, data_file: Dict, of_features=False) -> np.ndarray:
+    def get_node_features(self, data_file: Dict) -> np.ndarray:
         """ Extract residue features from data dict
 
         Args:
