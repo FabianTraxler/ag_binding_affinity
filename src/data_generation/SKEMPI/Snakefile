@@ -39,7 +39,8 @@ def gater_pdb_ids(wildcards):
 def get_mutations(wildcards):
     file = checkpoints.download.get(**wildcards).output[0]
     skempi_df = pd.read_csv(file, sep=";")
-    skempi_df = skempi_df[skempi_df["iMutation_Location(s)"].isin(["COR", "RIM", "SUP"])]
+    # filter for interface residues
+    skempi_df = skempi_df[skempi_df["iMutation_Location(s)"].isin(["COR", "RIM", "SUP"])]  # SUR and INT are non-interface residues
     skempi_df = skempi_df[skempi_df["Hold_out_type"].isin(["AB/AG", "Pr/PI", "AB/AG,Pr/PI"])]
     wildtype_pdbs = [pdb_id.split("_")[0] for pdb_id in skempi_df["#Pdb"].tolist()]
     mutation_codes = skempi_df["Mutation(s)_cleaned"].tolist()

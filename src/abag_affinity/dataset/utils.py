@@ -220,7 +220,8 @@ def scale_affinity(affinity: float, min: float = 0, max: float = 16) -> float:
     """
 
     if not min < affinity < max:
-        a = 0
+        logging.warning(f"Affinity value out of scaling range {min} - {max}: {affinity}")
+    affinity = np.clip(affinity, min, max)
     assert min < affinity < max, f"Affinity value out of scaling range: {affinity}"
 
     return (affinity - min) / (max - min)

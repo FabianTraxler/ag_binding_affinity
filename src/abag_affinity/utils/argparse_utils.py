@@ -112,9 +112,9 @@ def parse_args() -> Namespace:
     optional.add_argument("--scale_values", action=BooleanOptionalAction, help="Scale affinity values between 0 and 1",
                           default=True)
     optional.add_argument("--scale_min", type=int, help="The minimal affinity value -> gets mapped to 0",
-                          default=0)
+                          default=5)
     optional.add_argument("--scale_max", type=int, help="The maximal affinity value -> gets mapped to 1",
-                          default=19)
+                          default=14)
     optional.add_argument("--max_edge_distance", type=int, help="Maximal distance of proximity edges", default=3)
 
     # model config arguments
