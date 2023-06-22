@@ -157,7 +157,7 @@ def parse_args() -> Namespace:
                           default=30)
 
     # general config
-    optional.add_argument("-w", "--num_workers", type=int, help="Number of workers to use for data loading", default=0)
+    optional.add_argument("-w", "--num_workers", type=int, help="Number of workers to use for data loading", default=5)
     optional.add_argument("--cross_validation", action=BooleanOptionalAction, help="Perform CV on all validation datasets", default=False)
     optional.add_argument("--number_cv_splits", type=int, help='The number of data splits for cross validation',
                           default=10)
@@ -170,9 +170,9 @@ def parse_args() -> Namespace:
                           default=False)
     optional.add_argument("--preprocess_graph", action=BooleanOptionalAction,
                           help="Compute graphs beforehand to speedup training (especially for DeepRefine",
-                          default=False)
+                          default=True)
     optional.add_argument("--save_graphs", action=BooleanOptionalAction,
-                          help="Saves computed graphs to speed up training in later epochs", default=False)
+                          help="Saves computed graphs to speed up training in later epochs", default=True)
     optional.add_argument("--force_recomputation", action=BooleanOptionalAction,
                           help="Force recomputation of graphs - deletes folder containing processed graphs",
                           default=False)
