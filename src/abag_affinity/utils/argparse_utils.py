@@ -170,12 +170,12 @@ def parse_args() -> Namespace:
                           default=False)
     optional.add_argument("--preprocess_graph", action=BooleanOptionalAction,
                           help="Compute graphs beforehand to speedup training (especially for DeepRefine",
-                          default=True)
+                          default=False)
     optional.add_argument("--save_graphs", action=BooleanOptionalAction,
                           help="Saves computed graphs to speed up training in later epochs", default=True)
     optional.add_argument("--force_recomputation", action=BooleanOptionalAction,
                           help="Force recomputation of graphs - deletes folder containing processed graphs",
-                          default=False)
+                          default=False)  # TODO enable this for safety. too many can changes can happen... disable before sweeps
     optional.add_argument("--shuffle", action=BooleanOptionalAction,
                           help="Shuffle train-dataloader",
                           default=True)
@@ -191,6 +191,7 @@ def parse_args() -> Namespace:
     optional.add_argument("--args_file", type=str,
                           help="Specify the path to a file with additional arguments",
                           default=None)
+    optional.add_argument("--embeddings_path", type=bool, default=True, help="Whether to use embeddings.")  # TODO no option to provide path at the moment
 
     args = parser.parse_args()
     args.config = read_config(args.config_file, args.relaxed_pdbs)

@@ -14,13 +14,6 @@ DATASETS:
     pdb_path: "pdbs"
     relaxed_pdb_path: "pdbs_relaxed"
     summary: "abag_affinity_dataset.csv"
-    affinity_type: "-log(Kd)"
-
-  abag_affinity_of_embeddings:
-    folder_path: "results/abag_affinity_dataset"
-    pdb_path: "pdbs"
-    relaxed_pdb_path: "pdbs"
-    summary: "abag_affinity_dataset.csv"
     of_embeddings: "of_embeddings"
     affinity_type: "-log(Kd)"
 

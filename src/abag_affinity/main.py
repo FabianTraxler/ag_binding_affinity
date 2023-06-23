@@ -17,7 +17,6 @@ import pytorch_lightning as pl
 from abag_affinity.utils.argparse_utils import parse_args, enforced_node_type
 from abag_affinity.train import (bucket_train, cross_validation, model_train,
                                  pretrain_model)
-
 # different training modalities
 training = {
     "bucket_train": bucket_train,
@@ -141,6 +140,11 @@ def main() -> Dict:
     """
     args = parse_args()
     logger = logging_setup(args)
+
+    from guided_protein_diffusion.utils.interact import init_interactive_environment
+    init_interactive_environment(
+        ["--dataset", "abdb", "--openfold_time_injection_alpha", "0.0", "--antigen_conditioning"]
+    )  # implies --testing
 
     if args.init_sweep:
         sweep_configuration = args.config["HYPERPARAMETER_SEARCH"]

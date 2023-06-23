@@ -11,8 +11,18 @@ from biopandas.pdb import PandasPdb
 import scipy.spatial as sp
 import dgl
 import logging
-from openfold.np.residue_constants import restype_1to3
+from guided_protein_diffusion.datasets.dataset import load_protein
+from openfold.utils.tensor_utils import tensor_tree_map
 
+from guided_protein_diffusion.config import get_path, args as diffusion_args
+from guided_protein_diffusion.datasets import input_pipeline
+from guided_protein_diffusion.datasets.loader import common_processing
+from openfold.np.residue_constants import restype_1to3
+from guided_protein_diffusion.diffusion.context import prepare_context
+from guided_protein_diffusion.diffusion.utils import remove_mean
+from guided_protein_diffusion.datasets.data_utils import compute_mean_mad
+
+from guided_protein_diffusion.diffusion.denoising_module import OpenFoldWrapper
 warnings.filterwarnings("ignore")
 
 from abag_affinity.utils.pdb_processing import (clean_and_tidy_pdb,
@@ -55,7 +65,7 @@ def get_pdb_path_and_id(row: pd.Series, dataset_name: str, config: Dict):
     return pdb_file_path, pdb_id
 
 
-def get_graph_dict(pdb_id: str, pdb_file_path: str, of_emb_path: str, affinity: float,
+def get_graph_dict(pdb_id: str, pdb_file_path: str, of_embs: Dict, affinity: float,
                    node_type: str, distance_cutoff: int = 5,
                    ca_alpha_contact: bool = False,) -> Dict:
     """ Generate a dictionary with node, edge and meta-information for a given PDB File
@@ -68,7 +78,7 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, of_emb_path: str, affinity: 
     Args:
         pdb_id: ID of PDB
         pdb_file_path: Path to PDB File
-        of_emb_path: Path to OpenFold embeddings file
+        of_emb: Path to OpenFold embeddings file or object itself
         affinity: Binding affinity of the complex
         node_type: Type of nodes (residue, atom)
         distance_cutoff: Max. interface distance
@@ -87,9 +97,7 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, of_emb_path: str, affinity: 
 
         node_features = get_residue_encodings(residue_infos, structure_info)
 
-        if of_emb_path:  # I think we need to inject them so harshly here, to facilitate backpropagation later. An alternative would be to load the OF data closer to the model..
-
-            of_embs = torch.load(of_emb_path, map_location='cpu')
+        if of_embs:  # I think we need to inject them so harshly here, to facilitate backpropagation later. An alternative would be to load the OF data closer to the model..
             node_features, matched_positions, matched_orientations, matched_residue_index, indices = get_residue_of_embeddings(residue_infos, of_embs)
             # fill residue_infos with matched positions and orientations
             for i in range(len(residue_infos)):
@@ -125,7 +133,9 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, of_emb_path: str, affinity: 
 
 def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, interface_folder: str, node_type: str = "residue",
                     interface_distance_cutoff: int = 5, interface_hull_size: int = None, max_edge_distance: int = 5,
-                    affinity_type: str = "-log(Kd)") -> Dict:
+                    affinity_type: str = "-log(Kd)",
+                    load_embeddings: Union[bool, str] = False
+                ) -> Dict:
     """ Load and process a data point and generate a graph and meta-information for it
 
     1. Get the PDB Path
@@ -140,7 +150,9 @@ def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, interface_f
         node_type: Type of nodes (residue, atom)
         distance_cutoff: Interface distance cutoff
         interface_hull_size: interface hull size
-
+        max_edge_distance: Max. distance between nodes
+        affinity_type: Type of affinity (Kd, Ki, ..)
+        load_embeddings: Indicator if OF/RF embeddings should be loaded
     Returns:
         Dict: Graph and meta-information for that data point
     """
@@ -152,12 +164,26 @@ def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, interface_f
     if interface_hull_size is not None:
         pdb_file_path = reduce2interface_hull(pdb_id, pdb_file_path, interface_distance_cutoff, interface_hull_size)
 
-    if 'of_embeddings' in config['DATASETS'][dataset_name]:
-        of_emb_path = os.path.join(config['DATASETS']["path"],config['DATASETS'][dataset_name]['folder_path'],config['DATASETS'][dataset_name]['of_embeddings'], pdb_id + '.pt')
+    if load_embeddings:
+        if isinstance(load_embeddings, str):
+            of_embs = os.path.join(load_embeddings, pdb_id + '.pt')
+            of_embs = torch.load(of_embs, map_location='cpu')
+        else:
+            if 'of_embeddings' in config['DATASETS'][dataset_name]:  # TODO generalize this to "embeddings"?
+                of_embs = os.path.join(config['DATASETS']["path"],
+                                        config['DATASETS'][dataset_name]['folder_path'],
+                                        config['DATASETS'][dataset_name]['of_embeddings'],
+                                        pdb_id + '.pt')
+                of_embs = torch.load(of_embs, map_location='cpu')
+            else:
+                # NOTE generating OF embeddings might clash with parallel data loading because of GPU usage
+                diffusion_data = load_protein(pdb_file_path)
+                diffusion_data = tensor_tree_map(lambda x: x.to(diffusion_args.device), diffusion_data)
+                of_embs = of_embedding(diffusion_data)
     else:
-        of_emb_path = None
+        of_embs = None
 
-    return get_graph_dict(pdb_id, pdb_file_path, of_emb_path, affinity, distance_cutoff=max_edge_distance,
+    return get_graph_dict(pdb_id, pdb_file_path, of_embs, affinity, distance_cutoff=max_edge_distance,
                           node_type=node_type)
 
 
@@ -222,7 +248,7 @@ def scale_affinity(affinity: float, min: float = 0, max: float = 16) -> float:
     if not min < affinity < max:
         logging.warning(f"Affinity value out of scaling range {min} - {max}: {affinity}")
     affinity = np.clip(affinity, min, max)
-    assert min < affinity < max, f"Affinity value out of scaling range: {affinity}"
+    assert min <= affinity <= max, f"Affinity value out of scaling range: {affinity}"
 
     return (affinity - min) / (max - min)
 
@@ -462,3 +488,27 @@ def get_residue_of_embeddings(residue_infos: list, of_embs: Dict) -> Tuple[torch
 
     matched_of_embs = matched_of_embs.numpy()
     return matched_of_embs, matched_positions, matched_orientations, matched_residue_index, indices
+
+def of_embedding(data):
+    """
+    run the openfold model to get the embeddings (later, we should take these embeddings as input from somewhere)
+    copied from generate_of_embeddings.py
+    Returns: A dict with all AlphaFold outputs. "pair" and "single" are the representations that go into the structure_module. "sm" contains all fields genereated by the structure_module, including its intermediiary "s" states
+    """
+
+    try:
+        of_embedding.openfold_model
+    except AttributeError:
+        of_embedding.openfold_model = OpenFoldWrapper()
+        of_embedding.openfold_model.freeze()
+        of_embedding.property_norms = compute_mean_mad(diffusion_args.conditioning, diffusion_args.dataset)
+
+    context = prepare_context(diffusion_args.conditioning, data, of_embedding.property_norms)  # relevant information: residue_index
+    node_mask = context["node_mask"]
+
+    data["positions"] = remove_mean(data["positions"], node_mask)  # compatibility with diffusion modeling
+    t = 0
+
+    features = of_embedding.openfold_model._prepare_features(t, data, node_mask, context)
+    outputs = of_embedding.openfold_model.openfold_model(features)
+    return outputs

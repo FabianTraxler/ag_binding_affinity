@@ -46,7 +46,9 @@ class AffinityDataset(Dataset):
                  scale_values: bool = True, scale_min: int = 0, scale_max: int = 16,
                  relative_data: bool = False,
                  save_graphs: bool = False, force_recomputation: bool = False,
-                 preprocess_data: bool = False, num_threads: int = 1):
+                 preprocess_data: bool = False, num_threads: int = 1,
+                 load_embeddings: Union[bool, str] = False
+                 ):
         """ Initialization of class variables,
         generation of necessary directories,
         start of graph preprocessing
@@ -85,6 +87,7 @@ class AffinityDataset(Dataset):
         self.scale_values = scale_values
         self.scale_min = scale_min
         self.scale_max = scale_max
+        self.load_embeddings = load_embeddings
 
         if "-" in dataset_name: # part of DMS dataset
             dataset_name, publication_code = dataset_name.split("-")
@@ -279,7 +282,8 @@ class AffinityDataset(Dataset):
                                      interface_distance_cutoff=self.interface_distance_cutoff,
                                      interface_hull_size=self.interface_hull_size,
                                      max_edge_distance=self.max_edge_distance,
-                                     affinity_type=self.affinity_type)
+                                     affinity_type=self.affinity_type,
+                                     load_embeddings=self.load_embeddings)
 
         np.savez_compressed(out_path, **graph_dict)
 
@@ -448,7 +452,9 @@ class AffinityDataset(Dataset):
                                          interface_distance_cutoff=self.interface_distance_cutoff,
                                          interface_hull_size=self.interface_hull_size,
                                          max_edge_distance=self.max_edge_distance,
-                                         affinity_type=self.affinity_type)
+                                         affinity_type=self.affinity_type,
+                                         load_embeddings=self.load_embeddings
+                                         )
 
             if self.save_graphs and not os.path.exists(file_path):
                 graph_dict.pop("atom_names", None)  # remove unnecessary information that takes lot of storage
