@@ -21,7 +21,7 @@ DATASETS:
     pdb_path: "pdbs"
     relaxed_pdb_path: "pdbs"
     summary: "abag_affinity_dataset.csv"
-    embeddings: "of_embeddings_new"
+    embeddings: "of_embeddings"
     affinity_type: "-log(Kd)"
 
   abag_affinity_rf_embeddings:
