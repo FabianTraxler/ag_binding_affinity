@@ -1,4 +1,6 @@
 import os
+import pandas as pd
+
 from os.path import join
 from pathlib import Path
 
@@ -16,9 +18,11 @@ pdb_bound_folder = os.path.join(dataset_results_folder, "pdbs_bound")
 pdb_folder = os.path.join(dataset_resource_folder, "pdbs")
 
 def gater_pdb_ids(wildcards):
-    folder = checkpoints.download_repo.get(**wildcards).output[0]
-    pdb_id = glob_wildcards(f"{pdb_folder}/{{pdb_id}}_r_b.pdb").pdb_id
-    return expand(f"{pdb_bound_folder}/{{pdb_id}}.pdb", pdb_id=pdb_id)
+    
+    metadata_fn = checkpoints.clean_metadata.get(**wildcards).output[0]
+    df = pd.read_csv(metadata_fn)
+    # pdb_id = glob_wildcards(f"{pdb_folder}/{{pdb_id}}_r_b.pdb").pdb_id
+    return expand(f"{pdb_bound_folder}/{{pdb_id}}.pdb", pdb_id=df["pdb"].str.upper().tolist())
 
 
 rule all:
@@ -26,7 +30,7 @@ rule all:
         gater_pdb_ids,
         join(dataset_results_folder, "benchmark.csv")
 
-checkpoint download_repo:
+rule download_repo:
     output:
         join(dataset_resource_folder, "README.md")
     params:
@@ -35,7 +39,7 @@ checkpoint download_repo:
         "scripts/download_repo.sh {params.resource_folder}"
 
 
-checkpoint download_metadata:
+rule download_metadata:
     input:
         rules.download_repo.output
     output:
@@ -46,23 +50,36 @@ checkpoint download_metadata:
         "scripts/download_metadata.sh {params.dataset_resource_folder}"
 
 
-rule clean_metadata:
+checkpoint clean_metadata:
     input:
         rules.download_metadata.output
     output:
-        join(dataset_results_folder, "benchmark.csv")
+        csv=join(dataset_results_folder, "benchmark.csv")
     script:
         "scripts/clean_metadata.py"
 
 
 rule bind_structures:
     input:
-        join(dataset_resource_folder, "pdbs/{pdb_id}_r_b.pdb"),
-        join(dataset_resource_folder, "pdbs/{pdb_id}_l_b.pdb"),
+        antibody=join(dataset_resource_folder, "pdbs/{pdb_id}_r_b.pdb"),
+        antigen=join(dataset_resource_folder, "pdbs/{pdb_id}_l_b.pdb"),
+        csv=rules.clean_metadata.output.csv
     output:
         join(pdb_bound_folder, "{pdb_id}.pdb")
-    shell:
-        "cat {input} > {output}"
+    # conda:
+    #     join(project_root, "envs/generation_environment.yml")
+    run:
+        import pandas as pd
+
+        import subprocess
+
+        df = pd.read_csv(input.csv, index_col="pdb")
+        chain_infos = eval(df.loc[wildcards.pdb_id.lower(), "chain_infos"])  # only for replacement
+
+        replace_chain_commands="| ".join([f"pdb_rplchain -{old_chain}:{new_chain}" for old_chain, new_chain in chain_infos.items()])
+        cmd = f"cat {input.antibody} {input.antigen} | pdb_sort | pdb_tidy | pdb_delhetatm | {replace_chain_commands} > {output}"
+        print(cmd)
+        subprocess.run(cmd, shell=True, check=True)
 
 
 rule relax_structures:
