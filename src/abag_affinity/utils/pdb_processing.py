@@ -1,4 +1,5 @@
 """Process PDB file to get residue and atom encodings, node distances and edge encodings"""
+import tempfile
 import logging
 import os
 import re
@@ -385,7 +386,9 @@ def get_atom_edge_encodings(distance_matrix: np.ndarray, atom_encodings: np.ndar
 def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_file_path: Union[str, Path], fix_insert=True):
     Path(cleaned_file_path).parent.mkdir(exist_ok=True, parents=True)
 
-    tmp_pdb_filepath = f'{pdb_file_path}.{os.getpid()}.tmp'
+    with tempfile.NamedTemporaryFile(suffix=".tmp", delete=False) as tmp_file:
+        tmp_pdb_filepath = tmp_file.name
+
     shutil.copyfile(pdb_file_path, tmp_pdb_filepath)
 
     # remove additional models - only keep first model
@@ -398,11 +401,12 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_fil
     # identify antigen chain
     rename_fixinsert_command = ""
     df_map = pdb_chain_mapping(pdb_file_path)
-    antigen_chains = sorted(df_map[df_map["type"] == "A"]["abdb_label"].values)
+    if df_map is not None:
+        antigen_chains = sorted(df_map[df_map["type"] == "A"]["abdb_label"].values)
 
-    # assign chains ids from A to Z. I checked that this will not lead to conflicts with the original chain ids (in case of 2 or more antigen chains)
-    for new_id, chain in zip(string.ascii_uppercase, antigen_chains):
-        rename_fixinsert_command += f" | pdb_rplchain -{chain}:{new_id}"
+        # assign chains ids from A to Z. I checked that this will not lead to conflicts with the original chain ids (in case of 2 or more antigen chains)
+        for new_id, chain in zip(string.ascii_uppercase, antigen_chains):
+            rename_fixinsert_command += f" | pdb_rplchain -{chain}:{new_id}"
 
     if fix_insert:
         rename_fixinsert_command += " | pdb_fixinsert "
@@ -476,6 +480,7 @@ def pdb_chain_mapping(pdb_file: Union[str, Path]) -> pd.DataFrame:
             elif len(mapping) > 0:
                 break
         else:
-            logging.warning("pdb_file did not contain chain mapping. Assuming L,H,A")
-            mapping = [["L", "L", "L"], ["H", "H", "H"], ["A", "A", "A"]]
+            logging.warning("pdb_file did not contain chain mapping. Leaving chains as is.")
+            return  None
+            # mapping = [["L", "L", "L"], ["H", "H", "H"], ["A", "A", "A"]]
     return pd.DataFrame(data=mapping, columns=("type", "abdb_label", "original_label"))
