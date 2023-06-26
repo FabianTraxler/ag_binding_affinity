@@ -157,7 +157,7 @@ def parse_args() -> Namespace:
                           default=30)
 
     # general config
-    optional.add_argument("-w", "--num_workers", type=int, help="Number of workers to use for data loading", default=5)
+    optional.add_argument("-w", "--num_workers", type=int, help="Number of workers to use for data loading", default=0)
     optional.add_argument("--cross_validation", action=BooleanOptionalAction, help="Perform CV on all validation datasets", default=False)
     optional.add_argument("--number_cv_splits", type=int, help='The number of data splits for cross validation',
                           default=10)

@@ -2,7 +2,7 @@ import os
 import string
 import warnings
 from ast import literal_eval
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 import torch
 import numpy as np
 import pandas as pd
@@ -98,7 +98,7 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, of_embs: Dict, affinity: flo
         node_features = get_residue_encodings(residue_infos, structure_info)
 
         if of_embs:  # I think we need to inject them so harshly here, to facilitate backpropagation later. An alternative would be to load the OF data closer to the model..
-            node_features, matched_positions, matched_orientations, matched_residue_index, indices = get_residue_of_embeddings(residue_infos, of_embs)
+            node_features, matched_positions, matched_orientations, matched_residue_index, indices = get_residue_of_embeddings(residue_infos, of_embs, pdb_id)
             # fill residue_infos with matched positions and orientations
             for i in range(len(residue_infos)):
                 residue_infos[i]["matched_position"] = matched_positions[i]
@@ -426,7 +426,7 @@ def reduce2interface_hull(file_name: str, pdb_filepath: str,
 
         return interface_path
 
-def get_residue_of_embeddings(residue_infos: list, of_embs: Dict) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+def get_residue_of_embeddings(residue_infos: list, of_embs: Dict, pdb_id: Optional[str]=None) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Get embeddings calculated for each residue using OpenFold from an external file.
     1. Load embedding file
@@ -465,7 +465,7 @@ def get_residue_of_embeddings(residue_infos: list, of_embs: Dict) -> Tuple[torch
         try:
             n_elem = chain_res_id[0].nelement()
             if n_elem != 1:
-                raise ValueError(f'Expected 1 matching residue, but go {n_elem}')
+                raise ValueError(f'Expected 1 matching residue, but got {n_elem}')
 
             if 'residue_type' in res:  # TODO should be probably added in data_loader.py to make sure there is no error
                 aatype = of_embs["input_data"]["aatype"][chain_res_id][0]
@@ -484,7 +484,7 @@ def get_residue_of_embeddings(residue_infos: list, of_embs: Dict) -> Tuple[torch
         except ValueError as e:
             # if not warned:
             #     warned = True
-            logger.warning(f'{e}: PDBID: {of_embs[-9:-3]}, chain ID: {ord(res["chain_id"])}, residue ID: {res["residue_id"]}.')  # (Won\'t warn again.)
+            logger.warning(f'{e}: PDB ID: {pdb_id}, chain ID: {ord(res["chain_id"])}, residue ID: {res["residue_id"]}.')  # (Won\'t warn again.)
 
     matched_of_embs = matched_of_embs.numpy()
     return matched_of_embs, matched_positions, matched_orientations, matched_residue_index, indices
@@ -500,15 +500,31 @@ def of_embedding(data):
         of_embedding.openfold_model
     except AttributeError:
         of_embedding.openfold_model = OpenFoldWrapper()
-        of_embedding.openfold_model.freeze()
+        of_embedding.openfold_model.eval()
         of_embedding.property_norms = compute_mean_mad(diffusion_args.conditioning, diffusion_args.dataset)
 
     context = prepare_context(diffusion_args.conditioning, data, of_embedding.property_norms)  # relevant information: residue_index
     node_mask = context["node_mask"]
-
     data["positions"] = remove_mean(data["positions"], node_mask)  # compatibility with diffusion modeling
     t = 0
 
+    node_mask[:] = 1.
+
     features = of_embedding.openfold_model._prepare_features(t, data, node_mask, context)
     outputs = of_embedding.openfold_model.openfold_model(features)
+
+    outputs["input_data"] = data
+
+    for costly_item_key in [
+        "masked_msa_logits",
+        "pair",
+        "distogram_logits",
+        "tm_logits",
+        "predicted_tm_score",
+        "aligned_confidence_probs",
+        "predicted_aligned_error",
+        "max_predicted_aligned_error",
+    ]:
+        del outputs[costly_item_key]
+
     return outputs

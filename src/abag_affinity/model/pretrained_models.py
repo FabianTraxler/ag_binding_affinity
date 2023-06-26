@@ -254,9 +254,7 @@ class DiffusionPipelinePredictor(torch.nn.Module):
 
         # run the openfold model to get the embeddings (later, we should take these embeddings as input from somewhere)
 
-        # TODO move this one away! :)
         of_data = of_embedding(diffusion_data)  # TODO check that the correct residue_index is here, when running with cond_fn
-        of_data["input_data"] = diffusion_data
 
         # pass the single embeddings from OpenFold evoformer into the data dict
         assert of_data["single"].shape[0] == 1, "Only batch size 1 is supported"
