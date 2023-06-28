@@ -1039,7 +1039,11 @@ def evaluate_model(model: AffinityGNN, dataloader: DataLoader, criterion, args: 
             # break
 
     val_loss = total_loss_val / (len(all_predictions))
-    pearson_corr = stats.pearsonr(all_labels, all_predictions)[0]
+    try:
+        pearson_corr = stats.pearsonr(all_labels, all_predictions)[0]
+    except ValueError:
+        logging.warning(f"nan in predictions or labels:\n{all_labels}\n{all_predictions}")
+        pearson_corr = None
 
     # TODO pull out the plotting too
     if plot_path is not None:

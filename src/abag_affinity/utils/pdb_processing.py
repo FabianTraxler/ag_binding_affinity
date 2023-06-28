@@ -484,7 +484,7 @@ def pdb_chain_mapping(pdb_file: Union[str, Path]) -> pd.DataFrame:
             elif len(mapping) > 0:
                 break
         else:
-            logging.warning("pdb_file did not contain chain mapping.")
+            logging.debug("pdb_file did not contain chain mapping.")
             return  None
             # mapping = [["L", "L", "L"], ["H", "H", "H"], ["A", "A", "A"]]
     return pd.DataFrame(data=mapping, columns=("type", "abdb_label", "original_label"))

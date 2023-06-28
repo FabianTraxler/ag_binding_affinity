@@ -189,7 +189,7 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
     benchmark_correlation = []
     test_losses = []
     test_correlation = []
-    skempi_losses = [] 
+    skempi_losses = []
     skempi_correlation = []
     skempi_grouped_correlation = []
 

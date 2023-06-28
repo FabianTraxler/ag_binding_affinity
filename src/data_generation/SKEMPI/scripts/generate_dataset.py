@@ -70,9 +70,19 @@ def get_chain_info(row):
     """"
     Very similar to  get_chains in clean_metadata.py (antibody_benchmark)
     """
-    _, chain1, chain2 = row["#Pdb"].split("_")
+    pdb, chain1, chain2 = row["#Pdb"].split("_")
 
     info = {}
+
+    # normally, chain1 is the antibody and chain2 is the antigen. However, this is not always the case (wtf?) :/
+    if np.any([v in row["Protein 2"].lower() for v in ["igg", "fab", "fv", "antibody", "nanobody"]]) and not np.any([v in row["Protein 1"].lower() for v in ["igg", "fab", "fv", "antibody", "nanobody"]]):
+        print(f"Swapping chains for PDB {pdb} with names {row['Protein 1']} and {row['Protein 2']}")
+        chain1, chain2 = chain2, chain1
+
+    if set(chain2) == {"L", "H"}:
+        print(f"Swapping chains for PDB {pdb} because chain2 is LH")
+        chain1, chain2 = chain2, chain1
+
     for chain, new in zip(chain1, "HL"):  # NOTE: H is usually first, but not always
         info[chain] = new
     if "L" in info and "H" in info:

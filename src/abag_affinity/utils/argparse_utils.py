@@ -52,7 +52,7 @@ class BooleanOptionalAction(Action):
         return ' | '.join(self.option_strings)
 
 
-def parse_args() -> Namespace:
+def parse_args(artifical_args=None) -> Namespace:
     """ CLI arguments parsing functionality
 
     Parse all CLI arguments and set not available to default values
@@ -193,7 +193,8 @@ def parse_args() -> Namespace:
                           default=None)
     optional.add_argument("--embeddings_path", type=bool, default=True, help="Whether to use embeddings.")  # TODO no option to provide path at the moment
 
-    args = parser.parse_args()
+
+    args = parser.parse_args(artifical_args)
     args.config = read_config(args.config_file, args.relaxed_pdbs)
 
     if args.wandb_name == "":
