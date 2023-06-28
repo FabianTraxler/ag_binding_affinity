@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn.functional as F
-from typing import Tuple, Dict, List, Union
+from typing import Optional, Tuple, Dict, List, Union
 from parallel import submit_jobs
 import scipy.spatial as sp
 import logging
@@ -36,11 +36,12 @@ class AffinityDataset(Dataset):
     """
 
     def __init__(self, config: Dict,
-                 dataset_name: str, pdb_ids: List,
+                 dataset_name: str,
+                 pdb_ids: Optional[List] = None,
                  node_type: str = "residue",
-                 max_nodes: int = None,
+                 max_nodes: Optional[int] = None,
                  interface_distance_cutoff: int = 5,
-                 interface_hull_size: int = None,
+                 interface_hull_size: Optional[int] = None,
                  max_edge_distance: int = 5,
                  pretrained_model: str = "",
                  scale_values: bool = True, scale_min: int = 0, scale_max: int = 16,
@@ -368,8 +369,10 @@ class AffinityDataset(Dataset):
 
         return all_edges, edge_attributes
 
-    def get_node_features(self, data_file: Dict, of_features=False) -> np.ndarray:
+    def get_node_features(self, data_file: Dict) -> np.ndarray:
         """ Extract residue features from data dict
+
+        NOTE: This function shuffles the amino acid order if not all are taken
 
         Args:
             data_file: Dict containing all relevant information about the complex
@@ -379,6 +382,7 @@ class AffinityDataset(Dataset):
         """
         if self.max_nodes is not None:  # use only the n-closest nodes
             graph_nodes = data_file["closest_residues"][:self.max_nodes].astype(int)
+            logging.warning("Warning: Node order is impacted")
         elif self.interface_hull_size is not None:  # use only nodes in interface hull
             adjacency_matrix = data_file["adjacency_tensor"]
             # below interface distance threshold and not in same protein -> interface edge
@@ -389,8 +393,9 @@ class AffinityDataset(Dataset):
 
             interface_hull = np.where(adjacency_matrix[3, interface_nodes, :] < self.interface_hull_size)
             graph_nodes = np.unique(interface_hull[1])
+            logging.warning("Warning: Node order is impacted")
         else:  # use all nodes
-            graph_nodes = data_file["closest_residues"].astype(int)
+            graph_nodes = sorted(data_file["closest_residues"].astype(int))
 
         data_file["graph_nodes"] = graph_nodes
 
