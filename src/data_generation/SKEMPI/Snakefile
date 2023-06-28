@@ -6,6 +6,7 @@ from pathlib import Path
 
 DATASET_NAME = "SKEMPI_v2"
 REDUNDANCY_CUTOFF = 0.8
+ONLY_ABS = True  # The way it is implemented now, I am not sure if it works for other PPIs, because of chain renaming (no big deal, check generate_dataset.py). Also, we truncate L and H chains...
 
 dataset_metadata_file = "skempi_v2.csv"
 
@@ -23,40 +24,21 @@ pdb_relaxed_folder = os.path.join(dataset_results_folder, "pdbs_relaxed")
 pdb_folder = os.path.join(dataset_resource_folder, "pdbs")
 
 
-def gater_pdb_ids(wildcards):
-    file = checkpoints.download.get(**wildcards).output[0]
-    skempi_df = pd.read_csv(file, sep=";")
-    wiltype_pdbs = [pdb_id.split("_")[0] for pdb_id in skempi_df["#Pdb"].tolist()]
-    mutation_codes = skempi_df["Mutation(s)_cleaned"].tolist()
-    return expand(dataset_results_folder + '/mutated/{pdb_id}/original.pdb', pdb_id=wiltype_pdbs),\
-            expand(dataset_results_folder + "/mutated/{pdb_id}/{mutation}.pdb", zip, pdb_id=wiltype_pdbs, mutation=mutation_codes), \
-            expand(dataset_results_folder + "/mutated_relaxed/{pdb_id}/{mutation}.pdb", zip, pdb_id=wiltype_pdbs, mutation=mutation_codes), \
-            expand(dataset_results_folder + "/relaxed/{pdb_id}.pdb",  pdb_id=wiltype_pdbs), \
-            expand(dataset_results_folder + "/relaxed_mutated/{pdb_id}/{mutation}.pdb", zip, pdb_id=wiltype_pdbs, mutation=mutation_codes), \
-            expand(dataset_results_folder + "/relaxed_mutated_relaxed/{pdb_id}/{mutation}.pdb", zip, pdb_id=wiltype_pdbs, mutation=mutation_codes)
-
-
 def get_mutations(wildcards):
-    file = checkpoints.download.get(**wildcards).output[0]
-    skempi_df = pd.read_csv(file, sep=";")
-    # filter for interface residues
-    skempi_df = skempi_df[skempi_df["iMutation_Location(s)"].isin(["COR", "RIM", "SUP"])]  # SUR and INT are non-interface residues
-    skempi_df = skempi_df[skempi_df["Hold_out_type"].isin(["AB/AG", "Pr/PI", "AB/AG,Pr/PI"])]
-    wildtype_pdbs = [pdb_id.split("_")[0] for pdb_id in skempi_df["#Pdb"].tolist()]
-    mutation_codes = skempi_df["Mutation(s)_cleaned"].tolist()
-    for pdb in set(wildtype_pdbs):
-        wildtype_pdbs.append(pdb)
-        mutation_codes.append("original")
-    return expand(dataset_results_folder + "/mutated/{pdb_id}/{mutation}.pdb", zip, pdb_id=wildtype_pdbs, mutation=mutation_codes)
+    fn = checkpoints.generate_dataset.get(**wildcards).output[0]
+    skempi_df = pd.read_csv(fn)
+    # output_type=["mutated", "relaxed", "relaxed_mutated", "mutated_relaxed"]
+    return expand(dataset_results_folder + "/{output_type}/{fn}", output_type=["mutated_relaxed"], fn=skempi_df["filename"])
 
 
 rule final_output:
     input:
         #join(dataset_results_folder, "/skempi_generation_summary.csv"),
-        join(dataset_results_folder, "skempi_v2.csv"),
+        join(dataset_results_folder, dataset_metadata_file),
+        get_mutations
 
 
-checkpoint download:
+rule download:
     output:
         join(dataset_resource_folder, dataset_metadata_file),
         directory(pdb_folder)
@@ -66,16 +48,17 @@ checkpoint download:
         "scripts/download.sh {params.resource_folder} {output} "
 
 
-rule generate_dataset:
+checkpoint generate_dataset:
     input:
-        join(dataset_resource_folder, dataset_metadata_file),
-        get_mutations
+        join(dataset_resource_folder, dataset_metadata_file)
     output:
-        join(dataset_results_folder, "skempi_v2.csv"),
+        join(dataset_results_folder, dataset_metadata_file)
     params:
         abag_affinity_pdb_path = abag_affinity_pdb_path,
         abag_affinity_df_path = abag_affinity_df_path,
         redundancy_cutoff = REDUNDANCY_CUTOFF,
+        only_abs = ONLY_ABS,
+        check_redundancy = False,
         pdb_folder = join(dataset_results_folder, "mutated")
     conda:
         join(project_root, "envs/generation_environment.yml")
@@ -87,7 +70,7 @@ rule mutate_wildtype:
     input:
         join(pdb_folder, '{pdb_id}.pdb')
     output:
-        join(dataset_results_folder, "mutated", "{pdb_id}/{mutation}.pdb")
+        join(dataset_results_folder, "mutated_uncleaned", "{pdb_id}/{mutation}.pdb")
     conda:
         join(project_root,"envs/generation_environment.yml")
     script:
@@ -96,9 +79,9 @@ rule mutate_wildtype:
 
 rule relax_mutated:
     input:
-        join(dataset_results_folder, "mutated", "{pdb_id}/{mutation}.pdb")
+        join(dataset_results_folder, "mutated_uncleaned", "{pdb_id}/{mutation}.pdb")
     output:
-        join(dataset_results_folder, "mutated_relaxed", "{pdb_id}/{mutation}.pdb")
+        join(dataset_results_folder, "mutated_relaxed_uncleaned", "{pdb_id}/{mutation}.pdb")
     conda:
         join(project_root,"envs/generation_environment.yml")
     resources:
@@ -112,7 +95,7 @@ rule relax_wildtype:
     input:
         join(pdb_folder, '{pdb_id}.pdb')
     output:
-        join(dataset_results_folder, "relaxed", "{pdb_id}.pdb")
+        join(dataset_results_folder, "relaxed_uncleaned", "{pdb_id}.pdb")
     conda:
         join(project_root,"envs/generation_environment.yml")
     resources:
@@ -123,12 +106,24 @@ rule relax_wildtype:
 
 rule mutate_relaxed_wildtype:
     input:
-        join(dataset_results_folder, "relaxed", "{pdb_id}.pdb")
+        join(dataset_results_folder, "relaxed_uncleaned", "{pdb_id}.pdb")
     output:
-        join(dataset_results_folder,"relaxed_mutated", "{pdb_id}/{mutation}.pdb")
+        join(dataset_results_folder,"relaxed_mutated_uncleaned", "{pdb_id}/{mutation}.pdb")
     conda:
         join(project_root,"envs/generation_environment.yml")
     script:
         "scripts/mutate.py"
 
-
+# clean all pdbs, renaming chains on the way and truncate ABs!
+rule clean_pdbs:
+    input:
+        pdb=join(dataset_results_folder, "{folder}_uncleaned", "{pdb_id}/{mutation}.pdb"),
+        skempi_df=join(dataset_results_folder, dataset_metadata_file)
+    output:
+        join(dataset_results_folder, "{folder,(relaxed|mutated|_)+}", "{pdb_id}/{mutation}.pdb")
+    conda:
+        "ag_binding_diffusion3"   # conda env loading does not work with "script:"  https://github.com/snakemake/snakemake/issues/1811
+    # script:
+    #     "scripts/clean_pdb.py"
+    shell:
+        "python scripts/clean_pdb.py {input.pdb} {output} {input.skempi_df} {wildcards.pdb_id}"
