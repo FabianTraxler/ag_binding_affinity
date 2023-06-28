@@ -8,7 +8,7 @@ import string
 import subprocess
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple, Union, Optional
 import numpy as np
 import pandas as pd
 import scipy.spatial as sp
@@ -484,7 +484,7 @@ def pdb_chain_mapping(pdb_file: Union[str, Path]) -> pd.DataFrame:
             elif len(mapping) > 0:
                 break
         else:
-            logging.warning("pdb_file did not contain chain mapping. Leaving chains as is.")
+            logging.warning("pdb_file did not contain chain mapping.")
             return  None
             # mapping = [["L", "L", "L"], ["H", "H", "H"], ["A", "A", "A"]]
     return pd.DataFrame(data=mapping, columns=("type", "abdb_label", "original_label"))

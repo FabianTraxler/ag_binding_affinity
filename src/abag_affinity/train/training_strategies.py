@@ -11,7 +11,7 @@ import random
 from collections import Counter
 
 from ..utils.config import read_config, get_data_paths
-from .utils import load_model, load_datasets, train_loop, finetune_pretrained, bucket_learning, get_benchmark_score, \
+from .utils import get_skempi_corr, load_model, load_datasets, train_loop, finetune_pretrained, bucket_learning, get_benchmark_score, \
     get_abag_test_score
 from ..model.gnn_model import AffinityGNN
 
@@ -189,6 +189,9 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
     benchmark_correlation = []
     test_losses = []
     test_correlation = []
+    skempi_losses = [] 
+    skempi_correlation = []
+    skempi_grouped_correlation = []
 
     training = {
         "bucket_train": bucket_train,
@@ -200,6 +203,9 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
     summary_path, _ = get_data_paths(args.config, "abag_affinity")
     summary_df = pd.read_csv(summary_path, index_col=0)
     n_splits = summary_df["validation"].max() + 1
+
+
+    Path(os.path.join(args.config["prediction_path"], experiment_name)).mkdir(exist_ok=True, parents=True)
 
     for i in range(1, n_splits):
         logger.info("\nValidation on split {} and training with all other splits".format(i))
@@ -218,29 +224,39 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
 
         all_results[i] = results
 
-        benchmark_plot_path = os.path.join(args.config["plot_path"], experiment_name,
-                                           f"benchmark_cv{args.validation_set}.png")
-        benchmark_results_path = os.path.join(args.config["prediction_path"], experiment_name,
-                                           f"benchmark_cv{args.validation_set}.csv")
-        benchmark_pearson, benchmark_loss = get_benchmark_score(best_model, args, tqdm_output=args.tqdm_output,
-                                                                plot_path=benchmark_plot_path,
-                                                                results_path=benchmark_results_path)
+        # SKEMPI results
+        skempi_test_plot_path = os.path.join(args.config["plot_path"], experiment_name,
+                                            f"skempi_score_test_cv{args.validation_set}.png")
+        test_skempi_grouped_corrs, test_skempi_score, test_loss_skempi, test_skempi_df = get_skempi_corr(best_model, args, tqdm_output=args.tqdm_output,
+                                                              plot_path=skempi_test_plot_path)
+        test_skempi_df.to_csv(os.path.join(args.config["prediction_path"], experiment_name, f"skempi_score_test_cv{args.validation_set}.csv"))
+
+        skempi_grouped_correlation.append(test_skempi_grouped_corrs)
+        skempi_correlation.append(test_skempi_score)
+        skempi_losses.append(test_loss_skempi)
+        logger.info(f"SKEMPI testset results >>> {test_skempi_score}")
+
+
+        # Benchmark results
+        benchmark_plot_path = os.path.join(args.config["plot_path"], experiment_name, f"benchmark_cv{args.validation_set}.png")
+        benchmark_pearson, benchmark_loss, benchmark_df = get_benchmark_score(best_model, args, tqdm_output=args.tqdm_output, plot_path=benchmark_plot_path)
+        benchmark_df.to_csv(os.path.join(args.config["prediction_path"], experiment_name, f"benchmark_cv{args.validation_set}.csv"))
 
         benchmark_losses.append(benchmark_loss)
         benchmark_correlation.append(benchmark_pearson)
         logger.info(f"Benchmark results >>> {benchmark_pearson}")
 
+        # ABAG Test set results
         abag_test_plot_path = os.path.join(args.config["plot_path"], experiment_name,
                                            f"abag_affinity_test_cv{args.validation_set}.png")
-        abag_test_results_path = os.path.join(args.config["prediction_path"], experiment_name,
-                                              f"abag_affinity_test_cv{args.validation_set}.csv")
-        test_pearson, test_loss = get_abag_test_score(best_model, args, tqdm_output=args.tqdm_output,
+        test_pearson, test_loss, test_df = get_abag_test_score(best_model, args, tqdm_output=args.tqdm_output,
                                                       plot_path=abag_test_plot_path,
-                                                      results_path=abag_test_results_path,
                                                       validation_set=i)
+        test_df.to_csv(os.path.join(args.config["prediction_path"], experiment_name, f"abag_affinity_test_cv{args.validation_set}.csv"))
         test_losses.append(test_loss)
         test_correlation.append(test_pearson)
         logger.info(f"AbAg-Affinity testset results >>> {test_pearson}")
+
 
     logger.info("Average Loss: {} ({})".format(np.mean(losses), np.std(losses)))
     logger.info("Losses: {}".format(" - ".join([ str(loss) for loss in losses ])))
@@ -248,10 +264,14 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
     logger.info("Correlations: {}".format(" - ".join([ str(corr) for corr in correlations ])))
 
     logger.info("Average Pearson Correlation Benchmark: {} ({})".format(np.mean(benchmark_correlation), np.std(benchmark_correlation)))
-    logger.info("Benchmark Correlations: {}".format(" - ".join([ str(corr) for corr in benchmark_correlation ])))
+    logger.info("Benchmark correlations: {}".format(" - ".join([ str(corr) for corr in benchmark_correlation])))
 
     logger.info("Average Pearson Correlation AbAg testset: {} ({})".format(np.mean(test_correlation), np.std(test_correlation)))
-    logger.info("AbAg testset Correlations: {}".format(" - ".join([ str(corr) for corr in test_correlation ])))
+    logger.info("AbAg testset correlations: {}".format(" - ".join([ str(corr) for corr in test_correlation])))
+
+    logger.info("Average PDB-grouped Pearson Correlation SKEMPI testset: {} ({})".format(np.mean(skempi_grouped_correlation), np.std(skempi_grouped_correlation)))
+    logger.info("Average Pearson Correlation SKEMPI testset: {} ({})".format(np.mean(skempi_correlation), np.std(skempi_correlation)))
+    logger.info("Skempi testset correlations: {}".format(" - ".join([ str(corr) for corr in skempi_correlation])))
 
     return None, all_results
 

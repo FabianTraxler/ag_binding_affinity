@@ -28,7 +28,7 @@ def get_mutations(wildcards):
     fn = checkpoints.generate_dataset.get(**wildcards).output[0]
     skempi_df = pd.read_csv(fn)
     # output_type=["mutated", "relaxed", "relaxed_mutated", "mutated_relaxed"]
-    return expand(dataset_results_folder + "/{output_type}/{fn}", output_type=["mutated_relaxed"], fn=skempi_df["filename"])
+    return expand(dataset_results_folder + "/{output_type}/{fn}", output_type=["mutated_relaxed", "mutated"], fn=skempi_df["filename"])
 
 
 rule final_output:

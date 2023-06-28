@@ -1,7 +1,9 @@
+from collections import defaultdict, deque
 import random
 import pandas as pd
 from pathlib import Path
 import numpy as np
+import string
 from typing import List
 import os
 from Bio.SeqUtils import seq1
@@ -11,24 +13,20 @@ from Bio.PDB.PDBParser import PDBParser
 import warnings
 warnings.filterwarnings("ignore")
 
-if "snakemake" not in globals(): # use fake snakemake object for debugging
-    project_root =  "../../../../" # three directories above
-    folder_path = os.path.join(project_root, "resources", "SKEMPI_v2")
+# if "snakemake" not in globals(): # use fake snakemake object for debugging
+#     project_root =  "../../../../" # three directories above
+#     folder_path = os.path.join(project_root, "resources", "SKEMPI_v2")
 
-    publication = "phillips21_bindin"
-    snakemake = type('', (), {})()
-    snakemake.input = [os.path.join(folder_path, "skempi_v2.csv")]
-    snakemake.output = [os.path.join(project_root, "results", "SKEMPI_v2", "skempi_v2.csv")]
+#     publication = "phillips21_bindin"
+#     snakemake = type('', (), {})()
+#     snakemake.input = [os.path.join(folder_path, "skempi_v2.csv")]
+#     snakemake.output = [os.path.join(project_root, "results", "SKEMPI_v2", "skempi_v2.csv")]
 
-    snakemake.params = {}
-    snakemake.params["pdb_folder"] = os.path.join(project_root, "results", "SKEMPI_v2", "mutated")
-    snakemake.params["abag_affinity_df_path"] = "/home/fabian/Desktop/Uni/Masterthesis/ag_binding_affinity/results/abag_affinity_dataset/abag_affinity_dataset.csv"
-    snakemake.params["abag_affinity_pdb_path"] = "/home/fabian/Desktop/Uni/Masterthesis/ag_binding_affinity/results/abag_affinity_dataset/pdbs"
-    snakemake.params["redundancy_cutoff"] = 80
-
-
-
-
+#     snakemake.params = {}
+#     snakemake.params["pdb_folder"] = os.path.join(project_root, "results", "SKEMPI_v2", "mutated")
+#     snakemake.params["abag_affinity_df_path"] = "/home/fabian/Desktop/Uni/Masterthesis/ag_binding_affinity/results/abag_affinity_dataset/abag_affinity_dataset.csv"
+#     snakemake.params["abag_affinity_pdb_path"] = "/home/fabian/Desktop/Uni/Masterthesis/ag_binding_affinity/results/abag_affinity_dataset/pdbs"
+#     snakemake.params["redundancy_cutoff"] = 80
 
 out_path = snakemake.output[0]
 Path(out_path).parent.mkdir(parents=True, exist_ok=True)
@@ -69,14 +67,53 @@ def clean_temp(value):
 
 
 def get_chain_info(row):
+    """"
+    Very similar to  get_chains in clean_metadata.py (antibody_benchmark)
+    """
     _, chain1, chain2 = row["#Pdb"].split("_")
 
     info = {}
-    for chain in chain1:
-        info[chain.lower()] = 0
-    for chain in chain2:
-        info[chain.lower()] = 1
-    return info
+    for chain, new in zip(chain1, "HL"):  # NOTE: H is usually first, but not always
+        info[chain] = new
+    if "L" in info and "H" in info:
+        del info["L"]
+        del info["H"]
+    for chain, new in zip(chain2, string.ascii_uppercase):
+        info[chain] = new
+
+    def order_substitutions(substitutions):
+        """
+        Order substiutions to avoid chain overlaps (and thereby loss of chain information)
+        """
+        # Create a dependency graph with nodes as keys and values
+        graph = defaultdict(list)
+        for src, dest in substitutions.items():
+            graph[src].append(dest)
+
+        # Perform a topological sorting on the graph
+        sorted_nodes = []
+        visited = set()
+        stack = deque()
+
+        def visit(node):
+            if node not in visited:
+                visited.add(node)
+                for neighbor in graph[node]:
+                    visit(neighbor)
+                stack.appendleft(node)
+
+        for node in list(graph.keys()):
+            visit(node)
+
+        # Apply substitutions in the sorted order
+        result = {}
+        for node in reversed(stack):
+            if node in substitutions:
+                result[node] = substitutions[node]
+
+        return result
+
+    return order_substitutions(info)
 
 
 def get_index(row):
@@ -175,8 +212,11 @@ for i in range(1, num_splits + 1):
     random.shuffle(pdbs)
     for pdb in pdbs:
         filename = clean_skempi[clean_skempi["pdb"] == pdb]['filename'].tolist()[0]
-        redundant, own_chain, pdb_id, chain, score = is_redundant(filename, val_pdbs, pdb_paths,
-                                                                  redudancy_cutoff=snakemake.params["redundancy_cutoff"])
+        if snakemake.params.check_redundancy:
+            redundant, own_chain, pdb_id, chain, score = is_redundant(filename, val_pdbs, pdb_paths,
+                                                                    redudancy_cutoff=snakemake.params["redundancy_cutoff"])
+        else:
+            redundant = False
 
         if redundant or pdb in val_pdbs.tolist():  # add to valdiation set if there is a redudancy to abag_validation set
             valset_count += 1
@@ -184,11 +224,18 @@ for i in range(1, num_splits + 1):
 
     if valset_count / len(pdbs) < 0.1:
         diff = int(0.1 * len(clean_skempi["pdb"].unique()) - valset_count)
-        possible_pbds = clean_skempi[(~clean_skempi["pdb"].isin(valset_ids))]["pdb"].unique()
-        additional_pdbs = random.sample(possible_pbds, diff)
+        possible_pdbs = clean_skempi[(~clean_skempi["pdb"].isin(valset_ids))]["pdb"].unique()
+        additional_pdbs = random.sample(list(possible_pdbs), diff)
         valset_ids.update(additional_pdbs)
         valset_count = len(valset_ids)
 
     clean_skempi.loc[clean_skempi["pdb"].isin(valset_ids), "validation"] += str(i)
+
+if snakemake.params.only_abs:
+    selected_pdbs = skempi_df.loc[skempi_df["Hold_out_type"] == "AB/AG", "#Pdb"].drop_duplicates()
+    selected_pdbs = selected_pdbs.apply(lambda v: v.split("_")[0].lower()).drop_duplicates()
+    # These PDBs have more than 11000 lines and their antigens have >= 350 residues, so we filter them for simplicity
+    blacklist_pdbs = "4KRP 3W2D 2VIR 2VIS 4KRO 1NCA 3NGB 3SE8 3SE9 5C6T 1N8Z 3N85 1YY9 2NZ9 2NYY 4NM8 4GXU".lower().split(" ")
+    clean_skempi = clean_skempi[clean_skempi["pdb"].isin(selected_pdbs.values) & ~(clean_skempi["pdb"].isin(blacklist_pdbs))]
 
 clean_skempi.to_csv(out_path)

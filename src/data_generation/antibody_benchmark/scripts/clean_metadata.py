@@ -77,7 +77,7 @@ def get_chains(complex_name: str) -> Dict:
 
         # Apply substitutions in the sorted order
         result = {}
-        for node in stack:
+        for node in reversed(stack):
             if node in substitutions:
                 result[node] = substitutions[node]
 
