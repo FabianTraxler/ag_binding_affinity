@@ -132,6 +132,7 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
 
         loss.backward()
         optimizer.step()
+        # break
 
     total_loss_val = 0
     all_predictions = np.array([])
@@ -172,6 +173,9 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
             all_pdbs.extend([ filepath.split("/")[-1].split(".")[0] for filepath in data["input"]["filepath"]])
         all_labels = np.append(all_labels, label.numpy())
         all_predictions = np.append(all_predictions, output["x"].flatten().detach().cpu().numpy())
+
+        # if len(all_predictions) > 2:
+        #     break
 
     val_loss = total_loss_val / (len(all_predictions) + len(all_binary_predictions))
     if len(all_binary_labels) > 0:
@@ -1031,6 +1035,8 @@ def evaluate_model(model: AffinityGNN, dataloader: DataLoader, criterion, args: 
             label = label.detach().cpu()
         all_labels = np.append(all_labels, label.numpy())
         all_pdbs.extend([ filepath.split("/")[-1].split(".")[0] for filepath in data["input"]["filepath"]])
+        # if len(all_labels) > 2:
+            # break
 
     val_loss = total_loss_val / (len(all_predictions))
     pearson_corr = stats.pearsonr(all_labels, all_predictions)[0]
