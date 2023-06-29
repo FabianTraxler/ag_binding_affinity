@@ -133,7 +133,7 @@ class RegressionHead(torch.nn.Module):
 
         if len(x) == 0:
             logging.warning("No interface. Returning 0")
-            return 0
+            return torch.tensor([0.0]).to(x)
 
         # compute node-wise affinity contribution from graph embedding
         for fc_layer in self.fc_layers[:-1]:

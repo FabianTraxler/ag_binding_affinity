@@ -224,6 +224,15 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
 
         all_results[i] = results
 
+        # Benchmark results
+        benchmark_plot_path = os.path.join(args.config["plot_path"], experiment_name, f"benchmark_cv{args.validation_set}.png")
+        benchmark_pearson, benchmark_loss, benchmark_df = get_benchmark_score(best_model, args, tqdm_output=args.tqdm_output, plot_path=benchmark_plot_path)
+        benchmark_df.to_csv(os.path.join(args.config["prediction_path"], experiment_name, f"benchmark_cv{args.validation_set}.csv"))
+
+        benchmark_losses.append(benchmark_loss)
+        benchmark_correlation.append(benchmark_pearson)
+        logger.info(f"Benchmark results >>> {benchmark_pearson}")
+
         # SKEMPI results
         skempi_test_plot_path = os.path.join(args.config["plot_path"], experiment_name,
                                             f"skempi_score_test_cv{args.validation_set}.png")
@@ -235,16 +244,6 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
         skempi_correlation.append(test_skempi_score)
         skempi_losses.append(test_loss_skempi)
         logger.info(f"SKEMPI testset results >>> {test_skempi_score}")
-
-
-        # Benchmark results
-        benchmark_plot_path = os.path.join(args.config["plot_path"], experiment_name, f"benchmark_cv{args.validation_set}.png")
-        benchmark_pearson, benchmark_loss, benchmark_df = get_benchmark_score(best_model, args, tqdm_output=args.tqdm_output, plot_path=benchmark_plot_path)
-        benchmark_df.to_csv(os.path.join(args.config["prediction_path"], experiment_name, f"benchmark_cv{args.validation_set}.csv"))
-
-        benchmark_losses.append(benchmark_loss)
-        benchmark_correlation.append(benchmark_pearson)
-        logger.info(f"Benchmark results >>> {benchmark_pearson}")
 
         # ABAG Test set results
         abag_test_plot_path = os.path.join(args.config["plot_path"], experiment_name,

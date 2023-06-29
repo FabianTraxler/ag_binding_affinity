@@ -487,6 +487,8 @@ def get_residue_of_embeddings(residue_infos: list, of_embs: Dict, pdb_id: Option
             logger.warning(f'{e}: PDB ID: {pdb_id}, chain ID: {ord(res["chain_id"])}, residue ID: {res["residue_id"]}.')  # (Won\'t warn again.)
 
     matched_of_embs = matched_of_embs.numpy()
+    if torch.any(matched_residue_index == -1):
+        raise ValueError("Unmatched amino acids. What to do?")
     return matched_of_embs, matched_positions, matched_orientations, matched_residue_index, indices
 
 def of_embedding(data):

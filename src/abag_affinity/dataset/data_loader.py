@@ -277,6 +277,7 @@ class AffinityDataset(Dataset):
         Returns:
             None
         """
+        raise NotImplementedError("For simiplicity, I would abandon this function?")
 
         graph_dict = load_graph_dict(row, self.dataset_name, self.config, self.interface_dir,
                                      node_type=self.node_type,
@@ -463,6 +464,7 @@ class AffinityDataset(Dataset):
 
             if self.save_graphs and not os.path.exists(file_path):
                 graph_dict.pop("atom_names", None)  # remove unnecessary information that takes lot of storage
+                assert len(graph_dict["node_features"]) == len(graph_dict["closest_residues"])
                 np.savez_compressed(file_path, **graph_dict)
 
         return graph_dict
@@ -563,7 +565,7 @@ class AffinityDataset(Dataset):
         """
 
         if self.interface_hull_size is None or self.interface_hull_size == "":
-            filepath = os.path.join(self.interface_dir, df_idx + ".pdb")
+            filepath = os.path.join(self.interface_dir, df_idx + ".pdb")  # TODO this is wrong. We don't use self.interface_dir at the moment
         else:
             filepath = os.path.join(self.interface_dir, f"interface_hull_{self.interface_hull_size}", df_idx + ".pdb")
 
