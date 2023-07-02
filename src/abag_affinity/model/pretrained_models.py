@@ -4,19 +4,15 @@ from pathlib import Path
 import torch
 from torch import device
 from typing import Dict
-from abag_affinity.dataset.utils import get_residue_embeddings
+from abag_affinity.dataset.utils import get_residue_embeddings, of_embedding
 
 from openfold.utils.tensor_utils import tensor_tree_map
 from guided_protein_diffusion.datasets import input_pipeline
 from guided_protein_diffusion.datasets.loader import common_processing
-from guided_protein_diffusion.datasets.data_utils import compute_mean_mad
 from guided_protein_diffusion.config import get_path, args as diffusion_args
 from guided_protein_diffusion.datasets.abdb import AbDbDataset
-from guided_protein_diffusion.diffusion.context import prepare_context
-from guided_protein_diffusion.diffusion.utils import remove_mean
 
 from openfold.model.primitives import LayerNorm
-from guided_protein_diffusion.diffusion.denoising_module import OpenFoldWrapper
 
 # Binding_dgg modules
 from abag_affinity.binding_ddg_predictor.models.predictor import DDGPredictor
@@ -214,19 +210,12 @@ class DiffusionPipelinePredictor(torch.nn.Module):
 
         self.model_type = "Diffusion"
 
-        from guided_protein_diffusion.utils.interact import init_interactive_environment
-
-        init_interactive_environment(
-            ["--dataset", "abdb", "--openfold_time_injection_alpha", "0.0", "--antigen_conditioning"]
-        )  # implies --testing
         assert diffusion_args.batch_size == 1
 
         self.diffusion_dataset = AbDbDataset(root=get_path(["datasets", "abdb"]), max_antigen_length=350)
 
         self.ipa_binding_embedder = IPABindingEmbedder(*args, **kwargs)
-        self.openfold_model = OpenFoldWrapper()
 
-        self.property_norms = compute_mean_mad(diffusion_args.conditioning, diffusion_args.dataset)
 
         # TODO create a mapping between pdb_fn and index. also, make sure to get the pdb_fn from affinity_pipeline
         self.pdb_fn_to_index = {d["pdb_fn"].lower(): i for i, d in enumerate(self.diffusion_dataset)}
@@ -236,6 +225,8 @@ class DiffusionPipelinePredictor(torch.nn.Module):
     def _load_diffusion_data(self, data: Dict) -> Dict:
         """
         Load data from Diffusion pipeline DataLoader
+
+        Alternative would be to use load_protein()
         """
         pdb_fn = Path(data["filepath"][0]).stem
         index = self.pdb_fn_to_index[pdb_fn.lower()]
@@ -248,21 +239,6 @@ class DiffusionPipelinePredictor(torch.nn.Module):
         diffusion_data = common_processing(diffusion_data)
 
         return tensor_tree_map(lambda x: x.to(diffusion_args.device), diffusion_data)
-
-    def of_embedding(self, data):
-        """
-        copied from generate_of_embeddings.py
-        Returns: A dict with all AlphaFold outputs. "pair" and "single" are the representations that go into the structure_module. "sm" contains all fields genereated by the structure_module, including its intermediiary "s" states
-        """
-        context = prepare_context(diffusion_args.conditioning, data, self.property_norms)  # relevant information: residue_index
-        node_mask = context["node_mask"]
-
-        data["positions"] = remove_mean(data["positions"], node_mask)  # compatibility with diffusion modeling
-        t = 0
-        features = self.openfold_model._prepare_features(t, data, node_mask, context)
-        outputs = self.openfold_model.openfold_model(features)
-        return outputs
-
 
     def forward(self, affinity_data: Dict) -> Dict:
         """
@@ -277,7 +253,9 @@ class DiffusionPipelinePredictor(torch.nn.Module):
         diffusion_data = self._load_diffusion_data(affinity_data)
 
         # run the openfold model to get the embeddings (later, we should take these embeddings as input from somewhere)
-        of_data = self.of_embedding(diffusion_data)  # TODO check that the correct residue_index is here, when running with cond_fn
+
+        # TODO move this one away! :)
+        of_data = of_embedding(diffusion_data)  # TODO check that the correct residue_index is here, when running with cond_fn
         of_data["input_data"] = diffusion_data
 
         # pass the single embeddings from OpenFold evoformer into the data dict
@@ -302,7 +280,6 @@ class DiffusionPipelinePredictor(torch.nn.Module):
         """
         Freeze the component of the model for which weights have been loaded
         """
-        self.openfold_model.freeze_published_weights()
         self.ipa_binding_embedder.freeze_ipa()
 
     def unfreeze(self):

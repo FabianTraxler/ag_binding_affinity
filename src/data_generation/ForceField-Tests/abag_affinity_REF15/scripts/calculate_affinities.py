@@ -36,9 +36,9 @@ scorefxn = pyrosetta.get_fa_scorefxn()
 packer = pyrosetta.rosetta.protocols.minimization_packing.PackRotamersMover(scorefxn)
 
 comparisons = [
-    ("bound_wildtype", "unbound_wildtype"),
-    ("bound_wildtype", "unbound_relaxed"),
-    ("bound_relaxed", "relaxed_unbound"),
+    # ("bound_wildtype", "unbound_wildtype"),
+    # ("bound_wildtype", "unbound_relaxed"),
+    # ("bound_relaxed", "relaxed_unbound"),
     ("bound_relaxed", "relaxed_unbound_relaxed")
 ]
 

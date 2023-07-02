@@ -640,7 +640,8 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
                                  save_graphs=args.save_graphs,
                                  force_recomputation=args.force_recomputation,
                                  preprocess_data=args.preprocess_graph,
-                                 num_threads=args.num_workers
+                                 num_threads=args.num_workers,
+                                 load_embeddings=args.embeddings_path
                                  )
     val_data = AffinityDataset(config, dataset_name, val_ids,
                                node_type=args.node_type,
@@ -656,7 +657,8 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
                                save_graphs=args.save_graphs,
                                force_recomputation=args.force_recomputation,
                                preprocess_data=args.preprocess_graph,
-                               num_threads=args.num_workers
+                               num_threads=args.num_workers,
+                               load_embeddings=args.embeddings_path
                                )
 
     return train_data, val_data
@@ -1077,7 +1079,8 @@ def get_benchmark_score(model: AffinityGNN, args: Namespace, tqdm_output: bool =
                               save_graphs=args.save_graphs,
                               force_recomputation=args.force_recomputation,
                               preprocess_data=args.preprocess_graph,
-                              num_threads=args.num_workers
+                              num_threads=args.num_workers,
+                              load_embeddings=args.embeddings_path
                               )
 
     dataloader = DL_torch(dataset, num_workers=args.num_workers, batch_size=1,
@@ -1118,7 +1121,8 @@ def get_abag_test_score(model: AffinityGNN, args: Namespace, tqdm_output: bool =
                               save_graphs=args.save_graphs,
                               force_recomputation=args.force_recomputation,
                               preprocess_data=args.preprocess_graph,
-                              num_threads=args.num_workers
+                              num_threads=args.num_workers,
+                              load_embeddings=args.embeddings_path
                               )
 
     dataloader = DL_torch(dataset, num_workers=args.num_workers, batch_size=1,

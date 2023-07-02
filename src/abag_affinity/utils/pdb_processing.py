@@ -1,4 +1,6 @@
 """Process PDB file to get residue and atom encodings, node distances and edge encodings"""
+import tempfile
+import logging
 import os
 import re
 import shutil
@@ -123,7 +125,8 @@ def get_residue_infos(structure: Structure) -> Tuple[Dict, List[Dict], np.ndarra
         for residue in chain.get_residues():
             # get atom coordinates
             try:
-                all_atom_coordinates = get_residue_pos14(residue).numpy()
+                all_atom_coordinates, atom_names = get_residue_pos14(residue)
+                all_atom_coordinates = all_atom_coordinates.numpy()
                 assert np.isfinite(all_atom_coordinates[0:3,:]).all()
             except Exception as e:
                 continue # filter HETATOMs
@@ -135,7 +138,8 @@ def get_residue_infos(structure: Structure) -> Tuple[Dict, List[Dict], np.ndarra
                 residue_type = NON_STANDARD_SUBSTITUTIONS[residue.resname.upper()]
 
             # extract names of atoms (for atom encodings)
-            atom_names = [atom.get_name() for atom in residue.get_atoms()]
+            if atom_names != [atom.get_name() for atom in residue.get_atoms()]:
+                logging.info("Atom names are not in the expected order (in provided PDB)!")
 
             antibody = (chain.id.upper() in 'LH')
 
@@ -148,7 +152,7 @@ def get_residue_infos(structure: Structure) -> Tuple[Dict, List[Dict], np.ndarra
                 "on_chain_residue_idx": on_chain_residue_idx,
                 "all_atom_coordinates": all_atom_coordinates,
                 "antibody": antibody,
-                "atom_names": atom_names  # TODO this is wrong! Here, CB is BEFORE 'O': ['N', 'CA', 'C', 'CB', 'O', 'CG', 'ND2', 'OD1']. In contrast, get_residue_pos14 returns order: ['N', 'CA', 'C', 'O', 'CB', 'CG', 'ND2', 'OD1']
+                "atom_names": atom_names  # TODO this might be wrong in some cases (probably with broken PDB)! Here, CB is BEFORE 'O': ['N', 'CA', 'C', 'CB', 'O', 'CG', 'ND2', 'OD1']. In contrast, get_residue_pos14 returns order: ['N', 'CA', 'C', 'O', 'CB', 'CG', 'ND2', 'OD1']
             }
 
             residue_infos.append(residue_info)
@@ -382,7 +386,9 @@ def get_atom_edge_encodings(distance_matrix: np.ndarray, atom_encodings: np.ndar
 def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_file_path: Union[str, Path], fix_insert=True):
     Path(cleaned_file_path).parent.mkdir(exist_ok=True, parents=True)
 
-    tmp_pdb_filepath = f'{pdb_file_path}.{os.getpid()}.tmp'
+    with tempfile.NamedTemporaryFile(suffix=".tmp", delete=False) as tmp_file:
+        tmp_pdb_filepath = tmp_file.name
+
     shutil.copyfile(pdb_file_path, tmp_pdb_filepath)
 
     # remove additional models - only keep first model
@@ -395,11 +401,12 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_fil
     # identify antigen chain
     rename_fixinsert_command = ""
     df_map = pdb_chain_mapping(pdb_file_path)
-    antigen_chains = sorted(df_map[df_map["type"] == "A"]["abdb_label"].values)
+    if df_map is not None:
+        antigen_chains = sorted(df_map[df_map["type"] == "A"]["abdb_label"].values)
 
-    # assign chains ids from A to Z. I checked that this will not lead to conflicts with the original chain ids (in case of 2 or more antigen chains)
-    for new_id, chain in zip(string.ascii_uppercase, antigen_chains):
-        rename_fixinsert_command += f" | pdb_rplchain -{chain}:{new_id}"
+        # assign chains ids from A to Z. I checked that this will not lead to conflicts with the original chain ids (in case of 2 or more antigen chains)
+        for new_id, chain in zip(string.ascii_uppercase, antigen_chains):
+            rename_fixinsert_command += f" | pdb_rplchain -{chain}:{new_id}"
 
     if fix_insert:
         rename_fixinsert_command += " | pdb_fixinsert "
@@ -473,5 +480,7 @@ def pdb_chain_mapping(pdb_file: Union[str, Path]) -> pd.DataFrame:
             elif len(mapping) > 0:
                 break
         else:
-            raise ValueError("pdb_file did not contain chain mapping")
+            logging.warning("pdb_file did not contain chain mapping. Leaving chains as is.")
+            return  None
+            # mapping = [["L", "L", "L"], ["H", "H", "H"], ["A", "A", "A"]]
     return pd.DataFrame(data=mapping, columns=("type", "abdb_label", "original_label"))

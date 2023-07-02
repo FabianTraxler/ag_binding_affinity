@@ -85,12 +85,14 @@ def get_atom_name_postfix(atom):
 
 def get_residue_pos14(res):
     pos14 = torch.full([14, 3], float('inf'))
+    atom_names = []
     suffix_to_atom = {get_atom_name_postfix(a):a for a in res.get_atoms()}
     atom_order = ['N', 'CA', 'C', 'O'] + RESIDUE_SIDECHAIN_POSTFIXES[augmented_three_to_one(res.get_resname())]
     for i, atom_suffix in enumerate(atom_order):
         if atom_suffix not in suffix_to_atom: continue
+        atom_names.append(suffix_to_atom[atom_suffix].get_name())
         pos14[i,0], pos14[i,1], pos14[i,2] = suffix_to_atom[atom_suffix].get_coord().tolist()
-    return pos14
+    return pos14, atom_names
 
 
 def parse_pdb(path, model_id=0):
@@ -124,7 +126,7 @@ def parse_complex(structure, model_id=None):
             aa.append(restype)
 
             # Atom coordinates
-            pos14_this = get_residue_pos14(res)
+            pos14_this, _  = get_residue_pos14(res)
             pos14_mask_this = pos14_this.isfinite()
             pos14.append(pos14_this.nan_to_num(posinf=99999))
             pos14_mask.append(pos14_mask_this)
