@@ -204,7 +204,6 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
     summary_df = pd.read_csv(summary_path, index_col=0)
     n_splits = summary_df["validation"].max() + 1
 
-
     Path(os.path.join(args.config["prediction_path"], experiment_name)).mkdir(exist_ok=True, parents=True)
 
     for i in range(1, n_splits):
