@@ -24,7 +24,7 @@ def gater_pdb_ids(wildcards):
     metadata_fn = checkpoints.clean_metadata.get(**wildcards).output[0]
     df = pd.read_csv(metadata_fn)
     # pdb_id = glob_wildcards(f"{pdb_folder}/{{pdb_id}}_r_b.pdb").pdb_id
-    return expand(f"{pdb_bound_folder}/{{pdb_id}}.pdb", pdb_id=df["pdb"].str.upper().tolist())
+    return expand("{pdb_folder}/{pdb_id}.pdb", pdb_folder=[pdb_bound_folder, pdb_relaxed_folder], pdb_id=df["pdb"].str.upper().tolist())
 
 
 rule all:
@@ -54,12 +54,12 @@ rule download_metadata:
 
 checkpoint clean_metadata:
     input:
-        xlsx=rules.download_metadata.output,
+        xlsx=rules.download_metadata.output[0],
         pdb_dir=directory(abdb_resource_pdb_folder)
     output:
         csv=join(dataset_results_folder, "benchmark.csv")
     conda:
-        "ag_binding_diffusion3"  # conda env loading does not work with "script:"  https://github.com/snakemake/snakemake/issues/1811
+        "ag_binding_diffusion3"  # conda name env loading requires snakemake >v7.30.1
     script:
         "scripts/clean_metadata.py"
 

@@ -111,25 +111,33 @@ class IPABindingEmbedder(torch.nn.Module):
     Very similar to IPAWrapper (for diffusion process, maybe DRY this up?)
     """
 
-    def __init__(self, pretrained_model_path: str, device: device = torch.device("cpu"), c_s: int = 384, c_z: int = 128, relpos_k: int = 32):
-        """
-        TODO: implement optional weights sharing between blocks
-        """
+    def __init__(self, pretrained_model_path: str, device: device = torch.device("cpu"), c_s: int = 384, c_z: int = 128, relpos_k: int = 32, split_ipa_weights: bool = True):
         super(IPABindingEmbedder, self).__init__()
 
         self.model_type = "IPA"
 
         # default arguments fit pretrained weights
-        self.model = IPADenoiser(no_blocks=1, only_s_updates=True)
+        no_ipa_blocks = 2
+        self.model = IPADenoiser(no_blocks=no_ipa_blocks, only_s_updates=True, split_ipa_weights=split_ipa_weights)
 
         of_weights = torch.load(pretrained_model_path, map_location=torch.device(device))
 
-        # rename keys
+        # Rename keys loaded from AlphaFold weights file to fit our structure
         ipa_denoiser_weigths = {  # TODO check that they arrive (names fit etc.)
             k.replace("structure_module.", ""): v
             for k, v in of_weights.items()
             if k.startswith("structure_module.")
         }
+
+        # IPA layers can be cloned to have independent weights. For this, here we clone the loading weights
+        if split_ipa_weights:
+            for i in range(no_ipa_blocks):
+                for ipa_key in [k for k in ipa_denoiser_weigths if k.startswith("ipa.")]:
+                    indexed_key = f"ipas.{i}" + ipa_key[3:]
+                    ipa_denoiser_weigths[indexed_key] = ipa_denoiser_weigths[ipa_key].clone()
+            for ipa_key in [k for k in ipa_denoiser_weigths if k.startswith("ipa.")]:
+                del ipa_denoiser_weigths[ipa_key]
+
         # non-strict loading due to additional modules (that are not reflected in the pretrained weights)
         self.model.load_state_dict(ipa_denoiser_weigths, strict=False)
         self.embedding_size = c_s
