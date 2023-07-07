@@ -483,4 +483,8 @@ def pdb_chain_mapping(pdb_file: Union[str, Path]) -> pd.DataFrame:
             logging.warning("pdb_file did not contain chain mapping. Leaving chains as is.")
             return  None
             # mapping = [["L", "L", "L"], ["H", "H", "H"], ["A", "A", "A"]]
-    return pd.DataFrame(data=mapping, columns=("type", "abdb_label", "original_label"))
+    df = pd.DataFrame(data=mapping, columns=("type", "abdb_label", "original_label"))
+    if "1ZV5" in str(pdb_file):  # fix error in dataset
+        df.loc[df["abdb_label"] == "L", "abdb_label"] = "l"
+    return df
+

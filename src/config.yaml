@@ -36,7 +36,7 @@ DATASETS:
     summary: "" # summary for every subdataset
     mutated_pdb_path: "mutated"
     pdb_path: "mutated"
-    relaxed_mutated_pdb_path: "mutated"
+    relaxed_mutated_pdb_path: "mutated"  # TODO
     affinity_types:
       phillips21_bindin: "-log(Kd)"
       starr21_prosp_covid: "E"
