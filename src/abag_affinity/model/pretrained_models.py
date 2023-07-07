@@ -122,12 +122,14 @@ class IPABindingEmbedder(torch.nn.Module):
 
         of_weights = torch.load(pretrained_model_path, map_location=torch.device(device))
 
-        # rename keys
+        # Rename keys loaded from AlphaFold weights file to fit our structure
         ipa_denoiser_weigths = {  # TODO check that they arrive (names fit etc.)
             k.replace("structure_module.", ""): v
             for k, v in of_weights.items()
             if k.startswith("structure_module.")
         }
+
+        # IPA layers can be cloned to have independent weights. For this, here we clone the loading weights
         if split_ipa_weights:
             for i in range(no_ipa_blocks):
                 for ipa_key in [k for k in ipa_denoiser_weigths if k.startswith("ipa.")]:
