@@ -5,6 +5,7 @@ from pathlib import Path
 DATASET_NAME = "abag_affinity_dataset"
 
 project_root = Path(workflow.basedir).parents[3] # two directories above - absolute paths not working
+print(project_root)
 resource_folder = join(project_root, "resources")
 results_folder = join(project_root, "results")
 
@@ -13,7 +14,7 @@ dataset_results_folder = join(results_folder, DATASET_NAME)
 
 pdb_path = os.path.join(dataset_results_folder, "pdbs")
 pdb_files = os.listdir(pdb_path)
-pdb_ids = [ pdb_file.split(".")[0] for pdb_file in pdb_files ]
+pdb_ids = [ pdb_file.split(".")[0] for pdb_file in pdb_files if pdb_file.endswith(".pdb")]
 
 out_folder = join(results_folder, "force_field_tests", "abag_affinity", "REF15")
 
@@ -74,13 +75,13 @@ rule rerelax_unbound:
 
 rule calculate_binding_affinities:
     input:
-        expand(out_folder + '/bound_wildtype/{pdb_id}.pdb', pdb_id=pdb_ids),
-        expand(out_folder + '/unbound_wildtype/{pdb_id}.pdb', pdb_id=pdb_ids),
-        expand(out_folder + '/unbound_relaxed/{pdb_id}.pdb', pdb_id=pdb_ids),
+        # expand(out_folder + '/bound_wildtype/{pdb_id}.pdb', pdb_id=pdb_ids),
+        # expand(out_folder + '/unbound_wildtype/{pdb_id}.pdb', pdb_id=pdb_ids),
+        # expand(out_folder + '/unbound_relaxed/{pdb_id}.pdb', pdb_id=pdb_ids),
         expand(out_folder + '/bound_relaxed/{pdb_id}.pdb', pdb_id=pdb_ids),
-        expand(out_folder + '/relaxed_unbound/{pdb_id}.pdb', pdb_id=pdb_ids),
+        # expand(out_folder + '/relaxed_unbound/{pdb_id}.pdb', pdb_id=pdb_ids),
         expand(out_folder + '/relaxed_unbound_relaxed/{pdb_id}.pdb', pdb_id=pdb_ids),
     output:
-        out_folder + "abdb_summary.csv"
+        join(out_folder, "abag_affinity_summary.csv")
     conda:  join(project_root, "envs", "generation_environment.yml")
     script: "scripts/calculate_affinities.py"

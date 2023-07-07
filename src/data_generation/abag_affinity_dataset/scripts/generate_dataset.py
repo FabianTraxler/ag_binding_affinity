@@ -54,7 +54,10 @@ def pdb_chain_mapping(pdb_file: Union[str, Path]) -> pd.DataFrame:
                 break
         else:
             raise ValueError("pdb_file did not contain chain mapping")
-    return pd.DataFrame(data=mapping, columns=("type", "abdb_label", "original_label"))
+    df = pd.DataFrame(data=mapping, columns=("type", "abdb_label", "original_label"))
+    if "1ZV5" in str(pdb_file):  # fix error in dataset
+        df.loc[df["abdb_label"] == "L", "abdb_label"] = "l"
+    return df
 
 def get_abdb_dataframe(pdb_folder: str) -> pd.DataFrame:
     abdb_df = pd.DataFrame()
@@ -232,7 +235,10 @@ pdb_paths = benchmark_df["filename"]
 # remove pdbs that lead to errors or are redundant
 # remove pdbs that lead to errors
 
-problematic_pdbs = ["1zmy_1"]  # 1zmy is wrongly annotated by AbDb
+problematic_pdbs = ["1zmy_1", # 1zmy is wrongly annotated by AbDb
+                    # "NZ9_1", "1N8Z_1", "5CUS_1", "5XWD_1", "5W0K_1", "1YY9_1"  # these ones belong to 'test' and have too large antigens (maybe they are filtered implicitly somewhere already)
+                    ]
+
 for pdb in tqdm(abag_affintiy_df["pdb"].tolist()):
     filename = abag_affintiy_df[abag_affintiy_df["pdb"] == pdb]['filename'].tolist()[0]
     filepath = os.path.join(snakemake.input["cleaned_abdb_folder"], filename)
