@@ -1,4 +1,17 @@
 import glob
+from pathlib import Path
+
+# TODO make this a submodule of the other DMS pipeline
+# TODO We should relax. Sidechain packing is too weak
+# TODO for now, we rely on manually generated files. ultimately, we want them to be generated with AF2. In the ideal scenario, they should be pulled automatically, using my metadata file
+# TODO What to do with dms_curated.csv? Generated here: /home/moritz/wiki/roam/20220805103344-obtaining_antibody_binding_data.org
+
+
+project_root = Path(workflow.basedir).parents[2] # two directories above - absolute paths not working
+results_dir = project_root / "results"
+dms_results = results_dir / "DMS"
+
+metadata_file = project_root / "data" / "metadata_dms_studies.yaml"
 
 
 rule all:
@@ -6,14 +19,28 @@ rule all:
         # all
         # [d.replace('input_pdb', 'output_pdb').replace('.pdb', f'_{i}.pdb') for d in glob.glob('input_pdb/*/*.pdb') for i in range(1, 6)]
         # scores
-        'scores/all.csv'
+        dms_results / "scores" / "all.csv"
         # scores/{publication}/{complex}_{rank}.score
 
         # [d.replace('input_pdb', 'output_pdb') for d in glob.glob('input_pdb/*/*.pdb')]
         # [d.replace('input_pdb', 'input_fasta').replace('.pdb', '.fasta') for d in glob.glob('input_pdb/*/*.pdb')]
 
-rule import_manual_complexes:  # call this to manually import structures (TODO just copy the prepared PDBs from fabian)
-    # /msc/home/ftraxl96/projects/ag_binding_affinity/results/DMS/prepared_pdbs
+rule import_manual_complexes:
+    """
+    Call this to import structures
+
+    Just copies the manually prepared PDBs from prepared_pdbs and renames their chains. We don't clean them, because the mutations still need to be applied.
+    """
+    input:
+        pdb="/msc/home/ftraxl96/projects/ag_binding_affinity/results/DMS/prepared_pdbs/{study}/{complex}.pdb",
+        metadata=ancient(metadata_file)
+    output:
+        dms_results / "prepared_clean_pdbs" / "{study}" / "{complex}.pdb"
+    conda:
+        "ag_binding_diffusion3"
+    script:
+        "scripts/import_manual_complexes.py"
+
 
 rule import_mutations:  # call this manually using snakemake to import mutations into PDB
     output:

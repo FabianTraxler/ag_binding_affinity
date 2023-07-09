@@ -1,5 +1,6 @@
 """Process PDB file to get residue and atom encodings, node distances and edge encodings"""
 import tempfile
+from collections import defaultdict, deque
 import logging
 import os
 import re
@@ -383,6 +384,40 @@ def get_atom_edge_encodings(distance_matrix: np.ndarray, atom_encodings: np.ndar
     return A
 
 
+
+def order_substitutions(substitutions):
+    """
+    Order substiutions to avoid chain overlaps (and thereby loss of chain information)
+    """
+    # Create a dependency graph with nodes as keys and values
+    graph = defaultdict(list)
+    for src, dest in substitutions.items():
+        graph[src].append(dest)
+
+    # Perform a topological sorting on the graph
+    sorted_nodes = []
+    visited = set()
+    stack = deque()
+
+    def visit(node):
+        if node not in visited:
+            visited.add(node)
+            for neighbor in graph[node]:
+                visit(neighbor)
+            stack.appendleft(node)
+
+    for node in list(graph.keys()):
+        visit(node)
+
+    # Apply substitutions in the sorted order
+    result = {}
+    for node in reversed(stack):
+        if node in substitutions:
+            result[node] = substitutions[node]
+
+    return result
+
+
 def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_file_path: Union[str, Path], fix_insert=True, rename_chains: Optional[Dict] = None):
     Path(cleaned_file_path).parent.mkdir(exist_ok=True, parents=True)
 
@@ -408,6 +443,9 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_fil
 
     rename_fixinsert_command = ""
     if rename_chains is not None:
+        # order chain ids to avoid overlaps
+        rename_chains = order_substitutions(rename_chains)
+
         # assign chains ids from A to Z. I checked that this will not lead to conflicts with the original chain ids (in case of 2 or more antigen chains)
         for chain, new_id in rename_chains.items():
             rename_fixinsert_command += f" | pdb_rplchain -{chain}:{new_id}"

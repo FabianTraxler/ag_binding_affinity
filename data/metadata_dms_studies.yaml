@@ -1,4 +1,5 @@
-phillips21_bindin:  # TODO we should add antibodies light-chains?
+# TODO some chains might(!) have uppercase-lowercase modifier issues
+phillips21_bindin:  # TODO we should add antibodies light-chains!! and need to fix naming
   dms_target: fv
   fv_type: scfv
   doi: 10.7554/eLife.71393
@@ -151,10 +152,10 @@ wu17_in:
         mutations: KA50E;NA53D;NA54S;RA57Q;IA62K;DA63N;HA75Q;VA78G;EA82K;TA83K;FA94Y;IA121N;TA122N;GA124S;TA126N;GA135T;NA137S;KA140I;GA142R;PA143S;GA144K;SA145N;GA146S;KA156H;SA157L;GA158N;SA159F;TA160K;VA163A;DA172E;NA173Q;SA186G;NA188D;QA189K;EA190D;TA192I;SA193F;VA196A;VA202I;RA207K;IA213V;IA214S;WA222R;GA225N;LA226I;SA227P;VA242I;VA244L;NA248T;MA260I;TA262S;DA275G;TA276K;IA278N;KA299R;KA307R;GA310K;HA311Q;HA312N
         chains:
           antigen:
-            - A
+            A: B
           antibody:
-            - L
-            - H
+            L: L
+            H: H
       comment: "this one is from the authors, but 6D0U has higher scores. both look *very* similar"
     - antigen:
         name: h1solisl06
@@ -169,11 +170,11 @@ wu17_in:
       # comment: "this one is for H3, but should be fine nevertheless? map an H1 structure on it?"
         chains:
           antigen:
-            - A
+            A: A
             # - B  # not really
           antibody:
-            - L
-            - H
+            L: L
+            H: H
   source_code: https://github.com/wchnicholas/C05mut
   raw_data: PRJNA326694
   use_for: "discrete relative"
@@ -198,10 +199,10 @@ starr21_prosp_covid:
         id: 7C01
         chains:
           antigen:
-            - A
+            A: A
           antibody:
-            - L
-            - H
+            L: L
+            H: H
     - antigen:
         name: cov2rbd
         full_name: SARS_COV2_RBD
@@ -212,10 +213,10 @@ starr21_prosp_covid:
         id: 6XDG
         chains:
           antigen:
-            - E
+            A: E
           antibody:
-            - B
-            - D
+            H: B
+            L: D
     - antigen:
         name: cov2rbd
         full_name: SARS_COV2_RBD
@@ -226,10 +227,10 @@ starr21_prosp_covid:
         id: 6XDG
         chains:
           antigen:
-            - E
+            A: E
           antibody:
-            - A
-            - C
+            L: A
+            H: C
   comment: "negative selection; Just use 'E' for continuous relative comparison"
   use_for: "continuous relative"  # as noted, LY-CoV016 might be a bit sketchy. but should be good enough for 'conctinuous relative...
   source_code: https://github.com/jbloomlab/SARS-CoV-2-RBD_MAP_clinical_Abs
@@ -252,11 +253,11 @@ wu20_differ_ha_h3_h1:
         id: 4FQY
         chains:
           antigen:
-            - B
-            - A # doesn't really touch
+            B: B
+            A: A # doesn't really touch
           antibody:
-            - L
-            - H
+            L: L
+            H: H
     - antigen:
         name: h3hk68
         full_name: A/Hong Kong/1/1968 (H3N2)
@@ -268,12 +269,12 @@ wu20_differ_ha_h3_h1:
         mutations: SC9P;TC10G;IC182V;SE9P;TE10G;IE182V;RF123G;EF132D
         chains:
           antigen:
-            - F
-            - E # doesn't really touch
-            - C # might touch a little bit
+            A: F
+            B: E # doesn't really touch
+            C: C # might touch a little bit
           antibody:
-            - K
-            - L
+            H: K
+            L: L
     - antigen:
         name: h1solisl06
         full_name: A/Solomon Islands/3/2006 (H1N1)
@@ -286,12 +287,12 @@ wu20_differ_ha_h3_h1:
         mutations: NF12G;EF15T;IF18V;FF24Y;RF25H;SF29E;EF30Q;TF32S;QF34Y;LF38Q;AF43N;DF46N;QF47G;NF49T;GF50N;LF52V;RF54S;TF59M;EF61T;KF62Q;HF64T;QF65A;IF66V;EF67G;SF71N;EF72K;VF73L;GF75R;IF77M;QF78E;DF79N;EF81N;YF83K;EF85D;TF87G;KF88F;LF91I;SF93T;AF101L;QF105E;HF106R;IF108L;LF110F;TF111H;EF114N;MF115V;NF116K;KF117N;FF119Y;TF122V;RF123K;RF124S;RF127K;EF128N;EF131K;MF133I;KF139E;IF140F;DF145N;NF146D;AF147E;IF149M;IF152V;RF153K;HF159Y;DF160P;VF161K;RF163S;DF164E;AF166S;LF167K;NF168L;FF171E
         chains:
           antigen:
-            - F
+            A: F
             # - E # only include this and C if we properly mutate it, which is difficult (too many mutations)
             # - C # 
           antibody:
-            - K
-            - L
+            H: K
+            L: L
         comment: "use 6XSK to validate the relaxed/output model! HA1 is not mutated at all. this is flawed.. maybe here AF2 is the better way?"
       comment: "pdb is for H3-strain"
     - antigen:
@@ -306,11 +307,11 @@ wu20_differ_ha_h3_h1:
         mutations: NF12G;EF15T;IF18V;FF24Y;RF25H;SF29E;EF30Q;TF32S;QF34Y;AF43N;QF47K;NF49T;GF50N;LF52V;RF54S;TF59M;EF61T;KF62Q;HF64T;QF65A;IF66V;EF67G;SF71N;EF72H;VF73L;GF75K;QF78E;DF79N;EF81N;YF83K;EF85D;TF87G;KF88F;IF89L;LF91I;SF93T;AF101L;QF105E;HF106R;IF108L;LF110Y;TF111H;EF114N;MF115V;NF116K;KF117N;FF119Y;TF122V;RF124N;RF127K;EF128N;EF131K;MF133I;KF139E;IF140F;AF147T;IF149M;IF152V;RF153K;HF159Y;DF160P;VF161K;RF163S;DF164E;LF167K;NF168L;FF171E
         chains:
           antigen:
-            - F
-            - E # doesn't really touch
+            A: F
+            B: E # doesn't really touch
           antibody:
-            - K
-            - L
+            H: K
+            L: L
       comment: "as always: match and mutate the pdb to match the input sequence"
     - antigen:
         name: h1wsn33
@@ -324,11 +325,11 @@ wu20_differ_ha_h3_h1:
         mutations: TD10I;VD18I;YD63F;ID66V;YD70F;KD72N;SD73L;RD75K;MD76R;KD77M;QD78E;ID79N;ED80L;DD81N;ID83K;ED84V;ED85D;ID86D;ED87G;SD88F;KD89L;QD90D;CD93T;SD113L;ND145D;DD146N;KD153R;RD176V;SD177K;VD179E;PD180S;RD181M;SD183V;PD184Y;GD185Q;HD186I;HD187L;HD188A;HD189I;HD190Y;HD191S;VC19I;LC20F;TC25A;NC35D;GC36R;GC37H;GC38N;YC41L;VC42C;CC43K;SC44L;AC45K;KC46G;LC47I;RC48A;MC49P;VC50L
         chains:
           antigen:
-            - D
-            - C
+            A: D
+            B: C
           antibody:
-            - L
-            - H
+            L: L
+            H: H
     - antigen:
         name: h3/perth09
         full_name: A/Perth/16/2009 (H3N2)
@@ -341,12 +342,12 @@ wu20_differ_ha_h3_h1:
         mutations: DC2K;LC25I;DC31N;KC50E;NC53D;NC54S;RC57Q;IC62K;DC63N;HC75Q;VC78G;EC82K;TC83K;FC94Y;IC121N;TC122N;GC124S;TC126N;GC135T;NC137S;KC140I;GC142R;PC143S;GC144K;SC145N;GC146S;KC156H;SC157L;GC158N;SC159F;TC160K;VC163A;DC172E;NC173Q;IC182V;SC186G;NC188D;QC189K;EC190D;TC192I;SC193F;VC196A;VC202I;RC207K;IC213V;IC214S;WC222R;GC225N;LC226I;SC227P;VC242I;VC244L;NC248T;MC260I;TC262S;DC275G;TC276K;IC278N;KC299R;KC307R;DE2K;LE25I;DE31N;KE50E;NE53D;NE54S;RE57Q;IE62K;DE63N;HE75Q;VE78G;EE82K;TE83K;FE94Y;IE121N;TE122N;GE124S;TE126N;GE135T;NE137S;KE140I;GE142R;PE143S;GE144K;SE145N;GE146S;KE156H;SE157L;GE158N;SE159F;TE160K;VE163A;DE172E;NE173Q;IE182V;SE186G;NE188D;QE189K;EE190D;TE192I;SE193F;VE196A;VE202I;RE207K;IE213V;IE214S;WE222R;GE225N;LE226I;SE227P;VE242I;VE244L;NE248T;ME260I;TE262S;DE275G;TE276K;IE278N;KE299R;KE307R;LF2I;IF18V;TF32R;VF55L;EF57G;RF123K;RF124K;EF132D;EF150G
         chains:
           antigen:
-            - F
-            - E # doesn't really touch
-            - C # maybe touch
+            A: F
+            B: E # doesn't really touch
+            C: C # maybe touch
           antibody:
-            - K
-            - L
+            H: K
+            L: L
     - antigen:
         name: h1wsn33
         antigen: A/WSN/1933 (H1N1)
@@ -359,10 +360,10 @@ wu20_differ_ha_h3_h1:
         mutations: NF12G;EF15T;FF24Y;RF25H;SF29E;EF30Q;TF32S;QF34Y;LF38Q;AF43N;DF46N;QF47G;NF49T;GF50N;LF52V;RF54S;TF59M;EF61T;KF62Q;HF64T;QF65A;IF66V;EF67G;SF71N;EF72N;VF73L;GF75K;IF77M;QF78E;DF79N;EF81N;YF83K;EF85D;TF87G;KF88F;IF89L;LF91I;SF93T;AF101L;QF105E;HF106R;IF108L;LF110F;TF111H;SF113L;EF114N;MF115V;NF116K;KF117N;FF119Y;TF122V;RF123K;RF124S;RF127K;EF128N;EF131K;MF133I;KF139E;IF140F;AF147E;IF149M;IF152V;HF159Y;DF160P;VF161K;RF163S;DF164E;AF166S;LF167K;NF168L;FF171E
         chains:
           antigen:
-            - F
+            A: F
           antibody:
-            - K
-            - L
+            H: K
+            L: L
   comment: "not full DMS, but many combinations. They have structures for 3 selected mutations (6NHP, 6NHQ, 6NHR), but without antibody..; heavily disbalanced dataset!... T111 mutation is probably not in the binding site...; there is a kd_table available. later: create mapping for F_ABs and IgGs and train on both in a relative manner"
   use_for: "discrete relative"
   source_code:
@@ -373,7 +374,7 @@ wu20_differ_ha_h3_h1:
     - https://doi.org/10.5281/zenodo.3660739
     - https://doi.org/10.5281/zenodo.3660467
     - https://doi.org/10.5281/zenodo.3660731
-  raw_data: 
+  raw_data:
     - PRJNA510654
     - PRJNA493101
     - PRJNA510700
@@ -394,10 +395,10 @@ mason21_optim_therap_antib_by_predic:
         id: 6OGE  # alternatives: /6BGT/7MN8
         chains:
           antibody:
-            - D
-            - E
+            L: D
+            H: E
           antigen:
-            - A
+            A: A
   comment: "screen on binding affinity and activation potential. They have a decent number of KD experiments included"
   source_code: https://github.com/dahjan/DMS_opt
   data: https://github.com/dahjan/DMS_opt,email,org
@@ -422,10 +423,10 @@ taft22_deep_mutat_learn_predic_ace2:
         id: 7LRS
         chains:
           antigen:
-            - C
+            A: C
           antibody:
-            - E
-            - D
+            L: E
+            H: D
     - antigen:
         name: cov2rbd
         full_name: SARS_COV2_RBD
@@ -436,10 +437,10 @@ taft22_deep_mutat_learn_predic_ace2:
         id: 7SWN
         chains:
           antigen:
-            - A
+            A: A
           antibody:
-            - L
-            - H
+            L: L
+            H: H
     - antigen:
         name: cov2rbd
         full_name: SARS_COV2_RBD
@@ -451,10 +452,10 @@ taft22_deep_mutat_learn_predic_ace2:
         id: 7MMO
         chains:
           antigen:
-            - C
+            A: C
           antibody:
-            - A
-            - B
+            H: A
+            L: B
     - antigen:
         name: cov2rbd
         full_name: SARS_COV2_RBD
@@ -465,10 +466,10 @@ taft22_deep_mutat_learn_predic_ace2:
         id: 7C01
         chains:
           antigen:
-            - A
+            A: A
           antibody:
-            - L
-            - H
+            L: L
+            H: H
       comment: 'Similarly to 7MMO, when you look at 7C01, you see that the CDRs/the the epitope might interact with additional proteins, therefore skewing the binding affinity. alternative antibody names: CB6, JS016'
     - antigen:
         name: cov2rbd
@@ -480,10 +481,10 @@ taft22_deep_mutat_learn_predic_ace2:
         id: 6XDG
         chains:
           antigen:
-            - E
+            A: E
           antibody:
-            - A
-            - C
+            L: A
+            H: C
     - antigen:
         name: cov2rbd
         full_name: SARS_COV2_RBD
@@ -494,10 +495,10 @@ taft22_deep_mutat_learn_predic_ace2:
         id: 6XDG
         chains:
           antigen:
-            - E
+            A: E
           antibody:
-            - B
-            - D
+            H: B
+            L: D
     - antigen:
         name: cov2rbd
         full_name: SARS_COV2_RBD
@@ -508,11 +509,11 @@ taft22_deep_mutat_learn_predic_ace2:
         id: 7KMG  # TODO: maybe *add* 7L3N as alternative. They are quite different and it's hard to tell which one is more realistic
         chains:
           antigen:
-            - C
-            - F
+            A: C
+            B: F
           antibody:
-            - A
-            - B
+            H: A
+            L: B
     - antigen:
         name: cov2rbd
         full_name: SARS_COV2_RBD
@@ -523,10 +524,10 @@ taft22_deep_mutat_learn_predic_ace2:
         id: 7K45  # alternatives: 7K4N,7R6X. They are all very similar
         chains:
           antigen:
-            - B
+            A: B
           antibody:
-            - L
-            - H
+            L: L
+            H: H
     - antigen:
         name: cov2rbd
         full_name: SARS_COV2_RBD
@@ -537,10 +538,10 @@ taft22_deep_mutat_learn_predic_ace2:
         id: 7M7W
         chains:
           antigen:
-            - R
+            A: R
           antibody:
-            - E
-            - F
+            L: E
+            H: F
     - antigen:
         name: cov2rbd
         full_name: SARS_COV2_RBD
@@ -551,10 +552,10 @@ taft22_deep_mutat_learn_predic_ace2:
         id: 7R6W  # alternative: 6WPS
         chains:
           antigen:
-            - R
+            A: R
           antibody:
-            - A
-            - B
+            H: A  # TODO make sure the direction/order is correct
+            L: B
 
 b.20_funct_screen_strat_engin_chimer:
   dms_target: fv
@@ -571,10 +572,10 @@ b.20_funct_screen_strat_engin_chimer:
         id: 6OGE  # Alternatives 6BGT/7MN8/((6ZQK))
         chains:
           antibody:
-            - D
-            - E
+            L: D
+            H: E
           antigen:
-            - A
+            A: A
   comment: "screen on binding affinity and activation potential; raw data is undocumented; available structures are for FVs. data for scF_Vs.."
   source_code: null
   doi: 10.1016/j.ymthe.2020.08.003
@@ -598,10 +599,10 @@ madan21_mutat_hiv:
         mutations: Lc520C
         chains:
           antigen:
-            - C
+            A: c
           antibody:
-            - L
-            - H
+            L: l
+            H: h
     - antigen:
         name: fp8v2
         full_name: BG505-FP8v2
@@ -613,10 +614,10 @@ madan21_mutat_hiv:
         mutations: Lc520C;Ic515L
         chains:
           antigen:
-            - C
+            A: c
           antibody:
-            - L
-            - H
+            L: l
+            H: h
   anchors: "Figure S6 is against the BG505-FP8v1. IC50 is proportional and could be used in addition"
   source_code: https://github.com/wchnicholas/C05mut
   raw_data: PRJNA326694
