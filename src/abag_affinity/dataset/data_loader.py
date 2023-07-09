@@ -258,36 +258,34 @@ class AffinityDataset(Dataset):
 
         # start processing with given threads
         logger.debug(f"Preprocessing {len(graph_dicts2process)} graph dicts with {self.num_threads} threads")
-        submit_jobs(self.preload_graph_dict, graph_dicts2process, self.num_threads)
+
+        def preload_graph_dict(row: pd.Series, out_path: str):
+            """ Function to get graph dict and store to disc. Used to parallelize preprocessing
+
+            Args:
+                row: Dataframe row corresponding to data point
+                out_path: path to store the resulting dict
+
+            Returns:
+                None
+            """
+
+            graph_dict = load_graph_dict(row, self.dataset_name, self.config, self.interface_dir,
+                                        node_type=self.node_type,
+                                        interface_distance_cutoff=self.interface_distance_cutoff,
+                                        interface_hull_size=self.interface_hull_size,
+                                        max_edge_distance=self.max_edge_distance,
+                                        affinity_type=self.affinity_type,
+                                        load_embeddings=self.load_embeddings,
+                                        save_path=out_path
+                                        )
+        submit_jobs(preload_graph_dict, graph_dicts2process, self.num_threads)
 
         if self.pretrained_model == "DeepRefine":
             logger.debug(
                 f"Preprocessing {len(deeprefine_graphs2process)} DeepRefine graphs with {self.num_threads} threads")
             submit_jobs(self.preload_deeprefine_graph, deeprefine_graphs2process, self.num_threads)
 
-    def preload_graph_dict(self, row: pd.Series, out_path: str):
-        """ Function to get graph dict and store to disc
-
-        Used by preprocess functionality
-
-        Args:
-            row: Dataframe row corresponding to data point
-            out_path: path to store the resulting dict
-
-        Returns:
-            None
-        """
-        raise NotImplementedError("For simiplicity, I would abandon this function?")
-
-        graph_dict = load_graph_dict(row, self.dataset_name, self.config, self.interface_dir,
-                                     node_type=self.node_type,
-                                     interface_distance_cutoff=self.interface_distance_cutoff,
-                                     interface_hull_size=self.interface_hull_size,
-                                     max_edge_distance=self.max_edge_distance,
-                                     affinity_type=self.affinity_type,
-                                     load_embeddings=self.load_embeddings)
-
-        np.savez_compressed(out_path, **graph_dict)
 
     def preload_deeprefine_graph(self, idx: str, pdb_filepath: str, row: pd.Series):
         """ Function to get graph dict of Deeprefine graphs and store to disc
@@ -459,14 +457,9 @@ class AffinityDataset(Dataset):
                                          interface_hull_size=self.interface_hull_size,
                                          max_edge_distance=self.max_edge_distance,
                                          affinity_type=self.affinity_type,
-                                         load_embeddings=self.load_embeddings
+                                         load_embeddings=self.load_embeddings,
+                                         save_path=self.save_graphs and file_path
                                          )
-
-            if self.save_graphs and not os.path.exists(file_path):
-                graph_dict.pop("atom_names", None)  # remove unnecessary information that takes lot of storage
-                assert len(graph_dict["node_features"]) == len(graph_dict["closest_residues"])
-                np.savez_compressed(file_path, **graph_dict)
-
         return graph_dict
 
     def load_graph(self, df_idx: str) -> Tuple[HeteroData, Dict]:

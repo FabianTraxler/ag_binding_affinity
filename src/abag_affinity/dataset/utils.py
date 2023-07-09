@@ -134,7 +134,8 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, of_embs: Dict, affinity: flo
 def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, interface_folder: str, node_type: str = "residue",
                     interface_distance_cutoff: int = 5, interface_hull_size: int = None, max_edge_distance: int = 5,
                     affinity_type: str = "-log(Kd)",
-                    load_embeddings: Union[bool, str] = False
+                    load_embeddings: Union[bool, str] = False,
+                    save_path: Optional[str]=None
                 ) -> Dict:
     """ Load and process a data point and generate a graph and meta-information for it
 
@@ -183,8 +184,16 @@ def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, interface_f
     else:
         of_embs = None
 
-    return get_graph_dict(pdb_id, pdb_file_path, of_embs, affinity, distance_cutoff=max_edge_distance,
+    graph_dict =  get_graph_dict(pdb_id, pdb_file_path, of_embs, affinity, distance_cutoff=max_edge_distance,
                           node_type=node_type)
+
+    graph_dict.pop("atom_names", None)  # remove unnecessary information that takes lot of storage
+    assert len(graph_dict["node_features"]) == len(graph_dict["closest_residues"])
+    if save_path:
+        np.savez_compressed(save_path, **graph_dict)
+
+    return graph_dict
+
 
 
 def load_deeprefine_graph(file_name: str, input_filepath: str, pdb_clean_dir: str,
