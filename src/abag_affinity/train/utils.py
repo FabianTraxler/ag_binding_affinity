@@ -121,6 +121,10 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
     total_loss_train = 0.0
     model.train()
 
+    # Update pairs, if relative dataset
+    if train_dataloader.dataset.relative_data:
+        train_dataloader.dataset.update_valid_pairs()
+
     for data in tqdm(train_dataloader, disable=not tqdm_output):
         optimizer.zero_grad()
 

@@ -125,17 +125,15 @@ class AffinityDataset(Dataset):
 
         # load dataframe with metainfo
         self.data_df, pdb_ids = self.load_df(pdb_ids)
+        self.pdb_ids = pdb_ids
 
         # set dataset to load relative or absolute data points
         self.relative_data = relative_data
         if relative_data:
             self.get = self.get_relative
-            self.data_points = self.get_valid_pairs(pdb_ids)
-
             self.preprocess_data = True  # necessary to preprocess graphs in order to avoid race conditions in workers
         else:
             self.get = self.get_absolute
-            self.data_points = pdb_ids
 
         self.num_threads = num_threads
 
@@ -143,13 +141,13 @@ class AffinityDataset(Dataset):
             logger.debug(f"Preprocessing {node_type}-graphs for {self.dataset_name}")
             self.preprocess()
 
-    def get_valid_pairs(self, pdb_ids: List) -> List:
+    def update_valid_pairs(self):
         """ Find for each data point a valid partner
-        If no partner is found than ignore the datapoint
+        If no partner is found then ignore the datapoint
 
         Criteria are:
-        - -log(Kd) values available: Different PDB ID
-        - E values available: Difference of E must be higher than average NLL
+        - If -log(Kd) values available: Different PDB ID
+        - If E values available: Difference of E must be higher than average NLL
 
         Args:
             pdb_ids: List of PDB Ids to find a partner for
@@ -157,8 +155,9 @@ class AffinityDataset(Dataset):
         Returns:
             List: All Pairs of mutation data points of the same complex
         """
+        assert self.relative_data, "This function is only available for relative data"
         all_data_points = []
-        for pdb_id in pdb_ids:
+        for pdb_id in self.pdb_ids:
             other_pdb_id = self.get_compatible_pair(pdb_id)
             if other_pdb_id is None:
                 # do not use this pdb
@@ -167,7 +166,7 @@ class AffinityDataset(Dataset):
 
         logger.debug(f"There are in total {len(all_data_points)} valid pairs")
 
-        return all_data_points
+        self.relative_pairs = all_data_points
 
     def get_compatible_pair(self, pdb_id: str) -> str:
         """ Find a compatible data point for a PDB ID
@@ -211,7 +210,10 @@ class AffinityDataset(Dataset):
 
     def len(self) -> int:
         """Returns the length of the dataset"""
-        return len(self.data_points)
+        if self.relative_data:
+            return len(self.relative_pairs)
+        else:
+            return len(self.pdb_ids)
 
     def get(self, idx: int):
         """
@@ -584,7 +586,7 @@ class AffinityDataset(Dataset):
         Returns:
             Dict: Graph object and meta information to this data point
         """
-        pdb_id = self.data_points[idx]
+        pdb_id = self.pdb_ids[idx]
         graph_data = self.load_data_point(pdb_id)
 
         data = {
@@ -612,7 +614,7 @@ class AffinityDataset(Dataset):
             "input": []
         }
 
-        pdb_id, other_pdb_id = self.data_points[idx]
+        pdb_id, other_pdb_id = self.relative_pairs[idx]
         data["input"].append(self.load_data_point(pdb_id))
 
         data["input"].append(self.load_data_point(other_pdb_id))
