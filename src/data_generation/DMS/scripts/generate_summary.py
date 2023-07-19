@@ -1,43 +1,16 @@
 # Inspiration from PyRosetta tutorial notebooks
 # https://nbviewer.org/github/RosettaCommons/PyRosetta.notebooks/blob/master/notebooks/06.08-Point-Mutation-Scan.ipynb
-import json
-from pathlib import Path
 import yaml
 import os
 import pandas as pd
 from typing import Dict
+from common import substitute_chain
 
 
-if "snakemake" not in globals(): # use fake snakemake object for debugging
-    project_root = (Path(__file__).parents[4]).resolve()
-    out_folder = os.path.join(project_root, "results/DMS/")
+with open(snakemake.input["metadata_file"], "r") as f:
+    METADATA = yaml.safe_load(f)
 
-    publication = "phillips21_bindin"
-    complexes = [("phillips21_bindin","cr9114", "h1newcal99"),
-                 ("phillips21_bindin","cr6261", "h1newcal99"),
-                 ("phillips21_bindin","cr9114", "h5ohio05"),
-                 ("phillips21_bindin","cr9114", "h1wiscon05"),
-                 ("phillips21_bindin","cr6261", "h9hk99")] #("starr21_prosp_covid","lycov016", "cov2rbd")
-
-    #publication = "mason21_optim_therap_antib_by_predic_dms_H"
-    #complexes = [("mason21_optim_therap_antib_by_predic_dms_H","trastuzumab", "her2")] #("starr21_prosp_covid","lycov016", "cov2rbd")
-
-    file = out_folder + "mutated/{}/{}_{}.logs"
-
-    metadata_file = os.path.join(project_root, "data/metadata_dms_studies.yaml")
-
-
-    snakemake = type('', (), {})()
-    snakemake.input = [file.format(complex, antibody, antigen) for (complex, antibody, antigen) in complexes ]
-    snakemake.output = [os.path.join(out_folder, f"{publication}.csv")]
-    snakemake.params = {}
-    dms_info_file = os.path.join(project_root, "data/DMS/dms_curated.csv")
-    info_df = pd.read_csv(dms_info_file)
-
-    snakemake.params["info_df"] = info_df
-    snakemake.params["metadata_file"] = metadata_file
-
-
+# TODO to I need this?
 def get_complex_metadata(publication:str, antibody: str, antigen: str, metadata: Dict) -> Dict:
     if "mason21" in publication:
         publication = "mason21_optim_therap_antib_by_predic"
@@ -48,18 +21,7 @@ def get_complex_metadata(publication:str, antibody: str, antigen: str, metadata:
 
     raise RuntimeError(f"Complex not found in Metadata: {publication}, {antibody}, {antigen}")
 
-
-def get_chain_infos(metadata: Dict) -> Dict:
-    "TODO delete"
-    chain_info = {}
-    for protein, chains in metadata["chains"].items():
-        prot_id = 1 if protein == "antibody" else 0
-        for chain in chains:
-            chain_info[chain.lower()] = prot_id
-
-    return chain_info
-
-
+# TODO unused, replace?
 def get_mutation(original_mutation_code: str, mutation_mapping: Dict, **kwargs):
     if original_mutation_code == "WT" or not isinstance(original_mutation_code, str):
         return original_mutation_code
@@ -71,72 +33,36 @@ def get_mutation(original_mutation_code: str, mutation_mapping: Dict, **kwargs):
         print(kwargs["antibody"], kwargs["antigen"], kwargs["publication"])
         return "Not Found"
 
-def get_extended_df(complex_log: str, full_df: pd.DataFrame):
-    path_components = complex_log.split("/")
-    antibody, antigen = path_components[-1].split(".")[0].split("_")
-    publication = path_components[-2]
 
-    mutation_mapping_path = complex_log.replace(".logs", ".json")
-    with open(mutation_mapping_path) as f:
-        mutation_mapping = json.load(f)
+# Load DMS CSV
+df = pd.read_csv(snakemake.input.dms_curated)
+# remove this publication because they have redundant information to mason21_comb_optim_therap_antib_by_predic_combined_H3_3. TODO really? why not augmentation?  # TODO should anyways be filtered on Snakefile level?
+df = df[~df["publication"].isin(["mason21_comb_optim_therap_antib_by_predic_combined_H3_2", "mason21_comb_optim_therap_antib_by_predic_combined_H3_1"])]
+df = df[df["publication"] == snakemake.wildcards.publication]
+df = df.reset_index(drop=True)
 
-    complex_df = full_df[(full_df["publication"] == publication) & (full_df["antibody"] == antibody) &
-                         (full_df["antigen"] == antigen)].copy()
+# Cleanup
+df["mutation_code"] = df["mutation_code"].replace({"": "WT"}).fillna("WT")
+df["ab_ag"] = df.apply(lambda row: row["antibody"] + "_" + row["antigen"], axis=1)
+df["pdb"] = df.apply(lambda row: ":".join([row["publication"], row["antibody"], row["antigen"]]), axis=1) # TODO  what's this???
+df["index"] = df.apply(lambda row:row["pdb"] + "-" + row["mutation_code"].lower(), axis=1)
+df = df.set_index("index")
+df.index.name = ""
+df["data_location"] = "DATA"  # TODO delete?
 
-    complex_df["mutation_code"] = complex_df["original_mutation"].apply(lambda code: get_mutation(code, mutation_mapping,
-                                                                                                  antigen=antigen, antibody=antibody,
-                                                                                                  publication=publication))
+df["original_mutation"] = df["mutation_code"]
+df["mutation_code"] = df.apply(lambda row: substitute_chain(METADATA, row.mutation_code, snakemake.wildcards.publication, row.antibody, row.antigen), axis=1)
 
-    complex_df = complex_df[complex_df["mutation_code"] != "Not Found"]
+# Filename
+df["filename"] = df.apply(lambda row:
+                                            os.path.join(row["publication"],
+                                                        row["antibody"] + "_" + row["antigen"],
+                                                        row["mutation_code"] + ".pdb"),
+                                            axis=1)
 
-    complex_df["mutation_code"] = complex_df["mutation_code"].replace({"": "original"})
-
-    complex_metadata = get_complex_metadata(publication, antibody, antigen, metadata)
-
-    complex_df["mutation_code"] = complex_df["mutation_code"].fillna("original")
-
-    complex_df["filename"] = complex_df.apply(lambda row:
-                                              os.path.join(row["publication"],
-                                                           row["antibody"] + "_" + row["antigen"],
-                                                           row["mutation_code"] + ".pdb"),
-                                              axis=1)
-
-    complex_df["ab_ag"] = complex_df.apply(lambda row: row["antibody"] + "_" + row["antigen"], axis=1)
-    complex_df["pdb"] = complex_df.apply(lambda row:row["publication"] + ":" + row["antibody"] + ":" + row["antigen"], axis=1)
-
-    complex_df["index"] = complex_df.apply(lambda row:row["pdb"] + "-" + row["mutation_code"].lower(), axis=1)
-    complex_df = complex_df.set_index("index")
-    complex_df.index.name = ""
-
-    complex_df = complex_df[["pdb", "publication", "mutation_code", "data_location", "filename", "-log(Kd)", "E", "NLL", "original_mutation"]]
-
-    return complex_df
-
-
+# Cleanup
+df = df[["pdb", "publication", "mutation_code", "data_location", "filename", "-log(Kd)", "E", "NLL", "original_mutation"]]
+df = df[~df.index.duplicated(keep='first')]
+# Save
 out_path = snakemake.output[0]
-Path(out_path).parent.mkdir(parents=True, exist_ok=True)
-
-publication = ".".join(os.path.split(out_path)[1].split(".")[:-1])
-
-with open(snakemake.params["metadata_file"]) as f:
-    metadata = yaml.safe_load(f)
-
-data_df = snakemake.params["info_df"]
-
-# add values for all complexes
-data_df["data_location"] = "DATA"
-data_df["original_mutation"] = data_df["mutation_code"]
-data_df["pdb"] = data_df.apply(lambda row: ":".join([row["publication"], row["antibody"], row["antigen"]]), axis=1)
-
-all_dataset_slices = []
-
-for complex_log in snakemake.input:
-    if publication in complex_log:
-        complex_df = get_extended_df(complex_log, data_df)
-        all_dataset_slices.append(complex_df)
-
-final_df = pd.concat(all_dataset_slices)
-
-final_df = final_df[~final_df.index.duplicated(keep='first')]
-
-final_df.to_csv(out_path)
+df.to_csv(out_path)

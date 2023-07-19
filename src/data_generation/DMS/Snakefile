@@ -1,22 +1,30 @@
+# TODO I am abusing the "data"/DMS folder maybe
 import os.path
 import pandas as pd
 from collections import defaultdict
 from pathlib import Path
+import numpy as np
 
-INTERFACE_SIZE = 5
-INTERFACE_HULL_SIZE = 10
+
+# INTERFACE_SIZE = 5
+# INTERFACE_HULL_SIZE = 10
+INTERFACE_SIZE = None  # We don't reduce to the interface
+INTERFACE_HULL_SIZE = None
 
 
 project_root = Path(workflow.basedir).parents[2] # two directories above - absolute paths not working
-out_folder = os.path.join(project_root, "results/DMS/")
+out_folder = project_root / "results" / "DMS"
 
-metadata_file = os.path.join(project_root, "data/metadata_dms_studies.yaml")
-dms_out_summary_file = os.path.join(project_root, "results/DMS/dms_infos.csv")
+RELAXED_PDB_FOLDER = out_folder / "mutated_relaxed"
 
-dms_info_file = os.path.join(project_root, "data/DMS/dms_curated.csv")
+metadata_file = project_root / "data" / "metadata_dms_studies.yaml"
+dms_out_summary_file = project_root / "results" / "DMS" / "dms_infos.csv"
+
+# Generated from Moritz [[id:f1e36ab1-11c4-420d-9d0c-83f1e37f9311][Obtaining antibody binding data]]
+dms_info_file = project_root / "data" / "DMS" / "dms_curated_madan.csv"  # TODO expand to all
 info_df = pd.read_csv(dms_info_file)
 
-# remove this publication because they have redundant information to mason21_comb_optim_therap_antib_by_predic_combined_H3_3
+# remove this publication because they have redundant information to mason21_comb_optim_therap_antib_by_predic_combined_H3_3. TODO really? why not augmentation?
 info_df = info_df[~info_df["publication"].isin(["mason21_comb_optim_therap_antib_by_predic_combined_H3_2", "mason21_comb_optim_therap_antib_by_predic_combined_H3_1"])]
 
 
@@ -37,36 +45,62 @@ for publi, antibody, antigen in zip(publications, antibodies, antigens):
     publication2antigens[publi].append(antigen)
 
 
+def relaxed_generated_pdbs(wildcards):
+    all_files = []
+    for publication in np.unique(publications):
+        df_fn = checkpoints.generate_summary_df.get(publication=publication).output[0]
+        df = pd.read_csv(df_fn, index_col=0)
+        all_files.extend([RELAXED_PDB_FOLDER / file_path for file_path in df["filename"]])
+    return all_files
+
+
 rule all:
     input:
-        expand(out_folder + "{publication}.csv", publication=publications)
-    output:
-        os.path.join(out_folder, "mutated", "all_generated_files.txt")
-    params:
-        mutated_folder=os.path.join(out_folder, "mutated")
-    shell: """
-        cd {params.mutated_folder}
-        find * -type f -name *.pdb > {output}
-        """
+        expand(out_folder / "{publication}.csv", publication=publications),
+        relaxed_generated_pdbs
 
-rule get_complex:
-    output:
-        out_folder + "prepared_pdbs/{publication}/{antibody}_{antigen}.pdb"
-    params:
+checkpoint generate_summary_df:
+    input:
+        dms_curated=dms_info_file,
         metadata_file=metadata_file,
+    output:
+        out_folder / "{publication}.csv"
+    conda: "../../../envs/generation_environment.yml"
+    resources:
+        mem_mb=10000
+        # params:
+        # metadata_file=metadata_file,
+    script: "scripts/generate_summary.py"
+
+
+rule get_initial_complex:
+    """
+    Download and mutate PDB as indicated in metadata file
+
+    TODO could/should be merged with mutate_complex
+    TODO relaxation should be done in a separate thread
+    """
+    input:
+        metadata_file=ancient(metadata_file),
+    output:
+        out_folder / "prepared_clean_pdbs/{publication}/{antibody,[^/]+}_{antigen,[^/]+}.pdb"
+    params:
         project_root=project_root
     conda: "../../../envs/generation_environment.yml"
-    threads: 50
+    threads: 1
     script: "scripts/get_complex.py"
 
 rule reduce2interface_hull:
+    """
+    TODO exploit/modify this function to reduce protein size in another manner (for those proteins that are too large).
+    Specifically, reduce heavy and light chain to only contain the variable part (~110AAs each)
+    """
     input:
-        out_folder + "prepared_pdbs/{publication}/{antibody}_{antigen}.pdb"
+        out_folder / "prepared_clean_pdbs/{publication}/{antibody}_{antigen}.pdb"
     output:
-        out_folder + "interface_hull_pdbs/{publication}/{antibody}_{antigen}.pdb"
+        out_folder / "interface_hull_pdbs/{publication,[^/]+}/{antibody,[^/]+}_{antigen,[^/]+}.pdb"
     params:
         metadata_file=metadata_file,
-        project_root=project_root,
         interface_size=INTERFACE_SIZE,
         interface_hull_size=INTERFACE_HULL_SIZE
     conda: "../../../envs/generation_environment.yml"
@@ -76,31 +110,41 @@ rule reduce2interface_hull:
 
 
 rule mutate_complex:
+    """
+    Generate a single mutation
+    """
     input:
-        out_folder + "interface_hull_pdbs/{publication}/{antibody}_{antigen}.pdb"
+        dms_curated=dms_info_file,
+        pdb=out_folder / "interface_hull_pdbs" / "{publication}/{antibody}_{antigen}.pdb",
     output:
-        out_folder + "mutated/{publication}/{antibody}_{antigen}.logs",
-        out_folder + "mutated/{publication}/{antibody}_{antigen}.json"
-        #out_folder + "mutated/{publication}/{antibody}_{antigen}/{mutation_code}.pdb"
+        mutated_pdb = out_folder / "mutated" / "{publication}" / "{antibody,[^/]+}_{antigen,[^/]+}" / "{mut}.pdb"
+        #out_folder / "mutated/{publication}/{antibody}_{antigen}/{mutation_code}.pdb"
     conda: "../../../envs/generation_environment.yml"
     resources:
         mem_mb=50000
-    threads: 100
-    params:
-        info_df=info_df,
-        mutation_out_folder = out_folder + "mutated"
+    threads: 1
     script: "scripts/mutate.py"
 
-
-rule generate_summary_df:
+rule fixinsert:
+    """
+    We did not yet apply fixinsert, to make the mutations work. Doing it now!
+    """
     input:
-        lambda wildcards: expand(out_folder + "mutated/{publication}/{antibody}_{antigen}.logs", zip, publication=[wildcards.publication] * len(publication2antibodies[wildcards.publication]), antibody=publication2antibodies[wildcards.publication], antigen=publication2antigens[wildcards.publication])
+        out_folder  / "mutated" /"{publication}" / "{antibody}_{antigen}" / "{mut}.pdb"
     output:
-        out_folder + "{publication}.csv"
+        out_folder  / "mutated_fixinsert" / "{publication}" / "{antibody,[^/]+}_{antigen,[^/]+}" / "{mut}.pdb"
     conda: "../../../envs/generation_environment.yml"
+    shell: # pdb_tidy is required again because the relaxation again changes some things
+        "grep '^ATOM' {input} | pdb_sort | pdb_tidy | pdb_fixinsert > {output}"
+
+rule relax_mutated:
+    input:
+        out_folder  / "mutated_fixinsert" /"{publication}" / "{antibody}_{antigen}" / "{mut}.pdb"
+    output:
+        pdb=RELAXED_PDB_FOLDER / "{publication}" / "{antibody}_{antigen}" / "{mut}.pdb",
+    conda:
+        project_root / "envs" / "generation_environment.yml"
     resources:
-        mem_mb=10000
-    params:
-        info_df=info_df,
-        metadata_file=metadata_file,
-    script: "scripts/generate_summary.py"
+        mem_mb=4000,
+    script:
+        "../scripts/relax.py"

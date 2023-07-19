@@ -56,6 +56,6 @@ Path(out_path).parent.mkdir(parents=True, exist_ok=True)
 file_path = snakemake.input[0]
 
 pose = load_pose(file_path)
-relax.apply(pose) # TODO uncomment!
+relax.apply(pose)
 
 dump_comment_pdb(out_path, pose)
