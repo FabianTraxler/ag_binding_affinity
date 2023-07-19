@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 import pyrosetta
-from pyrosetta.rosetta.core.pose import Pose, add_comment, dump_comment_pdb
+from pyrosetta.rosetta.core.pose import Pose, add_comment, get_all_comments
 from pyrosetta.rosetta.protocols.relax import FastRelax
 
 
@@ -51,11 +51,10 @@ def load_pose(pdb_path: str) -> pyrosetta.Pose:
     return testPose
 
 
-out_path = snakemake.output[0]
-Path(out_path).parent.mkdir(parents=True, exist_ok=True)
 file_path = snakemake.input[0]
 
 pose = load_pose(file_path)
 relax.apply(pose)
 
-dump_comment_pdb(out_path, pose)
+Path(snakemake.output.pdb_comments).write_text("\n".join(get_all_comments(pose)))
+pose.dump_pdb(snakemake.output.pdb)

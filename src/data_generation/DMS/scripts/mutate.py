@@ -91,5 +91,6 @@ if mutation_code == "original":
 
 decoded_mutation = convert_mutations(mutation_code)
 mutate(pose, decoded_mutation)
-add_score(pose)
-dump_comment_pdb(snakemake.output.mutated_pdb, pose)
+# TODO just don't
+# add_score(pose)
+pose.dump_pdb(snakemake.output.mutated_pdb)

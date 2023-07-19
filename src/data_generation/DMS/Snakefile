@@ -142,6 +142,7 @@ rule relax_mutated:
         out_folder  / "mutated_fixinsert" /"{publication}" / "{antibody}_{antigen}" / "{mut}.pdb"
     output:
         pdb=RELAXED_PDB_FOLDER / "{publication}" / "{antibody}_{antigen}" / "{mut}.pdb",
+        pdb_comments=RELAXED_PDB_FOLDER / "{publication}" / "{antibody}_{antigen}" / "{mut}.rosetta_comments"
     conda:
         project_root / "envs" / "generation_environment.yml"
     resources:

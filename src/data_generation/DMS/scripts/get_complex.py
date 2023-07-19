@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 from typing import Dict, Tuple
 import pyrosetta
-from pyrosetta.rosetta.core.pose import Pose, add_comment, dump_comment_pdb
+from pyrosetta.rosetta.core.pose import Pose, dump_comment_pdb
 from pyrosetta.rosetta.protocols.relax import FastRelax
 from Bio.PDB.PDBList import PDBList
 from Bio.PDB.PDBParser import PDBParser
@@ -201,6 +201,6 @@ if mutation_code != "":
 # Relax
 relax.apply(pose)
 
-dump_comment_pdb(out_path + ".tmp", pose)
+pose.dump_pdb(out_path + ".tmp")
 clean_tidy_pdb(out_path + ".tmp", out_path)
 
