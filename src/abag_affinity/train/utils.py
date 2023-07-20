@@ -121,15 +121,6 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
     total_loss_train = 0.0
     model.train()
 
-    # Update pairs, if relative dataset
-    try:
-        if train_dataloader.dataset.relative_data:
-            train_dataloader.dataset.update_valid_pairs()
-    except AttributeError:
-        for subset in train_dataloader.dataset.datasets:  # bucket learning combines datasets
-            if subset.dataset.relative_data:
-                subset.dataset.update_valid_pairs()
-
     for data in tqdm(train_dataloader, disable=not tqdm_output):
         optimizer.zero_grad()
 
@@ -245,7 +236,6 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_dataset: 
         "epoch_acc": []
     }
 
-    train_dataloader, val_dataloader = get_dataloader(args, train_dataset, val_dataset)
     if val_dataset.relative_data:
         data_type = "relative"
     else:
@@ -281,6 +271,8 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_dataset: 
     best_model = deepcopy(model)
 
     for i in range(args.max_epochs):
+        train_dataloader, val_dataloader = get_dataloader(args, train_dataset, val_dataset)
+
         model, epoch_results = train_epoch(model, train_dataloader, val_dataloader, criterion, optimizer, device,
                                            args.tqdm_output, scale_min, scale_max)
 
@@ -454,6 +446,9 @@ def get_dataloader(args: Namespace, train_dataset: AffinityDataset, val_dataset:
         batch_size = 0
     else:
         batch_size = args.batch_size
+
+    if train_dataset.relative_data:
+        train_dataset.update_valid_pairs()
 
     train_dataloader = DL_torch(train_dataset, num_workers=args.num_workers, batch_size=batch_size,
                                 shuffle=args.shuffle, collate_fn=AffinityDataset.collate)
@@ -691,6 +686,12 @@ def get_bucket_dataloader(args: Namespace, train_datasets: List[AffinityDataset]
     relative_data_indices = []
     relative_E_data_indices = []
 
+    # Reshuffle pairs
+    for idx, train_dataset in enumerate(train_datasets):
+        if train_dataset.relative_data:
+            train_dataset.update_valid_pairs()
+
+
     if args.bucket_size_mode == "min":
         train_bucket_size = [min([len(dataset) for dataset in train_datasets])] * len(train_datasets)
     elif args.bucket_size_mode == "geometric_mean":
@@ -704,16 +705,18 @@ def get_bucket_dataloader(args: Namespace, train_datasets: List[AffinityDataset]
         raise ValueError(f"bucket_size_mode argument not supported: Got {args.bucket_size_mode} "
                          f"but expected one of [min, geometric_mean]")
     i = 0
+
     for idx, train_dataset in enumerate(train_datasets):
-        if train_dataset.dataset_name == args.target_dataset: # always take all data points from the target dataset
-            indices = range(len(train_dataset))
-        else:
-            if len(train_dataset) >= train_bucket_size[idx]:
+        if len(train_dataset) >= train_bucket_size[idx]:
+            if train_dataset.dataset_name in args.target_dataset:  # args.target_dataset includes :absolute
+                # always take all data points from the target dataset
+                indices = range(len(train_dataset))
+            else:
                 # sample without replacement
                 indices = random.sample(range(len(train_dataset)), train_bucket_size[idx])
-            else:
-                # sample with replacement
-                indices = random.choices(range(len(train_dataset)), k=train_bucket_size[idx])
+        else:
+            # sample with replacement
+            indices = random.choices(range(len(train_dataset)), k=train_bucket_size[idx])
 
         train_buckets.append(Subset(train_dataset, indices))
         if train_dataset.relative_data and train_dataset.affinity_type == "E":
