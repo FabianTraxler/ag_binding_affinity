@@ -448,6 +448,8 @@ def get_residue_of_embeddings(residue_infos: list, of_embs: Dict, pdb_id: Option
         residue_infos: List of residue infos
         of_emb_path: Path to file containing OpenFold embeddings
 
+    # TODO we might need an extra rule for 1zv5, which got a broken header and therefore(?) fails to load here
+
     Returns:
         np.ndarray: Array with the OpenFold embeddings at the appropriate positions - shape (n, 384)
     """

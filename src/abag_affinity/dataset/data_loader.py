@@ -132,7 +132,8 @@ class AffinityDataset(Dataset):
         if relative_data:
             self.get = self.get_relative
             logger.info(f"Forcing graph preprocessing, in order to avoid race conditions in workers")
-            self.preprocess_data = True 
+            self.preprocess_data = True
+            self.update_valid_pairs()  # should not be necessary in theory, but __repr__ calls len(), which requires the pairs
         else:
             self.get = self.get_absolute
 

@@ -122,8 +122,13 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
     model.train()
 
     # Update pairs, if relative dataset
-    if train_dataloader.dataset.relative_data:
-        train_dataloader.dataset.update_valid_pairs()
+    try:
+        if train_dataloader.dataset.relative_data:
+            train_dataloader.dataset.update_valid_pairs()
+    except AttributeError:
+        for subset in train_dataloader.dataset.datasets:  # bucket learning combines datasets
+            if subset.dataset.relative_data:
+                subset.dataset.update_valid_pairs()
 
     for data in tqdm(train_dataloader, disable=not tqdm_output):
         optimizer.zero_grad()
@@ -723,7 +728,7 @@ def get_bucket_dataloader(args: Namespace, train_datasets: List[AffinityDataset]
     # TODO: find better way
     for dataset in val_datasets:
         if dataset.relative_data:
-            dataset.data_points = dataset.data_points[:100]
+            dataset.relative_pairs = dataset.relative_pairs[:100]
 
     train_dataset = ConcatDataset(train_buckets)
     batch_sampler = generate_bucket_batch_sampler([absolute_data_indices, relative_data_indices, relative_E_data_indices], args.batch_size,
