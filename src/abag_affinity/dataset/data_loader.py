@@ -131,7 +131,8 @@ class AffinityDataset(Dataset):
         self.relative_data = relative_data
         if relative_data:
             self.get = self.get_relative
-            self.preprocess_data = True  # necessary to preprocess graphs in order to avoid race conditions in workers
+            logger.info(f"Forcing graph preprocessing, in order to avoid race conditions in workers")
+            self.preprocess_data = True 
         else:
             self.get = self.get_absolute
 
