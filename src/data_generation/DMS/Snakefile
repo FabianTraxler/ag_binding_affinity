@@ -61,8 +61,8 @@ rule all:
 
 checkpoint generate_summary_df:
     input:
-        dms_curated=dms_info_file,
-        metadata_file=metadata_file,
+        dms_curated=ancient(dms_info_file),
+        metadata_file=ancient(metadata_file),
     output:
         out_folder / "{publication}.csv"
     conda: "../../../envs/generation_environment.yml"
@@ -114,7 +114,7 @@ rule mutate_complex:
     Generate a single mutation
     """
     input:
-        dms_curated=dms_info_file,
+        dms_curated=ancient(dms_info_file),
         pdb=out_folder / "interface_hull_pdbs" / "{publication}/{antibody}_{antigen}.pdb",
     output:
         mutated_pdb = out_folder / "mutated" / "{publication}" / "{antibody,[^/]+}_{antigen,[^/]+}" / "{mut}.pdb"
