@@ -53,7 +53,7 @@ def forward_step(model: AffinityGNN, data: Dict, device: torch.device) -> Tuple[
             temperature = 0.2
         else:
             temperature = 2
-        output = twin_model(data, temperature=temperature)
+        output = twin_model(data, rel_temperature=temperature)
     else:
         data["input"]["graph"] = data["input"]["graph"].to(device)
         if "deeprefine_graph" in data["input"]:
@@ -84,7 +84,7 @@ def get_label(data: Dict, device: torch.device) -> torch.Tensor:
         raise ValueError(f"Wrong affinity type given - expected one of (-log(Kd), E) but got {data['affinity_type']}")
 
 
-def get_loss(criterion, label: torch.Tensor, output: torch.Tensor, min_log_kd: float, max_log_kd: float) -> torch.Tensor:
+def get_loss(criterion, label: torch.Tensor, output: torch.Tensor, min_label: float, max_label: float) -> torch.Tensor:
     if output["affinity_type"] == "-log(Kd)":
         return criterion(output["x"], label)
     elif output["affinity_type"] == "E":
@@ -93,12 +93,12 @@ def get_loss(criterion, label: torch.Tensor, output: torch.Tensor, min_log_kd: f
         all_preds = torch.cat((output["x1"], output["x2"]))
 
         # add loss for too large values
-        over_max = (all_preds > max_log_kd).float()
-        loss += torch.sum((all_preds - max_log_kd)**2 * over_max)
+        over_max = (all_preds > max_label).float()
+        loss += torch.sum((all_preds - max_label)**2 * over_max)
 
         # add loss for too small values
-        below_min = (all_preds < min_log_kd).float()
-        loss += torch.sum((min_log_kd - all_preds)**2 * below_min)
+        below_min = (all_preds < min_label).float()
+        loss += torch.sum((min_label - all_preds)**2 * below_min)
 
         return loss
     else:
@@ -107,7 +107,7 @@ def get_loss(criterion, label: torch.Tensor, output: torch.Tensor, min_log_kd: f
 
 def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader: DataLoader, criterion,
                 optimizer: torch.optim, device: torch.device = torch.device("cpu"), tqdm_output: bool = True,
-                min_log_kd: float = 4, max_log_kd: float = 14) -> Tuple[AffinityGNN, Dict]:
+                min_label: float = 4, max_label: float = 14) -> Tuple[AffinityGNN, Dict]:
     """ Train model for one epoch given the train and validation dataloaders
 
     Args:
@@ -130,7 +130,7 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
         # pdb.set_trace()
         output, label = forward_step(model, data, device)
 
-        loss = get_loss(criterion, label, output, min_log_kd, max_log_kd)
+        loss = get_loss(criterion, label, output, min_label, max_label)
         total_loss_train += loss.item()
 
         loss.backward()
@@ -150,7 +150,7 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
     for data in tqdm(val_dataloader, disable=not tqdm_output):
         output, label = forward_step(model, data, device)
 
-        loss = get_loss(criterion, label, output, min_log_kd, max_log_kd)
+        loss = get_loss(criterion, label, output, min_label, max_label)
         total_loss_val += loss.item()
 
         if data["relative"] and data["affinity_type"] == "E":
