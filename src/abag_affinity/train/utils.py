@@ -84,30 +84,18 @@ def get_label(data: Dict, device: torch.device) -> torch.Tensor:
         raise ValueError(f"Wrong affinity type given - expected one of (-log(Kd), E) but got {data['affinity_type']}")
 
 
-def get_loss(criterion, label: torch.Tensor, output: torch.Tensor, min_label: float, max_label: float) -> torch.Tensor:
+def get_loss(criterion, label: torch.Tensor, output: torch.Tensor) -> torch.Tensor:
     if output["affinity_type"] == "-log(Kd)":
         return criterion(output["x"], label)
     elif output["affinity_type"] == "E":
         loss = torch.nn.functional.cross_entropy(output["x_prob"], label)
-
-        all_preds = torch.cat((output["x1"], output["x2"]))
-
-        # add loss for too large values
-        over_max = (all_preds > max_label).float()
-        loss += torch.sum((all_preds - max_label)**2 * over_max)
-
-        # add loss for too small values
-        below_min = (all_preds < min_label).float()
-        loss += torch.sum((min_label - all_preds)**2 * below_min)
-
         return loss
     else:
         raise ValueError(f"Wrong affinity type given - expected one of (-log(Kd), E) but got {output['affinity_type']}")
 
 
 def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader: DataLoader, criterion,
-                optimizer: torch.optim, device: torch.device = torch.device("cpu"), tqdm_output: bool = True,
-                min_label: float = 4, max_label: float = 14) -> Tuple[AffinityGNN, Dict]:
+                optimizer: torch.optim, device: torch.device = torch.device("cpu"), tqdm_output: bool = True) -> Tuple[AffinityGNN, Dict]:
     """ Train model for one epoch given the train and validation dataloaders
 
     Args:
@@ -130,7 +118,7 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
         # pdb.set_trace()
         output, label = forward_step(model, data, device)
 
-        loss = get_loss(criterion, label, output, min_label, max_label)
+        loss = get_loss(criterion, label, output)
         total_loss_train += loss.item()
 
         loss.backward()
@@ -150,7 +138,7 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
     for data in tqdm(val_dataloader, disable=not tqdm_output):
         output, label = forward_step(model, data, device)
 
-        loss = get_loss(criterion, label, output, min_label, max_label)
+        loss = get_loss(criterion, label, output)
         total_loss_val += loss.item()
 
         if data["relative"] and data["affinity_type"] == "E":
@@ -277,7 +265,7 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_dataset: 
         train_dataloader, val_dataloader = get_dataloader(args, train_dataset, val_dataset)
 
         model, epoch_results = train_epoch(model, train_dataloader, val_dataloader, criterion, optimizer, device,
-                                           args.tqdm_output, scale_min, scale_max)
+                                           args.tqdm_output)
 
         results["epoch_loss"].append(epoch_results["val_loss"])
         results["epoch_corr"].append(epoch_results["pearson_correlation"])
@@ -837,7 +825,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
         train_dataloader, val_dataloader = get_bucket_dataloader(args, train_datasets, val_datasets)
 
         model, epoch_results = train_epoch(model, train_dataloader, val_dataloader, criterion, optimizer, device,
-                                           args.tqdm_output, scale_min, scale_max)
+                                           args.tqdm_output)
 
         dataset_results = {}
 
@@ -1030,10 +1018,6 @@ def log_gradients(model: AffinityGNN):
 
 def evaluate_model(model: AffinityGNN, dataloader: DataLoader, criterion, args: Namespace, tqdm_output: bool = True,
                    device: torch.device = torch.device("cpu"), plot_path: str = None) -> Tuple[float, float, pd.DataFrame]:
-
-    min_log_kd = 0 if args.scale_values else args.scale_min
-    max_log_kd = 1 if args.scale_values else args.scale_max
-
     total_loss_val = 0
     all_predictions = np.array([])
     all_labels = np.array([])
@@ -1042,7 +1026,7 @@ def evaluate_model(model: AffinityGNN, dataloader: DataLoader, criterion, args: 
     for data in tqdm(dataloader, disable=not tqdm_output):
         output, label = forward_step(model, data, device)
 
-        loss = get_loss(criterion, label, output, min_log_kd, max_log_kd)
+        loss = get_loss(criterion, label, output)
         total_loss_val += loss.item()
 
         all_predictions = np.append(all_predictions, output["x"].flatten().detach().cpu().numpy())
