@@ -23,7 +23,31 @@ class AffinityGNN(pl.LightningModule):
                  nonlinearity: str = "relu",
                  num_fc_layers: int = 3, fc_size_halving: bool = True,
                  device: torch.device = torch.device("cpu"),
+                 scaled_output: bool = False,
                  args=None):  # provide args so they can be saved by the LightningModule (hparams)
+        """
+        Args:
+            node_feat_dim: Dimension of node features
+            edge_feat_dim: Dimension of edge features
+            num_nodes: Number of nodes in the graph
+            pretrained_model: Name of pretrained model to use
+            pretrained_model_path: Path to pretrained model
+            gnn_type: Type of GNN to use
+            layer_type: Type of GNN layer to use
+            num_gat_heads: Number of GAT heads to use
+            num_gnn_layers: Number of GNN layers to use
+            channel_halving: Halve the number of channels after each GNN layer
+            channel_doubling: Double the number of channels after each GNN layer
+            node_type: Type of node to use
+            aggregation_method: Method to aggregate node embeddings
+            nonlinearity: Nonlinearity to use
+            num_fc_layers: Number of fully connected layers to use
+            fc_size_halving: Halve the size of the fully connected layers after each layer
+            device: Device to use
+            scaled_output: Whether to scale the output to the range [0, 1]
+            args: Arguments passed to the LightningModule
+        """
+
         super(AffinityGNN, self).__init__()
         self.save_hyperparameters()
 
@@ -64,6 +88,7 @@ class AffinityGNN(pl.LightningModule):
             self.regression_head = RegressionHead(self.graph_conv.embedding_dim, num_nodes=num_nodes,
                                                   aggregation_method=aggregation_method, size_halving=fc_size_halving,
                                                   nonlinearity=nonlinearity,  num_fc_layers=num_fc_layers, device=device)
+        self.scaled_output = scaled_output
 
         self.float()
 
@@ -86,6 +111,10 @@ class AffinityGNN(pl.LightningModule):
 
         # calculate binding affinity
         affinity = self.regression_head(graph)
+
+        # scale output to [0, 1] to make it it easier for the model
+        if self.scaled_output:
+            affinity = torch.sigmoid(affinity)
 
         output = {
             "x": affinity

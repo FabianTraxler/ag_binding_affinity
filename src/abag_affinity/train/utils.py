@@ -49,8 +49,11 @@ def forward_step(model: AffinityGNN, data: Dict, device: torch.device) -> Tuple[
 
     if data["relative"]:  # relative data available
         twin_model = TwinWrapper(model)
-        output = twin_model(data)
-
+        if model.scaled_output:
+            temperature = 0.2
+        else:
+            temperature = 2
+        output = twin_model(data, temperature=temperature)
     else:
         data["input"]["graph"] = data["input"]["graph"].to(device)
         if "deeprefine_graph" in data["input"]:
@@ -422,7 +425,9 @@ def load_model(num_node_features: int, num_edge_features: int, args: Namespace,
                         aggregation_method=args.aggregation_method,
                         nonlinearity=args.nonlinearity,
                         num_fc_layers=args.num_fc_layers, fc_size_halving=args.fc_size_halving,
-                        device=device, args=args)
+                        device=device,
+                        scaled_output=args.scale_values,
+                        args=args)
 
     return model
 
