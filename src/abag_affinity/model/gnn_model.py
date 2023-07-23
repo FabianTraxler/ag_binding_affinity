@@ -115,6 +115,9 @@ class AffinityGNN(pl.LightningModule):
         # scale output to [0, 1] to make it it easier for the model
         if self.scaled_output:
             affinity = torch.sigmoid(affinity)
+            num_excessive = (affinity == 0).sum() + (affinity == 1).sum()
+            if num_excessive > 0:
+                print(f"WARNING: Vanishing gradients in {num_excessive} of {len(affinity.flatten())} due to excessively large values from NN.")
 
         output = {
             "x": affinity
