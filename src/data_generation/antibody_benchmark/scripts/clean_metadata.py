@@ -1,3 +1,5 @@
+from guided_protein_diffusion.datasets.abdb import ENUM_ANTIGEN
+from guided_protein_diffusion.datasets.dataset import load_protein
 import pandas as pd
 from pathlib import Path
 import string
@@ -5,30 +7,20 @@ import numpy as np
 from typing import Dict
 from collections import defaultdict, deque
 
-# if "snakemake" not in globals(): # use fake snakemake object for debugging
-#     import os
-#     project_root = (Path(__file__).parents[4]).resolve()
+if "snakemake" not in globals(): # use fake snakemake object for debugging
+    snakemake = type('', (), {})()
+    snakemake.input = {"xlsx": "~/guided-protein-diffusion/modules/ag_binding_affinity/resources/antibody_benchmark/antibody_benchmark_cases.xlsx",
+                       "pdb_dir": "~/guided-protein-diffusion/modules/ag_binding_affinity/resources/AbDb/pdbs"}
+    snakemake.output = {"csv": "~/guided-protein-diffusion/modules/ag_binding_affinity/results/antibody_benchmark/benchmark.csv"}
 
-#     DATASET_NAME = "antibody_benchmark"
 
-#     resource_folder = os.path.join(project_root, "resources")
-#     results_folder = os.path.join(project_root, "results")
-
-#     dataset_resource_folder = os.path.join(resource_folder, DATASET_NAME)
-#     dataset_results_folder = os.path.join(results_folder, DATASET_NAME)
-
-#     in_file = os.path.join(dataset_resource_folder, "antibody_benchmark_cases.xlsx")
-#     out_file = os.path.join(dataset_results_folder, "benchmark.csv")
-
-#     snakemake = type('', (), {})()
-#     snakemake.input = [in_file]
-#     snakemake.output = {"csv": out_file}
-#     snakemake.params = {}
-#     snakemake.params["dataset_resource_folder"] = dataset_resource_folder
-
-out_path = snakemake.output["csv"]
-Path(out_path).parent.mkdir(parents=True, exist_ok=True)
-file_path = snakemake.input[0]
+from guided_protein_diffusion.utils.interact import init_interactive_environment
+init_interactive_environment(
+    ["--dataset", "abdb", "--openfold_time_injection_alpha", "0.0", "--antigen_conditioning"]
+)  # implies --testing
+out_path = Path(snakemake.output["csv"]).expanduser()
+out_path.parent.mkdir(parents=True, exist_ok=True)
+file_path = snakemake.input["xlsx"]
 
 summary_df = pd.read_excel(file_path)
 print(file_path)
@@ -85,7 +77,7 @@ def get_chains(complex_name: str) -> Dict:
 
         # Apply substitutions in the sorted order
         result = {}
-        for node in stack:
+        for node in reversed(stack):
             if node in substitutions:
                 result[node] = substitutions[node]
 
@@ -98,8 +90,20 @@ summary_df["validation"] = 0
 summary_df["test"] = True
 
 summary_df = summary_df[["pdb", "filename", "-log(Kd)", "Kd (nM)", "delta_g", "chain_infos", "validation", "test"]]
-
 summary_df.index = summary_df["pdb"]
-summary_df.index.name = ""
 
+# Check for which PDBs we are able to load antigens (only take those for the benchmark set)
+valid_pdbs = []
+for pdb_id in summary_df.index:
+    try:
+        prot = load_protein(Path(snakemake.input["pdb_dir"]).expanduser() / f"{pdb_id.upper()}_1.pdb", max_antigen_length=350)
+        if (prot["context_chain_type"] == ENUM_ANTIGEN).any():
+            valid_pdbs.append(pdb_id)
+    except FileNotFoundError:
+        pass
+
+print(f"{len(valid_pdbs)} for {len(summary_df)} were valid ((antibody+)antigen could be loaded)")
+summary_df = summary_df.loc[valid_pdbs]
+
+summary_df.index.name = ""
 summary_df.to_csv(out_path)

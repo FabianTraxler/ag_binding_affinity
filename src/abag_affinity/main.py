@@ -1,5 +1,7 @@
 """This module provides all training utilities for the antibody-antigen binding affinity prediction"""
 from datetime import datetime
+import numpy as np
+
 import logging
 from pathlib import Path
 import random
@@ -12,6 +14,7 @@ import torch
 from torch.utils.data import DataLoader
 import wandb
 import subprocess
+from abag_affinity.train.utils import get_benchmark_score, get_skempi_corr
 import pytorch_lightning as pl
 
 from abag_affinity.utils.argparse_utils import parse_args, enforced_node_type
@@ -161,6 +164,15 @@ def main() -> Dict:
         else:
             model, results = training[args.train_strategy](args)
 
+            # Run benchmarks
+            benchmark_pearson, benchmark_loss, benchmark_df = get_benchmark_score(model, args, tqdm_output=args.tqdm_output)
+            test_skempi_grouped_corrs, test_skempi_score, test_loss_skempi, test_skempi_df = get_skempi_corr(model, args, tqdm_output=args.tqdm_output)
+
+            logger.info(f"Benchmark results >>> {benchmark_pearson}")
+            logger.info(f"SKEMPI testset results >>> {test_skempi_score}")
+            logger.info(f"Mean SKEMPI correlations >>> {np.mean(test_skempi_grouped_corrs)}")
+
+            # Save model
             if args.model_path is not None:
                 path = Path(args.model_path)
             else:

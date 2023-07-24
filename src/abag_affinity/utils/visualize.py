@@ -1,4 +1,5 @@
 """Visualization tools to plot training results"""
+from typing import Optional
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
@@ -6,7 +7,7 @@ from scipy import stats
 
 
 
-def plot_correlation(x: np.ndarray, y: np.ndarray, path: str, show_corr: bool = True, show_rmse: bool = True ):
+def plot_correlation(x: np.ndarray, y: np.ndarray, path: Optional[str] = None, show_corr: bool = True, show_rmse: bool = True ):
     """ Plot a correlation plot and show the regression line
 
     Optional show the pearson correlation with p-value
@@ -45,5 +46,8 @@ def plot_correlation(x: np.ndarray, y: np.ndarray, path: str, show_corr: bool = 
     plot.ax_joint.set_xlabel("Label [-log(Kd)]")
     plot.ax_joint.set_ylabel("Prediction [-log(Kd)]")
     plt.tight_layout()
-    plt.savefig(path)
-    plt.close()
+    if path:
+        plt.savefig(path)
+        plt.close()
+    else:
+        plt.show()
