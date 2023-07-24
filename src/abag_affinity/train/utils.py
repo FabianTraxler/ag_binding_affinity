@@ -608,9 +608,9 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
         Tuple: Train and validation dataset
     """
 
-    dataset_name, data_usage = dataset.split(":")
+    dataset_name, data_type = dataset.split(":")
 
-    if data_usage == "relative":
+    if data_type == "relative":
         relative_data = True
     else:
         relative_data = False
@@ -622,7 +622,7 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
         train_ids = train_ids[:20]
         val_ids = val_ids[:5]
 
-    logger.debug(f"Get dataLoader for {dataset_name}:{data_usage}")
+    logger.debug(f"Get dataLoader for {dataset_name}:{data_type}")
     train_data = AffinityDataset(config, dataset_name, train_ids,
                                  node_type=args.node_type,
                                  max_nodes=args.max_num_nodes,
