@@ -74,24 +74,24 @@ def get_label(data: Dict, device: torch.device) -> torch.Tensor:
         else:
             return data["input"]["graph"].y.to(device)
     elif data["affinity_type"] == "E":
-        assert data["relative"], "Enrichment values can only be used relative"
-
-        label_1 = (data["input"][0]["graph"].y > data["input"][1]["graph"].y).float()
-        label_2 = (data["input"][1]["graph"].y > data["input"][0]["graph"].y).float()
-        label = torch.stack((label_1, label_2)).T
-        return label.to(device)
+        if data["relative"]:
+            label_1 = (data["input"][0]["graph"].y > data["input"][1]["graph"].y).float()
+            label_2 = (data["input"][1]["graph"].y > data["input"][0]["graph"].y).float()
+            label = torch.stack((label_1, label_2)).T
+            return label.to(device)
+        else:
+            return data["input"]["graph"].y.to(device)
     else:
         raise ValueError(f"Wrong affinity type given - expected one of (-log(Kd), E) but got {data['affinity_type']}")
 
 
 def get_loss(criterion, label: torch.Tensor, output: torch.Tensor) -> torch.Tensor:
-    if output["affinity_type"] == "-log(Kd)":
+    try:
+        return torch.nn.functional.cross_entropy(output["x_prob"], label)
+    except KeyError:
         return criterion(output["x"], label)
-    elif output["affinity_type"] == "E":
-        loss = torch.nn.functional.cross_entropy(output["x_prob"], label)
-        return loss
-    else:
-        raise ValueError(f"Wrong affinity type given - expected one of (-log(Kd), E) but got {output['affinity_type']}")
+    # else:
+    #     raise ValueError(f"Wrong affinity type given - expected one of (-log(Kd), E) but got {output['affinity_type']}")
 
 
 def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader: DataLoader, criterion,
@@ -842,11 +842,11 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
             val_loss = criterion(torch.from_numpy(preds).to(device),
                                  torch.from_numpy(labels).to(device)).detach().cpu()  # mean_squared_error(labels, preds) / len(labels)
 
-            if val_dataset.affinity_type == "E":
+            if val_dataset.affinity_type == "E" and val_dataset.relative_data:
                 pearson_corr = (np.nan, np.nan)
                 rmse = np.nan
                 val_accuracy = accuracy_score(labels, preds)
-            elif val_dataset.affinity_type == "-log(Kd)":
+            else:  # val_dataset.affinity_type in ["-log(Kd)", "E–"]:
                 pearson_corr = stats.pearsonr(labels, preds)
                 val_accuracy = np.nan
                 if args.scale_values:
@@ -856,9 +856,9 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
                     all_labels = labels
                     all_predictions = preds
                 rmse = math.sqrt(np.square(np.subtract(all_labels, all_predictions)).mean())
-            else:
-                raise ValueError(f"Affinity type not supported: Got {val_dataset.affinity_type} but expected one of "
-                                 f"(E, -log(Kd)")
+            # else:
+            #     raise ValueError(f"Affinity type not supported: Got {val_dataset.affinity_type} but expected one of "
+            #                      f"(E, -log(Kd)")
             if val_dataset.relative_data:
                 data_type = "relative"
             else:

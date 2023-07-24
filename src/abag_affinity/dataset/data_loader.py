@@ -93,6 +93,9 @@ class AffinityDataset(Dataset):
         if "-" in dataset_name: # part of DMS dataset
             dataset_name, publication_code = dataset_name.split("-")
             self.affinity_type = self.config["DATASETS"][dataset_name]["affinity_types"][publication_code]
+
+            if self.affinity_type == "E" and not relative_data:
+                logging.warning("Enrichment values are used 'absolutely'")
             self.dataset_name = dataset_name
             self.publication = publication_code
             self.full_dataset_name = dataset_name + "-" + publication_code
