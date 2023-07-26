@@ -364,7 +364,7 @@ class DeepRefineBackboneInputs(AffinityDataset, ABC):
         # Organize the input graph and its associated metadata as a dictionary
         prot_dict = {
             'deeprefine_graph': graph,
-            'filepath': cleaned_path
+            'filepath': cleaned_path  # TODO fix filepath
         }
 
         # Combine all distinct node features together into a single node feature tensor

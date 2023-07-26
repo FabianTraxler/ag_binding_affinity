@@ -8,7 +8,7 @@ import string
 import subprocess
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple, Union, Optional
 import numpy as np
 import pandas as pd
 import scipy.spatial as sp
@@ -383,7 +383,7 @@ def get_atom_edge_encodings(distance_matrix: np.ndarray, atom_encodings: np.ndar
     return A
 
 
-def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_file_path: Union[str, Path], fix_insert=True):
+def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_file_path: Union[str, Path], fix_insert=True, rename_chains: Optional[Dict] = None):
     Path(cleaned_file_path).parent.mkdir(exist_ok=True, parents=True)
 
     with tempfile.NamedTemporaryFile(suffix=".tmp", delete=False) as tmp_file:
@@ -399,13 +399,17 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_fil
     io.save(tmp_pdb_filepath)
 
     # identify antigen chain
-    rename_fixinsert_command = ""
-    df_map = pdb_chain_mapping(pdb_file_path)
-    if df_map is not None:
-        antigen_chains = sorted(df_map[df_map["type"] == "A"]["abdb_label"].values)
+    if rename_chains is None:
+        # check whether the PDB file header includes chain mapping
+        df_map = pdb_chain_mapping(pdb_file_path)
+        if df_map is not None:
+            antigen_chains = sorted(df_map[df_map["type"] == "A"]["abdb_label"].values)
+            rename_chains = dict(zip(antigen_chains, string.ascii_uppercase))
 
+    rename_fixinsert_command = ""
+    if rename_chains is not None:
         # assign chains ids from A to Z. I checked that this will not lead to conflicts with the original chain ids (in case of 2 or more antigen chains)
-        for new_id, chain in zip(string.ascii_uppercase, antigen_chains):
+        for chain, new_id in rename_chains.items():
             rename_fixinsert_command += f" | pdb_rplchain -{chain}:{new_id}"
 
     if fix_insert:
@@ -480,7 +484,11 @@ def pdb_chain_mapping(pdb_file: Union[str, Path]) -> pd.DataFrame:
             elif len(mapping) > 0:
                 break
         else:
-            logging.warning("pdb_file did not contain chain mapping. Leaving chains as is.")
+            logging.debug("pdb_file did not contain chain mapping.")
             return  None
             # mapping = [["L", "L", "L"], ["H", "H", "H"], ["A", "A", "A"]]
-    return pd.DataFrame(data=mapping, columns=("type", "abdb_label", "original_label"))
+    df = pd.DataFrame(data=mapping, columns=("type", "abdb_label", "original_label"))
+    if "1ZV5" in str(pdb_file):  # fix error in dataset
+        df.loc[df["abdb_label"] == "L", "abdb_label"] = "l"
+    return df
+

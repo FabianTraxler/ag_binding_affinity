@@ -132,6 +132,7 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
 
         loss.backward()
         optimizer.step()
+        # break
 
     total_loss_val = 0
     all_predictions = np.array([])
@@ -172,6 +173,9 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
             all_pdbs.extend([ filepath.split("/")[-1].split(".")[0] for filepath in data["input"]["filepath"]])
         all_labels = np.append(all_labels, label.numpy())
         all_predictions = np.append(all_predictions, output["x"].flatten().detach().cpu().numpy())
+
+        # if len(all_predictions) > 2:
+        #     break
 
     val_loss = total_loss_val / (len(all_predictions) + len(all_binary_predictions))
     if len(all_binary_labels) > 0:
@@ -948,7 +952,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
 
 
 def finetune_pretrained(model: AffinityGNN, train_dataset: Union[AffinityDataset, List[AffinityDataset]], val_dataset: Union[AffinityDataset, List[AffinityDataset]],
-                      args: Namespace, lr_reduction: float = 5e-02) -> Tuple[Dict, AffinityGNN]:
+                      args: Namespace, lr_reduction: float = 2e-02) -> Tuple[Dict, AffinityGNN]:
     """ Utility to finetune the pretrained model using a lowered learning rate
 
     Args:
@@ -1012,8 +1016,7 @@ def log_gradients(model: AffinityGNN):
 
 
 def evaluate_model(model: AffinityGNN, dataloader: DataLoader, criterion, args: Namespace, tqdm_output: bool = True,
-                   device: torch.device = torch.device("cpu"), plot_path: str = None,
-                   results_path: str = None) -> Tuple[float, float]:
+                   device: torch.device = torch.device("cpu"), plot_path: str = None) -> Tuple[float, float, pd.DataFrame]:
 
     min_log_kd = 0 if args.scale_values else args.scale_min
     max_log_kd = 1 if args.scale_values else args.scale_max
@@ -1036,10 +1039,17 @@ def evaluate_model(model: AffinityGNN, dataloader: DataLoader, criterion, args: 
             label = label.detach().cpu()
         all_labels = np.append(all_labels, label.numpy())
         all_pdbs.extend([ filepath.split("/")[-1].split(".")[0] for filepath in data["input"]["filepath"]])
+        # if len(all_labels) > 2:
+            # break
 
     val_loss = total_loss_val / (len(all_predictions))
-    pearson_corr = stats.pearsonr(all_labels, all_predictions)[0]
+    try:
+        pearson_corr = stats.pearsonr(all_labels, all_predictions)[0]
+    except ValueError:
+        logging.warning(f"nan in predictions or labels:\n{all_labels}\n{all_predictions}")
+        pearson_corr = None
 
+    # TODO pull out the plotting too
     if plot_path is not None:
         # scale prediction back to original values
         if args.scale_values:
@@ -1049,23 +1059,19 @@ def evaluate_model(model: AffinityGNN, dataloader: DataLoader, criterion, args: 
         Path(plot_path).parent.mkdir(parents=True, exist_ok=True)
         plot_correlation(x=all_labels, y=all_predictions,
                          path=plot_path)
-    if results_path is not None:
-        Path(results_path).parent.mkdir(parents=True, exist_ok=True)
-        results = pd.DataFrame({
-            "pdb": all_pdbs,
-            "prediction": all_predictions,
-            "labels": all_labels
-        })
-        results.to_csv(results_path)
 
-    return pearson_corr, val_loss
+    res_df = pd.DataFrame({
+                "pdb": all_pdbs,
+                "prediction": all_predictions,
+                "labels": all_labels
+            })
+    return pearson_corr, val_loss, res_df
 
 
-def get_benchmark_score(model: AffinityGNN, args: Namespace, tqdm_output: bool = True, plot_path: str = None,
-                        results_path: str = None) -> Tuple[float, float]:
+def get_benchmark_score(model: AffinityGNN, args: Namespace, tqdm_output: bool = True, plot_path: str = None) -> Tuple[float, float, pd.DataFrame]:
 
     criterion = nn.MSELoss()
-    dataset = AffinityDataset(args.config, "AntibodyBenchmark", None,
+    dataset = AffinityDataset(args.config, "AntibodyBenchmark",
                               node_type=args.node_type,
                               max_nodes=args.max_num_nodes,
                               interface_distance_cutoff=args.interface_distance_cutoff,
@@ -1090,11 +1096,11 @@ def get_benchmark_score(model: AffinityGNN, args: Namespace, tqdm_output: bool =
     device = torch.device("cuda" if use_cuda else "cpu")
 
     return evaluate_model(model, dataloader, criterion, args=args, tqdm_output=tqdm_output, device=device,
-                          plot_path=plot_path, results_path=results_path)
+                          plot_path=plot_path)
 
 
 def get_abag_test_score(model: AffinityGNN, args: Namespace, tqdm_output: bool = True, plot_path: str = None,
-                        results_path: str = None, validation_set: int = None) -> Tuple[float, float]:
+                        validation_set: int = None) -> Tuple[float, float, pd.DataFrame]:
 
     criterion = nn.MSELoss()
 
@@ -1131,5 +1137,51 @@ def get_abag_test_score(model: AffinityGNN, args: Namespace, tqdm_output: bool =
     use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
 
-    return evaluate_model(model, dataloader, criterion, args=args, tqdm_output=tqdm_output, device=device,
-                          plot_path=plot_path, results_path=results_path)
+    return evaluate_model(model, dataloader, criterion, args=args, tqdm_output=tqdm_output, device=device, plot_path=plot_path)
+
+
+def get_skempi_corr(model: AffinityGNN, args: Namespace, tqdm_output: bool = True, plot_path: str = None) -> Tuple[float, float, float, pd.DataFrame]:
+    """
+    Take the available Skempi mutations for validation
+    """
+    criterion = nn.MSELoss()
+
+    dataset = AffinityDataset(args.config, "SKEMPI.v2",
+                            node_type=args.node_type,
+                            max_nodes=args.max_num_nodes,
+                            interface_distance_cutoff=args.interface_distance_cutoff,
+                            interface_hull_size=args.interface_hull_size,
+                            max_edge_distance=args.max_edge_distance,
+                            pretrained_model=args.pretrained_model,
+                            scale_values=args.scale_values,
+                            scale_min=args.scale_min,
+                            scale_max=args.scale_max,
+                            relative_data=False,
+                            save_graphs=args.save_graphs,
+                            force_recomputation=args.force_recomputation,
+                            preprocess_data=args.preprocess_graph,
+                            num_threads=args.num_workers,
+                            load_embeddings=args.embeddings_path
+                            )
+
+    dataloader = DL_torch(dataset, num_workers=args.num_workers, batch_size=1,
+                            collate_fn=AffinityDataset.collate)
+
+    use_cuda = args.cuda and torch.cuda.is_available()
+    device = torch.device("cuda" if use_cuda else "cpu")
+    pearson_corr, val_loss, res_df = evaluate_model(model, dataloader, criterion, args=args, tqdm_output=tqdm_output, device=device,
+                        plot_path=plot_path)
+
+    # take everything after dash (-)
+    res_df["mutation"] = res_df["pdb"].apply(lambda v: v.split("-")[1])
+    res_df["pdb"] = res_df["pdb"].apply(lambda v: v.split("-")[0])
+    # split results by PDBs and compute separate correlations
+    grouped_correlations = res_df.groupby("pdb").apply(lambda group: stats.pearsonr(group.labels, group.prediction)[0])
+
+    res_df["grouped_correlations"] = res_df["pdb"].apply(grouped_correlations.get)
+
+    return np.mean(grouped_correlations), pearson_corr, val_loss, res_df
+
+    # results.append(res)
+
+    # return np.mean([v[0] for v in results]), np.mean([v[1] for v in results])

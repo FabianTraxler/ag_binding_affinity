@@ -27,7 +27,7 @@ if "snakemake" not in globals(): # use fake snakemake object for debugging
 
     snakemake = type('', (), {})()
     snakemake.input = [os.path.join(abdb_folder_path, pdb_type, pdb_id) for pdb_id in all_pdb_ids for pdb_type in all_types ]
-    snakemake.output = ["../abdb_summary.csv"]
+    snakemake.output = ["../abag_affinity_summary.csv"]
 
 
 pyrosetta.init(extra_options="-mute all")
@@ -109,7 +109,7 @@ Path(out_path).parent.mkdir(parents=True, exist_ok=True)
 
 folder2input_files = get_folder2input_files(snakemake.input)
 
-pdb_ids = [ file.split(".")[0].split("/")[-1] for file in folder2input_files["bound_wildtype"] ]
+pdb_ids = [ file.split(".")[0].split("/")[-1] for file in folder2input_files[comparisons[0][0]]]
 
 summary_df = pd.DataFrame()
 

@@ -52,7 +52,7 @@ class BooleanOptionalAction(Action):
         return ' | '.join(self.option_strings)
 
 
-def parse_args() -> Namespace:
+def parse_args(artifical_args=None) -> Namespace:
     """ CLI arguments parsing functionality
 
     Parse all CLI arguments and set not available to default values
@@ -88,7 +88,7 @@ def parse_args() -> Namespace:
                           help="Percent of transfer learning dataset(s) used to validate model (only DMS)",
                           default=10)
     # -train config
-    optional.add_argument("-b", "--batch_size", type=int, help="Batch size used for training", default=10)
+    optional.add_argument("-b", "--batch_size", type=int, help="Batch size used for training", default=1)
     optional.add_argument("-e", "--max_epochs", type=int, help="Max number of training epochs", default=200)
     optional.add_argument("-lr", "--learning_rate", type=float, help="Initial learning rate", default=1e-4)
     optional.add_argument("-p", "--patience", type=int,
@@ -108,7 +108,7 @@ def parse_args() -> Namespace:
     optional.add_argument("--interface_distance_cutoff", type=int, help="Max distance of nodes to be regarded as interface",
                           default=5)
     optional.add_argument("--interface_hull_size", type=lambda x: None if x is None or x.lower() == 'none' else int(x),
-                          help="Size of the extension from interface to generate interface hull. Provide None to include whole protein", default=7)
+                          help="Size of the extension from interface to generate interface hull. Provide None to include whole protein", default=None)
     optional.add_argument("--scale_values", action=BooleanOptionalAction, help="Scale affinity values between 0 and 1",
                           default=True)
     optional.add_argument("--scale_min", type=int, help="The minimal affinity value -> gets mapped to 0",
@@ -133,7 +133,7 @@ def parse_args() -> Namespace:
                           help="Indicator if after every layer the embedding size should be doubled", default=False)
     optional.add_argument("--aggregation_method", type=str, help="Type aggregation method to get graph embeddings",
                           default="interface_sum",  choices=["max", "sum", "mean", "attention", "fixed_size", "edge", "interface_sum"])
-    optional.add_argument("--nonlinearity", type=str, help="Type of activation function", default="gelu",
+    optional.add_argument("--nonlinearity", type=str, help="Type of activation function", default="leaky",
                           choices=["relu", "leaky", "gelu", "silu"])
     optional.add_argument("--num_fc_layers", type=int, help="Number of FullyConnected Layers in regression head",
                           default=10)
@@ -158,7 +158,7 @@ def parse_args() -> Namespace:
                           default=30)
 
     # general config
-    optional.add_argument("-w", "--num_workers", type=int, help="Number of workers to use for data loading", default=5)
+    optional.add_argument("-w", "--num_workers", type=int, help="Number of workers to use for data loading", default=0)
     optional.add_argument("--cross_validation", action=BooleanOptionalAction, help="Perform CV on all validation datasets", default=False)
     optional.add_argument("--number_cv_splits", type=int, help='The number of data splits for cross validation',
                           default=10)
@@ -192,9 +192,10 @@ def parse_args() -> Namespace:
     optional.add_argument("--args_file", type=str,
                           help="Specify the path to a file with additional arguments",
                           default=None)
-    optional.add_argument("--embeddings_path", type=bool, default=True, help="Whether to use embeddings.")  # TODO no option to provide path at the moment
+    optional.add_argument("--embeddings_path", action=BooleanOptionalAction, default=True, help="Whether to use embeddings.")  # TODO no option to provide path at the moment
 
-    args = parser.parse_args()
+
+    args = parser.parse_args(artifical_args)
     args.config = read_config(args.config_file, args.relaxed_pdbs)
 
     if args.wandb_name == "":
