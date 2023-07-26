@@ -65,10 +65,11 @@ def get_pdb_path_and_id(row: pd.Series, dataset_name: str, config: Dict):
     return pdb_file_path, pdb_id
 
 
-def get_graph_dict(pdb_id: str, pdb_file_path: str, of_embs: Dict, affinity: float,
+def get_graph_dict(pdb_id: str, pdb_file_path: str, embeddings: Dict, affinity: float,
                    node_type: str, distance_cutoff: int = 5,
-                   ca_alpha_contact: bool = False,) -> Dict:
-    """ Generate a dictionary with node, edge and meta-information for a given PDB File
+                   ca_alpha_contact: bool = False) -> Dict:
+    """
+    Generate a dictionary with node, edge and meta-information for a given PDB File.
 
     1. Get residue information
     2. Get distances between nodes (residue or atoms)
@@ -78,7 +79,7 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, of_embs: Dict, affinity: flo
     Args:
         pdb_id: ID of PDB
         pdb_file_path: Path to PDB File
-        of_emb: Path to OpenFold embeddings file or object itself
+        embeddings: Path to OpenFold embeddings file or object itself
         affinity: Binding affinity of the complex
         node_type: Type of nodes (residue, atom)
         distance_cutoff: Max. interface distance
@@ -96,15 +97,15 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, of_embs: Dict, affinity: flo
         distances, closest_nodes = get_distances(residue_infos, residue_distance=True, ca_distance=ca_alpha_contact)
         assert len(closest_nodes) == len(residue_infos), "Number of closest nodes does not match number of residues"
         node_features = get_residue_encodings(residue_infos, structure_info)
-
-        if of_embs:  # I think we need to inject them so harshly here, to facilitate backpropagation later. An alternative would be to load the OF data closer to the model..
-            node_features, matched_positions, matched_orientations, matched_residue_index, indices = get_residue_of_embeddings(residue_infos, of_embs, pdb_id)
+        
+        if embeddings:  # I think we need to inject them so harshly here, to facilitate backpropagation later. An alternative would be to load the OF data closer to the model..
+            node_features, matched_positions, matched_orientations, matched_residue_index, indices = get_residue_embeddings(residue_infos, embeddings)
             # fill residue_infos with matched positions and orientations
             for i in range(len(residue_infos)):
                 residue_infos[i]["matched_position"] = matched_positions[i]
                 residue_infos[i]["matched_orientation"] = matched_orientations[i]
                 residue_infos[i]["matched_residue_index"] = matched_residue_index[i]
-            # assert (matched_residue_index > 0).all()  # check if all residues have a match (could also just raise exception in get_residue_of_embeddings)
+            # assert (matched_residue_index > 0).all()  # check if all residues have a match (could also just raise exception in get_residue_embeddings)
 
         adj_tensor = get_residue_edge_encodings(distances, residue_infos, distance_cutoff=distance_cutoff)
         atom_names = []
@@ -126,7 +127,7 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, of_embs: Dict, affinity: flo
         "residue_atom_coordinates": residue_atom_coordinates,
         "adjacency_tensor": adj_tensor,
         "affinity": affinity,
-        "closest_residues":closest_nodes,
+        "closest_residues": closest_nodes,
         "atom_names": atom_names
     }
 
@@ -137,6 +138,8 @@ def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, interface_f
                     load_embeddings: Union[bool, str] = False
                 ) -> Dict:
     """ Load and process a data point and generate a graph and meta-information for it
+
+    TODO @Mihail this function needs rf_embedding capabilities
 
     1. Get the PDB Path
     2. Get the affinity
@@ -166,24 +169,26 @@ def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, interface_f
 
     if load_embeddings:
         if isinstance(load_embeddings, str):
-            of_embs = os.path.join(load_embeddings, pdb_id + '.pt')
-            of_embs = torch.load(of_embs, map_location='cpu')
+            embeddings = os.path.join(load_embeddings, pdb_id + '.pt')
+            embeddings = torch.load(embeddings, map_location='cpu')
         else:
-            if 'of_embeddings' in config['DATASETS'][dataset_name]:  # TODO generalize this to "embeddings"?
-                of_embs = os.path.join(config['DATASETS']["path"],
-                                        config['DATASETS'][dataset_name]['folder_path'],
-                                        config['DATASETS'][dataset_name]['of_embeddings'],
-                                        pdb_id + '.pt')
-                of_embs = torch.load(of_embs, map_location='cpu')
-            else:
+            if 'embeddings' in config['DATASETS'][dataset_name]:  # TODO generalize this to "embeddings"?
+                embeddings = os.path.join(config['DATASETS']["path"],
+                                          config['DATASETS'][dataset_name]['folder_path'],
+                                          config['DATASETS'][dataset_name]['embeddings'],
+                                          pdb_id + '.pt')
+                embeddings = torch.load(embeddings, map_location='cpu')
+            elif 'of_embeddings' in dataset_name:
                 # NOTE generating OF embeddings might clash with parallel data loading because of GPU usage
                 diffusion_data = load_protein(pdb_file_path)
                 diffusion_data = tensor_tree_map(lambda x: x.to(diffusion_args.device), diffusion_data)
-                of_embs = of_embedding(diffusion_data)
+                embeddings = of_embedding(diffusion_data)
+            else:
+                raise NotImplementedError("Dynamic loading of RF embeddings is not yet implemented.")
     else:
-        of_embs = None
+        embeddings = None
 
-    return get_graph_dict(pdb_id, pdb_file_path, of_embs, affinity, distance_cutoff=max_edge_distance,
+    return get_graph_dict(pdb_id, pdb_file_path, embeddings, affinity, distance_cutoff=max_edge_distance,
                           node_type=node_type)
 
 
@@ -426,9 +431,11 @@ def reduce2interface_hull(file_name: str, pdb_filepath: str,
 
         return interface_path
 
-def get_residue_of_embeddings(residue_infos: list, of_embs: Dict, pdb_id: Optional[str]=None) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+def get_residue_embeddings(residue_infos: list, embs: Dict) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """
-    Get embeddings calculated for each residue using OpenFold from an external file.
+    # TODO refactor function to make it understand both OF and RF embeddings
+
+    Get latent embeddings calculated for each residue using external representation network from an external file.
     1. Load embedding file
     2. Inject embeddings at correct position by matching chain ID and residue number between residue infos and embeddings,
         because order of residues is different between the two structures
@@ -437,17 +444,20 @@ def get_residue_of_embeddings(residue_infos: list, of_embs: Dict, pdb_id: Option
 
     Args:
         residue_infos: List of residue infos
-        of_emb_path: Path to file containing OpenFold embeddings
+        emb: Dictionary containing latent embeddings
 
     Returns:
-        np.ndarray: Array with the OpenFold embeddings at the appropriate positions - shape (n, 384)
+        np.ndarray: Array with the latent embeddings at the appropriate positions - shape (n, 384)
     """
 
+    warned = False
 
-    # warned = False
-
-    assert torch.all(of_embs['input_data']['context_chain_type'] != 0)  # like this, incompatible with dockground dataset
-    matched_of_embs = torch.zeros(len(residue_infos), of_embs['single'].shape[-1])
+    if not torch.all(embs['input_data']['context_chain_type'] != 0):  # like this, incompatible with dockground dataset
+        msg = 'Context chain type not 0\n' + str(embs['input_data']['context_chain_type']) + '\n' + embs['pdb_fn']
+        raise ValueError(msg)
+        # print(embs['input_data']['context_chain_type'])
+        # print(embs['pdb_fn'])
+    matched_embs = torch.zeros(len(residue_infos), embs['single'].shape[-1])
 
     matched_positions = torch.zeros(len(residue_infos), 3)
     matched_orientations = torch.zeros(len(residue_infos), 4)
@@ -459,8 +469,8 @@ def get_residue_of_embeddings(residue_infos: list, of_embs: Dict, pdb_id: Option
             chain_id = ord(res['chain_id'])
         except TypeError:
             chain_id = res['chain_id']
-        chain_res_id = torch.nonzero(torch.logical_and(of_embs['input_data']['chain_id_pdb'] == chain_id,
-                                      of_embs['input_data']['residue_index_pdb'] == res['residue_id']), as_tuple=True)
+        chain_res_id = torch.nonzero(torch.logical_and(embs['input_data']['chain_id_pdb'] == chain_id,
+                                      embs['input_data']['residue_index_pdb'] == res['residue_id']), as_tuple=True)
 
         try:
             n_elem = chain_res_id[0].nelement()
@@ -468,28 +478,27 @@ def get_residue_of_embeddings(residue_infos: list, of_embs: Dict, pdb_id: Option
                 raise ValueError(f'Expected 1 matching residue, but got {n_elem}')
 
             if 'residue_type' in res:  # TODO should be probably added in data_loader.py to make sure there is no error
-                aatype = of_embs["input_data"]["aatype"][chain_res_id][0]
+                aatype = embs["input_data"]["aatype"][chain_res_id][0]
                 aatype = list(restype_1to3.values())[aatype]
                 if aatype != res['residue_type'].upper():
                     raise ValueError(f"OF residue type mismatch. AffGNN: {res['residue_type'].upper()}, OF/Diffusion: {aatype}")
 
             # All checks passed? Then
-            matched_of_embs[i, :] = of_embs['single'][chain_res_id]
-            matched_positions[i, :] = of_embs['input_data']['positions'][chain_res_id]
-            matched_orientations[i, :] = of_embs['input_data']['orientations'][chain_res_id]
-            assert of_embs['input_data']['residue_index'][chain_res_id] >= 0
-            matched_residue_index[i] = of_embs['input_data']['residue_index'][chain_res_id]
+            matched_embs[i, :] = embs['single'][chain_res_id]
+            matched_positions[i, :] = embs['input_data']['positions'][chain_res_id]
+            if 'orientations' in embs['input_data'].keys():
+                matched_orientations[i, :] = embs['input_data']['orientations'][chain_res_id]
+            matched_residue_index[i] = embs['input_data']['residue_index_pdb'][chain_res_id]
             indices[i] = chain_res_id[1][0]  # we made sure earlier that there is only one element in chain_res_id. The first coordinate is batch
 
         except ValueError as e:
-            # if not warned:
-            #     warned = True
-            logger.warning(f'{e}: PDB ID: {pdb_id}, chain ID: {ord(res["chain_id"])}, residue ID: {res["residue_id"]}.')  # (Won\'t warn again.)
+            if not warned:
+                warned = True
+                logger.warning(f'{e}: PDBID: {embs["pdb_fn"][:4]}, chain ID: {ord(res["chain_id"])}, ' +
+                               f'residue ID: {res["residue_id"]} .')  # (Won\'t warn again.)
 
-    matched_of_embs = matched_of_embs.numpy()
-    if torch.any(matched_residue_index == -1):
-        raise ValueError("Unmatched amino acids. What to do?")
-    return matched_of_embs, matched_positions, matched_orientations, matched_residue_index, indices
+    matched_embs = matched_embs.numpy()
+    return matched_embs, matched_positions, matched_orientations, matched_residue_index, indices
 
 def of_embedding(data):
     """
