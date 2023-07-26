@@ -14,7 +14,22 @@ DATASETS:
     pdb_path: "pdbs"
     relaxed_pdb_path: "pdbs_relaxed"
     summary: "abag_affinity_dataset.csv"
-    of_embeddings: "of_embeddings"
+    affinity_type: "-log(Kd)"
+
+  abag_affinity_of_embeddings:
+    folder_path: "results/abag_affinity_dataset"
+    pdb_path: "pdbs"
+    relaxed_pdb_path: "pdbs"
+    summary: "abag_affinity_dataset.csv"
+    embeddings: "of_embeddings"
+    affinity_type: "-log(Kd)"
+
+  abag_affinity_rf_embeddings:
+    folder_path: "results/abag_affinity_dataset"
+    pdb_path: "pdbs"
+    relaxed_pdb_path: "pdbs"
+    summary: "abag_affinity_dataset.csv"
+    embeddings: "rf_embeddings"
     affinity_type: "-log(Kd)"
 
   PDBBind:
@@ -100,7 +115,6 @@ RESULTS:
 MODELS:
   Binding_DDG:
     model_path: "src/abag_affinity/binding_ddg_predictor/data/model.pt"
-
   DeepRefine:
     model_path: "../other_repos/DeepRefine/project/checkpoints/EGR_All_Atom_Models/LitPSR_EGR_AllAtomModel1_Seed42.ckpt"
   IPA:

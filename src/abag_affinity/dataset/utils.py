@@ -172,17 +172,19 @@ def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, interface_f
             embeddings = os.path.join(load_embeddings, pdb_id + '.pt')
             embeddings = torch.load(embeddings, map_location='cpu')
         else:
-            if 'of_embeddings' in config['DATASETS'][dataset_name]:  # TODO generalize this to "embeddings"?
+            if 'embeddings' in config['DATASETS'][dataset_name]:  # TODO generalize this to "embeddings"?
                 embeddings = os.path.join(config['DATASETS']["path"],
-                                        config['DATASETS'][dataset_name]['folder_path'],
-                                        config['DATASETS'][dataset_name]['of_embeddings'],
-                                        pdb_id + '.pt')
+                                          config['DATASETS'][dataset_name]['folder_path'],
+                                          config['DATASETS'][dataset_name]['embeddings'],
+                                          pdb_id + '.pt')
                 embeddings = torch.load(embeddings, map_location='cpu')
-            else:
+            elif 'of_embeddings' in dataset_name:
                 # NOTE generating OF embeddings might clash with parallel data loading because of GPU usage
                 diffusion_data = load_protein(pdb_file_path)
                 diffusion_data = tensor_tree_map(lambda x: x.to(diffusion_args.device), diffusion_data)
                 embeddings = of_embedding(diffusion_data)
+            else:
+                raise NotImplementedError("Dynamic loading of RF embeddings is not yet implemented.")
     else:
         embeddings = None
 
