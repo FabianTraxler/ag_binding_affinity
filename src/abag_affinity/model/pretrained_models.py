@@ -142,7 +142,10 @@ class IPABindingEmbedder(torch.nn.Module):
         self.model.load_state_dict(ipa_denoiser_weigths, strict=False)
         self.embedding_size = c_s
         self.c_z = c_z
+        # Layer to inject GNN features into IPA. Initialize with low values to not interfere with pretrained weights
         self.z_linear = torch.nn.Linear(3, self.c_z)
+        torch.nn.init.uniform_(self.z_linear.weight, -0.1, 0.1)
+        torch.nn.init.uniform_(self.z_linear.bias, -0.1, 0.1)
         self.pairwise_rel_pos = PairwiseRelPos(c_z=self.c_z, relpos_k=relpos_k)  # AF2
         self.layer_norm_z = LayerNorm(c_z)
 
