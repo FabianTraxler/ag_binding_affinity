@@ -114,7 +114,8 @@ class AffinityDataset(Dataset):
 
         # create path for results and processed graphs
         self.results_dir = os.path.join(self.config["PROJECT_ROOT"], self.config["RESULTS"]["path"])
-        self.graph_dir = os.path.join(self.config["processed_graph_path"], dataset_name, node_type, pretrained_model)
+        self.graph_dir = os.path.join(self.config["processed_graph_path"], dataset_name, node_type, pretrained_model, f"embeddings_{load_embeddings}")
+        self.processed_graph_files = os.path.join(self.graph_dir, "{}.npz")
         if self.save_graphs or preprocess_data:
             logger.debug(f"Saving processed graphs in {self.graph_dir}")
             Path(self.graph_dir).mkdir(exist_ok=True, parents=True)
@@ -244,7 +245,7 @@ class AffinityDataset(Dataset):
         deeprefine_graphs2process = []
         for df_idx, row in self.data_df.iterrows():
             # Pre-Load Dictionary containing all relevant information to generate graphs
-            file_path = os.path.join(self.graph_dir, str(df_idx) + ".npz")
+            file_path = self.processed_graph_files.format(df_idx)
             if not os.path.exists(file_path) or self.force_recomputation:
                 graph_dicts2process.append((row, file_path))
 
@@ -438,7 +439,7 @@ class AffinityDataset(Dataset):
         Returns:
             Dict: graph information for index
         """
-        file_path = os.path.join(self.graph_dir, df_idx + ".npz")
+        file_path = self.processed_graph_files.format(df_idx)
         graph_dict = {}
 
         if os.path.exists(file_path) and (not self.force_recomputation or self.preprocess_data):
