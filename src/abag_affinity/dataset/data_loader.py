@@ -37,6 +37,7 @@ class AffinityDataset(Dataset):
 
     def __init__(self, config: Dict,
                  dataset_name: str,
+                 is_relaxed: bool,
                  pdb_ids: Optional[List] = None,
                  node_type: str = "residue",
                  max_nodes: Optional[int] = None,
@@ -56,6 +57,7 @@ class AffinityDataset(Dataset):
 
         Args:
             config: Dict with data configuration
+            is_relaxed: Boolean indicator if relaxed structures are used
             dataset_name: Name of the dataset
             pdb_ids: List of PDB IDs to use in this dataset
             node_type: Type of graph nodes
@@ -114,7 +116,7 @@ class AffinityDataset(Dataset):
 
         # create path for results and processed graphs
         self.results_dir = os.path.join(self.config["PROJECT_ROOT"], self.config["RESULTS"]["path"])
-        self.graph_dir = os.path.join(self.config["processed_graph_path"], dataset_name, node_type, pretrained_model, f"embeddings_{load_embeddings}")
+        self.graph_dir = os.path.join(self.config["processed_graph_path"], dataset_name, node_type, pretrained_model, f"embeddings_{load_embeddings}_relaxed_{is_relaxed}")
         self.processed_graph_files = os.path.join(self.graph_dir, "{}.npz")
         if self.save_graphs or preprocess_data:
             logger.debug(f"Saving processed graphs in {self.graph_dir}")

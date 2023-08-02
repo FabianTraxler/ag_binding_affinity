@@ -623,7 +623,7 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
         val_ids = val_ids[:5]
 
     logger.debug(f"Get dataLoader for {dataset_name}:{data_type}")
-    train_data = AffinityDataset(config, dataset_name, train_ids,
+    train_data = AffinityDataset(config, args.relaxed_pdbs, dataset_name, train_ids,
                                  node_type=args.node_type,
                                  max_nodes=args.max_num_nodes,
                                  interface_distance_cutoff=args.interface_distance_cutoff,
@@ -640,7 +640,7 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
                                  num_threads=args.num_workers,
                                  load_embeddings=args.embeddings_path
                                  )
-    val_data = AffinityDataset(config, dataset_name, val_ids,
+    val_data = AffinityDataset(config, args.relaxed_pdbs, dataset_name, val_ids,
                                node_type=args.node_type,
                                max_nodes=args.max_num_nodes,
                                interface_distance_cutoff=args.interface_distance_cutoff,
@@ -1068,7 +1068,7 @@ def evaluate_model(model: AffinityGNN, dataloader: DataLoader, criterion, args: 
 def get_benchmark_score(model: AffinityGNN, args: Namespace, tqdm_output: bool = True, plot_path: str = None) -> Tuple[float, float, pd.DataFrame]:
 
     criterion = nn.MSELoss()
-    dataset = AffinityDataset(args.config, "AntibodyBenchmark",
+    dataset = AffinityDataset(args.config, args.relaxed_pdbs, "AntibodyBenchmark",
                               node_type=args.node_type,
                               max_nodes=args.max_num_nodes,
                               interface_distance_cutoff=args.interface_distance_cutoff,
@@ -1110,7 +1110,7 @@ def get_abag_test_score(model: AffinityGNN, args: Namespace, tqdm_output: bool =
 
     test_pdbs_ids = summary_df.index.tolist()
 
-    dataset = AffinityDataset(args.config, "abag_affinity", test_pdbs_ids,
+    dataset = AffinityDataset(args.config, args.relaxed_pdbs, "abag_affinity", test_pdbs_ids,
                               node_type=args.node_type,
                               max_nodes=args.max_num_nodes,
                               interface_distance_cutoff=args.interface_distance_cutoff,
@@ -1143,7 +1143,7 @@ def get_skempi_corr(model: AffinityGNN, args: Namespace, tqdm_output: bool = Tru
     """
     criterion = nn.MSELoss()
 
-    dataset = AffinityDataset(args.config, "SKEMPI.v2",
+    dataset = AffinityDataset(args.config, args.relaxed_pdbs, "SKEMPI.v2",
                             node_type=args.node_type,
                             max_nodes=args.max_num_nodes,
                             interface_distance_cutoff=args.interface_distance_cutoff,
