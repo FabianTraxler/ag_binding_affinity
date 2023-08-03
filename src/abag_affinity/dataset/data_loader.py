@@ -36,8 +36,8 @@ class AffinityDataset(Dataset):
     """
 
     def __init__(self, config: Dict,
-                 dataset_name: str,
                  is_relaxed: bool,
+                 dataset_name: str,
                  pdb_ids: Optional[List] = None,
                  node_type: str = "residue",
                  max_nodes: Optional[int] = None,
@@ -116,13 +116,13 @@ class AffinityDataset(Dataset):
 
         # create path for results and processed graphs
         self.results_dir = os.path.join(self.config["PROJECT_ROOT"], self.config["RESULTS"]["path"])
-        self.graph_dir = os.path.join(self.config["processed_graph_path"], dataset_name, node_type, pretrained_model, f"embeddings_{load_embeddings}_relaxed_{is_relaxed}")
+        self.graph_dir = os.path.join(self.config["processed_graph_path"], self.full_dataset_name, node_type, pretrained_model, f"embeddings_{load_embeddings}_relaxed_{is_relaxed}")
         self.processed_graph_files = os.path.join(self.graph_dir, "{}.npz")
         if self.save_graphs or preprocess_data:
             logger.debug(f"Saving processed graphs in {self.graph_dir}")
             Path(self.graph_dir).mkdir(exist_ok=True, parents=True)
         # create path for clean pdbs
-        self.interface_dir = os.path.join(self.config["interface_pdbs"], dataset_name)
+        self.interface_dir = os.path.join(self.config["interface_pdbs"], self.full_dataset_name)
         logger.debug(f"Saving cleaned pdbs in {self.interface_dir}")
         Path(self.interface_dir).mkdir(exist_ok=True, parents=True)
 
@@ -146,7 +146,7 @@ class AffinityDataset(Dataset):
         self.num_threads = num_threads
 
         if self.preprocess_data:
-            logger.debug(f"Preprocessing {node_type}-graphs for {self.dataset_name}")
+            logger.debug(f"Preprocessing {node_type}-graphs for {self.full_dataset_name}")
             self.preprocess()
 
     def update_valid_pairs(self):
@@ -601,6 +601,7 @@ class AffinityDataset(Dataset):
             "relative": False,
             "affinity_type": self.affinity_type,
             "input": graph_data,
+            "dataset_name": self.full_dataset_name
         }
         # pdb.set_trace()
         return data
@@ -619,7 +620,8 @@ class AffinityDataset(Dataset):
         data = {
             "relative": True,
             "affinity_type": self.affinity_type,
-            "input": []
+            "input": [],
+            "dataset_name": self.full_dataset_name
         }
 
         pdb_id, other_pdb_id = self.relative_pairs[idx]
@@ -664,9 +666,13 @@ class AffinityDataset(Dataset):
         affinity_type = input_dicts[0]["affinity_type"]
         assert all([affinity_type == input_dict["affinity_type"] for input_dict in input_dicts])
 
+        dataset_name = input_dicts[0]["dataset_name"]
+        assert all([dataset_name == input_dict["dataset_name"] for input_dict in input_dicts])
+
         data_batch = {
             "relative": relative_data,
-            "affinity_type": affinity_type
+            "affinity_type": affinity_type,
+            "dataset_name": dataset_name
         }
         if relative_data:  # relative data
             input_graphs = []

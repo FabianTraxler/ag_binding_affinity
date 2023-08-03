@@ -3,7 +3,7 @@
 import torch
 import torch.nn as nn
 
-from typing import Dict
+from typing import Dict, List, Optional
 
 from .utils import pretrained_models, pretrained_embeddings, NoOpModel
 from .regression_heads import EdgeRegressionHead, RegressionHead
@@ -24,6 +24,7 @@ class AffinityGNN(pl.LightningModule):
                  num_fc_layers: int = 3, fc_size_halving: bool = True,
                  device: torch.device = torch.device("cpu"),
                  scaled_output: bool = False,
+                 dataset_names: List = None,
                  args=None):  # provide args so they can be saved by the LightningModule (hparams)
         """
         Args:
@@ -45,6 +46,7 @@ class AffinityGNN(pl.LightningModule):
             fc_size_halving: Halve the size of the fully connected layers after each layer
             device: Device to use
             scaled_output: Whether to scale the output to the range [0, 1]
+            dataset_names: Names of all used datasets (for dataset-adjustment layers)
             args: Arguments passed to the LightningModule
         """
 
@@ -88,13 +90,16 @@ class AffinityGNN(pl.LightningModule):
             self.regression_head = RegressionHead(self.graph_conv.embedding_dim, num_nodes=num_nodes,
                                                   aggregation_method=aggregation_method, size_halving=fc_size_halving,
                                                   nonlinearity=nonlinearity,  num_fc_layers=num_fc_layers, device=device)
+        # Dataset-specific output layers
+        self.dataset_names = dataset_names
+        self.dataset_layers = nn.ModuleList([nn.Linear(1, 1) for ds_name in dataset_names if ds_name.endswith("absolute")])  # TODO could use more sophisticated modules (1 -> gelu -> 2 -> gelu  -> 1)
         self.scaled_output = scaled_output
 
         self.float()
 
         self.to(device)
 
-    def forward(self, data: Dict) -> Dict:
+    def forward(self, data: Dict, dataset_adjustment: Optional[str]=None) -> Dict:
         """
 
         Args:
@@ -103,6 +108,7 @@ class AffinityGNN(pl.LightningModule):
         Returns:
             torch.Tensor
         """
+        output = {}
         # calculate pretrained node embeddings
         data = pretrained_embeddings(data, self.pretrained_model)
 
@@ -112,6 +118,12 @@ class AffinityGNN(pl.LightningModule):
         # calculate binding affinity
         affinity = self.regression_head(graph)
 
+        # dataset-specific scaling (could be done before or after scale_output)
+        output["dataset_adjusted"] = bool(dataset_adjustment)
+        if dataset_adjustment:
+            dataset_index = self.dataset_names.index(dataset_adjustment)
+            affinity = self.dataset_layers[dataset_index](affinity)
+
         # scale output to [0, 1] to make it it easier for the model
         if self.scaled_output:
             affinity = torch.sigmoid(affinity)
@@ -119,9 +131,7 @@ class AffinityGNN(pl.LightningModule):
             if num_excessive > 0:
                 print(f"WARNING: Vanishing gradients in {num_excessive} of {len(affinity.flatten())} due to excessively large values from NN.")
 
-        output = {
-            "x": affinity
-        }
+        output["x"] = affinity
         return output
 
     def on_save_checkpoint(self, checkpoint):

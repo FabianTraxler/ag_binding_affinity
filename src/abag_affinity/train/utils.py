@@ -58,7 +58,8 @@ def forward_step(model: AffinityGNN, data: Dict, device: torch.device) -> Tuple[
         data["input"]["graph"] = data["input"]["graph"].to(device)
         if "deeprefine_graph" in data["input"]:
             data["input"]["deeprefine_graph"] = data["input"]["deeprefine_graph"].to(device)
-        output = model(data["input"])
+
+        output = model(data["input"], dataset_adjustment=data["dataset_name"] if (data["affinity_type"] == "E" and not data["relative"]) else None)
         output["relative"] = data["relative"]
         output["affinity_type"] = data["affinity_type"]
 
@@ -385,7 +386,7 @@ def get_loss_function(args: Namespace, device: torch.device):
     return loss_fn
 
 
-def load_model(num_node_features: int, num_edge_features: int, args: Namespace,
+def load_model(num_node_features: int, num_edge_features: int, dataset_names: List[str], args: Namespace,
                device: torch.device = torch.device("cpu")) -> AffinityGNN:
     """ Load a specific model type and initialize it randomly
 
@@ -415,6 +416,7 @@ def load_model(num_node_features: int, num_edge_features: int, args: Namespace,
                         num_fc_layers=args.num_fc_layers, fc_size_halving=args.fc_size_halving,
                         device=device,
                         scaled_output=args.scale_values,
+                        dataset_names=dataset_names,
                         args=args)
 
     return model
