@@ -45,8 +45,8 @@ class AffinityGNN(pl.LightningModule):
             num_fc_layers: Number of fully connected layers to use
             fc_size_halving: Halve the size of the fully connected layers after each layer
             device: Device to use
-            dataset_names: Names of all used datasets (for dataset-adjustment layers)
             scaled_output: Whether to scale the output to the range using a sigmoid [0, 1]. Warning, this does not work too nicely apparently
+            dataset_names: Names of all used datasets (for dataset-adjustment layers. avoid :absolute, :relative identifiers)
             args: Arguments passed to the LightningModule
         """
 
@@ -92,7 +92,7 @@ class AffinityGNN(pl.LightningModule):
                                                   nonlinearity=nonlinearity,  num_fc_layers=num_fc_layers, device=device)
         # Dataset-specific output layers
         self.dataset_names = dataset_names
-        self.dataset_layers = nn.ModuleList([nn.Linear(1, 1) for ds_name in dataset_names if ds_name.endswith("absolute")])  # TODO could use more sophisticated modules (1 -> gelu -> 2 -> gelu  -> 1)
+        self.dataset_layers = nn.ModuleList([nn.Linear(1, 1) for _ in dataset_names])  # TODO could use more sophisticated modules (1 -> gelu -> 2 -> gelu  -> 1)
         self.scaled_output = scaled_output
 
         self.float()
@@ -104,6 +104,7 @@ class AffinityGNN(pl.LightningModule):
 
         Args:
             data: Dict with "graph": HeteroData and "filename": str and optional "deeprefine_graph": dgl.DGLGraph
+            dataset_adjustment: Whether to run a dataset-specific module (linear layer) at the end
 
         Returns:
             torch.Tensor
