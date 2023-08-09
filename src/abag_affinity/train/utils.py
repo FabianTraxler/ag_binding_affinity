@@ -59,7 +59,7 @@ def forward_step(model: AffinityGNN, data: Dict, device: torch.device) -> Tuple[
         if "deeprefine_graph" in data["input"]:
             data["input"]["deeprefine_graph"] = data["input"]["deeprefine_graph"].to(device)
 
-        output = model(data["input"], dataset_adjustment=data["dataset_name"] if (data["affinity_type"] == "E" and not data["relative"]) else None)
+        output = model(data["input"], dataset_adjustment=data["dataset_name"] if data["affinity_type"] == "E" else None)
         output["relative"] = data["relative"]
         output["affinity_type"] = data["affinity_type"]
 
@@ -416,7 +416,7 @@ def load_model(num_node_features: int, num_edge_features: int, dataset_names: Li
                         num_fc_layers=args.num_fc_layers, fc_size_halving=args.fc_size_halving,
                         device=device,
                         scaled_output=False,  # seems to work worse than if the model learns it on its own
-                        dataset_names=[ds_name.split(":")[0] for ds_name in dataset_names if ds_name.endswith("absolute")],
+                        dataset_names=np.unique([ds_name.split(":")[0] for ds_name in dataset_names]).tolist(),
                         args=args)
 
 
