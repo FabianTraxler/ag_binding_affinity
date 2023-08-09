@@ -415,8 +415,8 @@ def load_model(num_node_features: int, num_edge_features: int, dataset_names: Li
                         nonlinearity=args.nonlinearity,
                         num_fc_layers=args.num_fc_layers, fc_size_halving=args.fc_size_halving,
                         device=device,
-                        scaled_output=args.scale_values,
                         dataset_names=dataset_names,
+                        scaled_output=False,  # seems to work worse than if the model learns it on its own
                         args=args)
 
     return model

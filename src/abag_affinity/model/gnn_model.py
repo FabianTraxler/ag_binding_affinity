@@ -45,8 +45,8 @@ class AffinityGNN(pl.LightningModule):
             num_fc_layers: Number of fully connected layers to use
             fc_size_halving: Halve the size of the fully connected layers after each layer
             device: Device to use
-            scaled_output: Whether to scale the output to the range [0, 1]
             dataset_names: Names of all used datasets (for dataset-adjustment layers)
+            scaled_output: Whether to scale the output to the range using a sigmoid [0, 1]. Warning, this does not work too nicely apparently
             args: Arguments passed to the LightningModule
         """
 
