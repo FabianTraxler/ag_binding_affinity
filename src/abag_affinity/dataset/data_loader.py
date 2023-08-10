@@ -116,7 +116,9 @@ class AffinityDataset(Dataset):
 
         # create path for results and processed graphs
         self.results_dir = os.path.join(self.config["PROJECT_ROOT"], self.config["RESULTS"]["path"])
-        self.graph_dir = os.path.join(self.config["processed_graph_path"], self.full_dataset_name, node_type, pretrained_model, f"embeddings_{load_embeddings}_relaxed_{is_relaxed}")
+
+        # No need to include IPA in model path because the graph should have the same features regardless
+        self.graph_dir = os.path.join(self.config["processed_graph_path"], self.full_dataset_name, node_type, pretrained_model if pretrained_model in ["DeepRefine", "Binding_DDG"] else "", f"embeddings_{load_embeddings}_relaxed_{is_relaxed}")
         self.processed_graph_files = os.path.join(self.graph_dir, "{}.npz")
         if self.save_graphs or preprocess_data:
             logger.debug(f"Saving processed graphs in {self.graph_dir}")
@@ -444,7 +446,7 @@ class AffinityDataset(Dataset):
         file_path = self.processed_graph_files.format(df_idx)
         graph_dict = {}
 
-        if os.path.exists(file_path) and (not self.force_recomputation or self.preprocess_data):
+        if os.path.exists(file_path) and (not self.force_recomputation or self.preprocess_data):  # how is it ensured that not every iteration leads to recomputation?
             try:
                 graph_dict = dict(np.load(file_path, allow_pickle=True))
                 compute_graph = False
