@@ -192,7 +192,8 @@ def parse_args(artifical_args=None) -> Namespace:
                           help="Specify the path to a file with additional arguments",
                           default=None)
     optional.add_argument("--embeddings_path", action=BooleanOptionalAction, default=True, help="Whether to use embeddings.")  # TODO no option to provide path at the moment
-
+    optional.add_argument("--seed", type=int, default=42, help="Seed for random number generator")
+    optional.add_argument("--debug", action=BooleanOptionalAction, default=False, help="Start debugger on a free port starting from 5678")
 
     args = parser.parse_args(artifical_args)
     args.config = read_config(args.config_file, args.relaxed_pdbs)
