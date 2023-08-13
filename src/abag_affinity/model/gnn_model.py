@@ -104,7 +104,7 @@ class AffinityGNN(pl.LightningModule):
 
         Args:
             data: Dict with "graph": HeteroData and "filename": str and optional "deeprefine_graph": dgl.DGLGraph
-            dataset_adjustment: Whether to run a dataset-specific module (linear layer) at the end
+            dataset_adjustment: Whether to run a dataset-specific module (linear layer) at the end (to map E-values to binding affinities)
 
         Returns:
             torch.Tensor
@@ -125,14 +125,16 @@ class AffinityGNN(pl.LightningModule):
             dataset_index = self.dataset_names.index(dataset_adjustment)
             affinity = self.dataset_layers[dataset_index](affinity)
 
-            # TODO do this correctly, i.e. find out how enrichment values, measured at a single concentration are distributed. also rename the scaled_output variable then.
+            # Theoretically there is a sigmoidal relationship between the log-affinity and the enrichment value. However, in pooled (DMS) experiments the relationship is much more complex (and potentially linear)
+            # As we observed that DMS modeling works better with sigmoid, we include it here
+            affinity = torch.sigmoid(affinity)
+            num_excessive = (affinity == 0).sum() + (affinity == 1).sum()
+            if num_excessive > 0:
+                print(f"WARNING: Vanishing gradients in {num_excessive} of {len(affinity.flatten())} due to excessively large values from NN.")
 
             # scale output to [0, 1] to make it it easier for the model
-            if self.scaled_output:
-                affinity = torch.sigmoid(affinity)
-                num_excessive = (affinity == 0).sum() + (affinity == 1).sum()
-                if num_excessive > 0:
-                    print(f"WARNING: Vanishing gradients in {num_excessive} of {len(affinity.flatten())} due to excessively large values from NN.")
+            if not self.scaled_output:
+                raise NotImplementedError("Would need to allow scaling the sigmoidal values back to the original range")
 
         output["x"] = affinity
         return output
