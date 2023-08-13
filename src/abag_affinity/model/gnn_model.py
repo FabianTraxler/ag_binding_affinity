@@ -125,12 +125,14 @@ class AffinityGNN(pl.LightningModule):
             dataset_index = self.dataset_names.index(dataset_adjustment)
             affinity = self.dataset_layers[dataset_index](affinity)
 
-        # scale output to [0, 1] to make it it easier for the model
-        if self.scaled_output:
-            affinity = torch.sigmoid(affinity)
-            num_excessive = (affinity == 0).sum() + (affinity == 1).sum()
-            if num_excessive > 0:
-                print(f"WARNING: Vanishing gradients in {num_excessive} of {len(affinity.flatten())} due to excessively large values from NN.")
+            # TODO do this correctly, i.e. find out how enrichment values, measured at a single concentration are distributed. also rename the scaled_output variable then.
+
+            # scale output to [0, 1] to make it it easier for the model
+            if self.scaled_output:
+                affinity = torch.sigmoid(affinity)
+                num_excessive = (affinity == 0).sum() + (affinity == 1).sum()
+                if num_excessive > 0:
+                    print(f"WARNING: Vanishing gradients in {num_excessive} of {len(affinity.flatten())} due to excessively large values from NN.")
 
         output["x"] = affinity
         return output
