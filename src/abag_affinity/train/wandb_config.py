@@ -1,6 +1,7 @@
 import wandb
 from argparse import Namespace
 from typing import Tuple
+import os
 
 
 def configure(args: Namespace) -> Tuple:
@@ -25,9 +26,16 @@ def configure(args: Namespace) -> Tuple:
     else:
         run = wandb.init(project="abag_binding_affinity", mode="disabled")
 
-    wandb.config.update({
+    update_config = {
         parameter: args.__dict__[parameter]
         for parameter in ["batch_size", "max_epochs", "learning_rate", "patience", "max_num_nodes", "node_type", "num_workers", "validation_set"]
-    }, allow_val_change=True)
+    }
+    try:
+        update_config["slurm_jobid"] = os.environ["SLURM_JOBID"]
+    except KeyError:
+        pass
+    update_config["hostname"] = os.popen("hostname").read().strip()
+
+    wandb.config.update(update_config, allow_val_change=True)
 
     return wandb, wandb.config, use_wandb, run
