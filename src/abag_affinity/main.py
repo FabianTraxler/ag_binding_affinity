@@ -165,12 +165,12 @@ def main() -> Dict:
             model, results = training[args.train_strategy](args)
 
             # Run benchmarks
-            benchmark_pearson, benchmark_loss, benchmark_df = get_benchmark_score(model, args, tqdm_output=args.tqdm_output)
-            test_skempi_grouped_corrs, test_skempi_score, test_loss_skempi, test_skempi_df = get_skempi_corr(model, args, tqdm_output=args.tqdm_output)
-
-            logger.info(f"Benchmark results >>> {benchmark_pearson}")
-            logger.info(f"SKEMPI testset results >>> {test_skempi_score}")
-            logger.info(f"Mean SKEMPI correlations >>> {np.mean(test_skempi_grouped_corrs)}")
+            # benchmark_pearson, benchmark_loss, benchmark_df = get_benchmark_score(model, args, tqdm_output=args.tqdm_output)
+            # test_skempi_grouped_corrs, test_skempi_score, test_loss_skempi, test_skempi_df = get_skempi_corr(model, args, tqdm_output=args.tqdm_output)
+            #
+            # logger.info(f"Benchmark results >>> {benchmark_pearson}")
+            # logger.info(f"SKEMPI testset results >>> {test_skempi_score}")
+            # logger.info(f"Mean SKEMPI correlations >>> {np.mean(test_skempi_grouped_corrs)}")
 
             # Save model
             if args.model_path is not None:

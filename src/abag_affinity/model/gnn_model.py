@@ -26,6 +26,12 @@ class AffinityGNN(pl.LightningModule):
                  args=None):  # provide args so they can be saved by the LightningModule (hparams)
         super(AffinityGNN, self).__init__()
         self.save_hyperparameters()
+        if args is not None:
+            self.max_edge_distance = args.max_edge_distance
+            self.interface_distance_cutoff = args.interface_distance_cutoff
+        else:
+            self.max_edge_distance = 5.0
+            self.interface_distance_cutoff = 5.0
 
         # define pretrained embedding model
         if pretrained_model != "":
@@ -112,3 +118,76 @@ class AffinityGNN(pl.LightningModule):
         pass
     def configure_optimizers(self, *args):
         pass
+
+    def get_affinity_inputs(self, residue_positions, node_features, chain_type=None, chain_idx=None, atom_positions =None, pairwise_features = None):
+        """
+        Convert Data to the format of the Affinity Prediction model
+
+        args:
+           residue_positions: torch.Tensor (Batchsize x NNodes x 3) - The 3D positions of $C_\alpha$
+           node_features: torch.Tensor (Batchsize x NNodes x NFeatures) - The Node Features per Amino Acid
+           chain_type: torch.Tensor (Batchsize x NNodes) - The chain type of each node, "A" for 'Heavy/Light' and "B" for binder/antigen
+           chain_idx: torch.Tensor (Batchsize x NNodes) - The chain index of each node
+           atom_positions: torch.Tensor (Batchsize x NNodes x NAtoms x 3) - The 3D positions of each atom
+           pairwise_features: torch.Tensor (Batchsize x NNodes x NNodes x NFeatures) - The pairwise features of each atom
+        """
+
+        data_batch = []
+        for i in range(residue_positions.shape[0]):
+            atom_pos = atom_positions[i]
+            residue_pos = residue_positions[i]
+            data = {'graph': None}
+            # calculate average distance across all atoms given per residue
+            if atom_positions is not None:
+                flattened_pos = atom_pos.view(-1, 3)
+                distances = torch.norm(flattened_positions.unsqueeze(0) - flattened_positions.unsqueeze(1), dim=-1)
+                distances = distances.view(atom_positions.shape[1], atom_positions.shape[2],
+                                           atom_positions.shape[1], atom_positions.shape[2])
+
+                distances = torch.mean(distances, dim=(1, 3))
+            # calculate distance between all pairs of residues/C-alpha atoms
+            else:
+                distances = torch.norm(residue_pos.unsqueeze(0) - residue_pos.unsqueeze(1), dim=-1)
+
+            node_features = node_features
+            residue_infos = {'positions': residue_pos}
+
+            A = torch.zeros((4, residue_pos.shape[0], residue_pos.shape[0]))
+
+            contact_map = distances < self.max_edge_distance
+
+            # A[0,:,:] = inverse pairwise distances - only below distance cutoff otherwise 0
+            # A[1,:,:] = neighboring amino acid - 1 if connected by peptide bond
+            # A[2,:,:] = same protein - 1 if same chain
+            # A[3,:,:] = distances
+
+            # scale distances
+            A[0, contact_map] = distances[contact_map] / self.max_edge_distance
+            A[3] = distances
+
+            if chain_type is not None:
+                chain_t = chain_type[i]
+                non_zeros = (chain_t != 0)
+                non_zero_mat = non_zeros.unsqueeze(0) * non_zeros.unsqueeze(1)
+                A[2] = ((chain_t.unsqueeze(0) - chain_t.unsqueeze(1)) == 0) * non_zero_mat
+                if chain_idx is not None:
+                    chain_i = chain_idx[i]
+                    A[1] = ((chain_i.unsqueeze(0) - chain_i.unsqueeze(1)) == 1) * non_zero_mat * A[2]
+
+            #TODO: properly assign graph
+
+            data['graph'] = HeteroData({'A': A, 'node_features': node_features, 'residue_infos': residue_infos})
+            data_batch.append(data)
+
+            # TODO: batch data together
+            return {
+                "node_features": node_features,
+                "residue_infos": residue_infos,
+                "residue_atom_coordinates": residue_atom_coordinates,
+                "adjacency_tensor": adj_tensor,
+                "affinity": affinity,
+                "closest_residues": closest_nodes,
+                "atom_names": atom_names
+            }
+
+        return data

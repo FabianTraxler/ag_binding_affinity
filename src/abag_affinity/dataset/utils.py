@@ -185,6 +185,7 @@ def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, interface_f
                 embeddings = of_embedding(diffusion_data)
             else:
                 raise NotImplementedError("Dynamic loading of RF embeddings is not yet implemented.")
+                #TODO: get unified enviroment for affinity and RF diffusion, call get_state() function from RFDiffusion/scripts
     else:
         embeddings = None
 
@@ -250,10 +251,10 @@ def scale_affinity(affinity: float, min: float = 0, max: float = 16) -> float:
         float: scaled affinity
     """
 
-    if not min < affinity < max:
-        logging.warning(f"Affinity value out of scaling range {min} - {max}: {affinity}")
+    # if not min < affinity < max:
+    #     logging.warning(f"Affinity value out of scaling range {min} - {max}: {affinity}")
     affinity = np.clip(affinity, min, max)
-    assert min <= affinity <= max, f"Affinity value out of scaling range: {affinity}"
+    # assert min <= affinity <= max, f"Affinity value out of scaling range: {affinity}"
 
     return (affinity - min) / (max - min)
 
@@ -539,3 +540,62 @@ def of_embedding(data):
         del outputs[costly_item_key]
 
     return outputs
+
+
+
+    # distances, closest_nodes = get_distances(residue_infos, residue_distance=True, ca_distance=ca_alpha_contact)
+    # assert len(closest_nodes) == len(residue_infos), "Number of closest nodes does not match number of residues"
+    # node_features = get_residue_encodings(residue_infos, structure_info)
+    # 
+    # if embeddings:  # I think we need to inject them so harshly here, to facilitate backpropagation later. An alternative would be to load the OF data closer to the model..
+    #     node_features, matched_positions, matched_orientations, matched_residue_index, indices = get_residue_embeddings(residue_infos, embeddings)
+    #     # fill residue_infos with matched positions and orientations
+    #     for i in range(len(residue_infos)):
+    #         residue_infos[i]["matched_position"] = matched_positions[i]
+    #         residue_infos[i]["matched_orientation"] = matched_orientations[i]
+    #         residue_infos[i]["matched_residue_index"] = matched_residue_index[i]
+    #     # assert (matched_residue_index > 0).all()  # check if all residues have a match (could also just raise exception in get_residue_embeddings)
+    #
+    # adj_tensor = get_residue_edge_encodings(distances, residue_infos, distance_cutoff=distance_cutoff)
+    # atom_names = []
+
+    # return {
+    #     "node_features": node_features,
+    #     "residue_infos": residue_infos,
+    #     "residue_atom_coordinates": residue_atom_coordinates,
+    #     "adjacency_tensor": adj_tensor,
+    #     "affinity": affinity,
+    #     "closest_residues": closest_nodes,
+    #     "atom_names": atom_names
+    # }
+
+
+    # graph_dict = self.get_graph_dict(df_idx)
+    # node_features = self.get_node_features(graph_dict)
+    # edge_indices, edge_features = self.get_edges(graph_dict)
+    #
+    # affinity = graph_dict["affinity"]
+    # if self.scale_values and self.affinity_type == "-log(Kd)":
+    #     affinity = scale_affinity(affinity, self.scale_min, self.scale_max)
+    # affinity = np.array(affinity)
+    #
+    # graph = HeteroData()
+    #
+    # graph["node"].x = torch.Tensor(node_features).float()
+    # graph["node"].chain_id = torch.tensor([ord(residue_info["chain_id"]) for residue_info in graph_dict["residue_infos"]])
+    # graph["node"].residue_id = torch.tensor([residue_info["residue_id"] for residue_info in graph_dict["residue_infos"]])  # this is the pdb residue_id
+    #
+    # try:
+    #     graph["node"].positions = torch.stack([residue_info["matched_position"] for residue_info in graph_dict["residue_infos"]])
+    #     graph["node"].orientations = torch.stack([residue_info["matched_orientation"] for residue_info in graph_dict["residue_infos"]])
+    #     graph["node"].residue_index = torch.stack([residue_info["matched_residue_index"] for residue_info in graph_dict["residue_infos"]]) # this is the index of the residue in the LOADED protein
+    # except KeyError:
+    #     pass  # data is only available when of-embeddings are used
+    # graph.y = torch.from_numpy(affinity).float()
+    #
+    # for edge_type, edges in edge_indices.items():
+    #     graph[edge_type].edge_index = edges
+    #     graph[edge_type].edge_attr = edge_features[edge_type].float()
+    #
+    # return graph, graph_dict
+
