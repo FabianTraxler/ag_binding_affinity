@@ -923,7 +923,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
                                                           title="Label vs. Predictions")})
 
             best_model = deepcopy(model)
-        else:
+        elif patience is not None:
             patience -= 1
 
         logger.info(
@@ -932,7 +932,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
 
         wandb.log(wandb_log, commit=True)
 
-        if patience < 0:
+        if patience is not None and patience < 0:
             if use_wandb:
                 run.summary[f"{dataset2optimize}_val_loss"] = best_loss
                 run.summary[f"{dataset2optimize}_val_corr"] = best_pearson_corr
