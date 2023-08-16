@@ -43,9 +43,9 @@ def model_train(args:Namespace, validation_set: int = None) -> Tuple[AffinityGNN
     if validation_set is None:
         validation_set = args.validation_set
 
-    train_data, val_data = load_datasets(args.config, dataset_name, validation_set, args)
+    train_data, val_datas = load_datasets(args.config, dataset_name, validation_set, args)
 
-    logger.info("Val Set:{} | Train Size:{} | Test Size: {}".format(str(validation_set), len(train_data), len(val_data)))
+    logger.info("Val Set:{} | Train Size:{} | Test Size: {}".format(str(validation_set), len(train_data), len(val_datas)))
 
     use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
@@ -55,10 +55,10 @@ def model_train(args:Namespace, validation_set: int = None) -> Tuple[AffinityGNN
     logger.debug(f"Training with  {dataset_name}")
     logger.debug(f"Training done on GPU: {next(model.parameters()).is_cuda}")
 
-    results, best_model = train_loop(model, train_data, val_data, args)
+    results, best_model = train_loop(model, train_data, val_datas, args)
 
     if args.pretrained_model in ["Binding_DDG", "DeepRefine", "IPA", "Diffusion"]:
-        results, best_model = finetune_pretrained(best_model, train_data, val_data, args)
+        results, best_model = finetune_pretrained(best_model, train_data, val_datas, args)
     return best_model, results
 
 
@@ -86,7 +86,7 @@ def pretrain_model(args:Namespace) -> Tuple[AffinityGNN, Dict]:
     for dataset_name in datasets:
         logger.info("Training with {} starting ...".format(dataset_name))
         logger.debug(f"Loading  {dataset_name}")
-        train_data, val_data = load_datasets(config, dataset_name, args.validation_set, args)
+        train_data, val_datas = load_datasets(config, dataset_name, args.validation_set, args)
 
         if model is None: # only load model for first dataset
             logger.debug(f"Loading  Model")
@@ -95,16 +95,17 @@ def pretrain_model(args:Namespace) -> Tuple[AffinityGNN, Dict]:
         logger.debug(f"Training with  {dataset_name}")
         logger.debug(f"Training done on GPU: {next(model.parameters()).is_cuda}")
 
-        results, model = train_loop(model, train_data, val_data, args)
+        results, model = train_loop(model, train_data, val_datas, args)
 
         logger.info("Training with {} completed".format(dataset_name))
         logger.debug(results)
         all_results[dataset_name] = results
 
-    if args.pretrained_model in ["Binding_DDG", "DeepRefine", "IPA", "Diffusion"]:
-        train_data, val_data = load_datasets(config, datasets[-1], args.validation_set, args)
-        results, model = finetune_pretrained(model, train_data, val_data, args)
-        all_results["finetuning"] = results
+    # TODO ignore for now
+    # if args.pretrained_model in ["Binding_DDG", "DeepRefine", "IPA", "Diffusion"]:
+    #     train_data, val_datas = load_datasets(config, datasets[-1], args.validation_set, args)
+    #     results, model = finetune_pretrained(model, train_data, val_datas, args)
+    #     all_results["finetuning"] = results
 
     return model, all_results
 
@@ -118,6 +119,7 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
     Returns:
         Tuple: Trained model and Dict with results and statistics of training
     """
+    raise NotImplementedError
     config = read_config(args.config_file)
 
     datasets = args.transfer_learning_datasets + [args.target_dataset]

@@ -1,5 +1,6 @@
 import glob
 from typing import Dict, List, Tuple, Union
+from matplotlib._api import itertools
 import numpy as np
 import math
 import pandas as pd
@@ -95,14 +96,14 @@ def get_loss(criterion, label: torch.Tensor, output: torch.Tensor) -> torch.Tens
     #     raise ValueError(f"Wrong affinity type given - expected one of (-log(Kd), E) but got {output['affinity_type']}")
 
 
-def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader: DataLoader, criterion,
-                optimizer: torch.optim, device: torch.device = torch.device("cpu"), tqdm_output: bool = True) -> Tuple[AffinityGNN, Dict]:
+def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloaders: List[DataLoader], criterion,
+                optimizer: torch.optim, device: torch.device = torch.device("cpu"), tqdm_output: bool = True) -> Tuple[AffinityGNN, List, np.ndarray]:
     """ Train model for one epoch given the train and validation dataloaders
 
     Args:
         model: torch module used to train
         train_dataloader: Dataloader with training examples
-        val_dataloader: Dataloader with validation examples
+        val_dataloaders: Dataloaders with validation examples
         criterion: Function used to calculate loss
         optimizer: Optimizer object used to perform update step of model parameter
         device: Device to use for training
@@ -136,66 +137,66 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
     all_pdbs = []
 
     model.eval()
-    for data in tqdm(val_dataloader, disable=not tqdm_output):
-        output, label = forward_step(model, data, device)
+    results = []
+    for val_dataloader in val_dataloaders:
+        for data in tqdm(val_dataloader, disable=not tqdm_output):
+            output, label = forward_step(model, data, device)
 
-        loss = get_loss(criterion, label, output)
-        total_loss_val += loss.item()
+            loss = get_loss(criterion, label, output)
+            total_loss_val += loss.item()
 
-        if data["relative"] and data["affinity_type"] == "E":
-            label = torch.argmax(label.detach().cpu(), dim=1)
-            all_binary_labels = np.append(all_binary_labels, label.numpy())
-            all_binary_predictions = np.append(all_binary_predictions, output["x"].flatten().detach().cpu().numpy())
-            pdb_ids_1 = [ filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
-            pdb_ids_2 = [ filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
-            all_pdbs.extend(list(zip(pdb_ids_1, pdb_ids_2)))
-        elif data["relative"] and data["affinity_type"] == "-log(Kd)":
-            label = label.detach().cpu()
-            all_continuous_predictions = np.append(all_continuous_predictions, output["x"].flatten().detach().cpu().numpy())
-            all_continuous_labels = np.append(all_continuous_labels, label.numpy())
+            if data["relative"] and data["affinity_type"] == "E":
+                label = torch.argmax(label.detach().cpu(), dim=1)
+                all_binary_labels = np.append(all_binary_labels, label.numpy())
+                all_binary_predictions = np.append(all_binary_predictions, output["x"].flatten().detach().cpu().numpy())
+                pdb_ids_1 = [ filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
+                pdb_ids_2 = [ filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
+                all_pdbs.extend(list(zip(pdb_ids_1, pdb_ids_2)))
+            elif data["relative"] and data["affinity_type"] == "-log(Kd)":
+                label = label.detach().cpu()
+                all_continuous_predictions = np.append(all_continuous_predictions, output["x"].flatten().detach().cpu().numpy())
+                all_continuous_labels = np.append(all_continuous_labels, label.numpy())
 
-            pdb_ids_1 = [ filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
-            pdb_ids_2 = [ filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
-            all_pdbs.extend(list(zip(pdb_ids_1, pdb_ids_2)))
+                pdb_ids_1 = [ filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
+                pdb_ids_2 = [ filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
+                all_pdbs.extend(list(zip(pdb_ids_1, pdb_ids_2)))
+            else:
+                label = label.detach().cpu()
+                all_continuous_predictions = np.append(all_continuous_predictions, output["x"].flatten().detach().cpu().numpy())
+                all_continuous_labels = np.append(all_continuous_labels, label.numpy())
+
+                all_pdbs.extend([ filepath.split("/")[-1].split(".")[0] for filepath in data["input"]["filepath"]])
+            all_labels = np.append(all_labels, label.numpy())
+            all_predictions = np.append(all_predictions, output["x"].flatten().detach().cpu().numpy())
+
+            # if len(all_predictions) > 2:
+            #     break
+
+        val_loss = total_loss_val / (len(all_predictions) + len(all_binary_predictions))
+        if len(all_binary_labels) > 0:
+            acc = accuracy_score(all_binary_labels, all_binary_predictions)
         else:
-            label = label.detach().cpu()
-            all_continuous_predictions = np.append(all_continuous_predictions, output["x"].flatten().detach().cpu().numpy())
-            all_continuous_labels = np.append(all_continuous_labels, label.numpy())
+            acc = np.nan
 
-            all_pdbs.extend([ filepath.split("/")[-1].split(".")[0] for filepath in data["input"]["filepath"]])
-        all_labels = np.append(all_labels, label.numpy())
-        all_predictions = np.append(all_predictions, output["x"].flatten().detach().cpu().numpy())
+        if len(all_continuous_labels) > 0:
+            pearson_corr = stats.pearsonr(all_continuous_labels, all_continuous_predictions)
+        else:
+            pearson_corr = (np.nan, np.nan)
+        results.append({
+            "val_loss": val_loss,
+            "pearson_correlation": pearson_corr[0],
+            "pearson_correlation_p": pearson_corr[1],
+            "all_labels": all_labels,
+            "all_predictions": all_predictions,
+            "all_pdbs": all_pdbs,
+            "total_val_loss": total_loss_val,
+            "val_accuracy": acc
+        })
 
-        # if len(all_predictions) > 2:
-        #     break
-
-    val_loss = total_loss_val / (len(all_predictions) + len(all_binary_predictions))
-    if len(all_binary_labels) > 0:
-        acc = accuracy_score(all_binary_labels, all_binary_predictions)
-    else:
-        acc = np.nan
-
-    if len(all_continuous_labels) > 0:
-        pearson_corr = stats.pearsonr(all_continuous_labels, all_continuous_predictions)
-    else:
-        pearson_corr = (np.nan, np.nan)
-
-    results = {
-        "val_loss": val_loss,
-        "pearson_correlation": pearson_corr[0],
-        "pearson_correlation_p": pearson_corr[1],
-        "all_labels": all_labels,
-        "all_predictions": all_predictions,
-        "all_pdbs": all_pdbs,
-        "total_train_loss": total_loss_train,
-        "total_val_loss": total_loss_val,
-        "val_accuracy": acc
-    }
-
-    return model, results
+    return model, results, total_loss_train
 
 
-def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_dataset: AffinityDataset, args: Namespace) -> \
+def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets: List[AffinityDataset], args: Namespace) -> \
         Tuple[Dict, AffinityGNN]:
     """ Train model with train dataset and provide results and statistics based on validation set
 
@@ -221,14 +222,10 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_dataset: 
 
     wandb, wdb_config, use_wandb, run = configure(args)
 
-    results = {
-        "epoch_loss": [],
-        "epoch_corr": [],
-        "epoch_rmse": [],
-        "epoch_acc": []
-    }
+    results = {f"{key}_val{i}": [] for key, i in
+               itertools.product(["epoch_loss", "epoch_corr", "epoch_rmse", "epoch_acc"], range(len(val_datasets)))}
 
-    if val_dataset.relative_data:
+    if val_datasets[0].relative_data:
         data_type = "relative"
     else:
         data_type = "absolute"
@@ -263,90 +260,94 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_dataset: 
     best_model = deepcopy(model)
 
     for i in range(args.max_epochs):
-        train_dataloader, val_dataloader = get_dataloader(args, train_dataset, val_dataset)
+        train_dataloader, val_dataloaders = get_dataloader(args, train_dataset, val_datasets)
 
-        model, epoch_results = train_epoch(model, train_dataloader, val_dataloader, criterion, optimizer, device,
+        model, val_results, total_train_loss = train_epoch(model, train_dataloader, val_dataloaders, criterion, optimizer, device,
                                            args.tqdm_output)
 
-        results["epoch_loss"].append(epoch_results["val_loss"])
-        results["epoch_corr"].append(epoch_results["pearson_correlation"])
-        results["epoch_acc"].append(epoch_results["val_accuracy"])
+        patience = None
         if args.lr_scheduler == "exponential":
             scheduler.step()
-            patience = None
         else:
-            scheduler.step(metrics=epoch_results['val_loss'])
-            patience = args.patience - scheduler.num_bad_epochs 
+            scheduler.step(metrics=val_results[0]['val_loss'])
+            if args.patience is not None:
+                patience = args.patience - scheduler.num_bad_epochs
 
-        # scale back values before rsme calculation
-        if len(epoch_results["all_labels"]) > 0:
-            all_labels = epoch_results["all_labels"]
-            all_predictions = epoch_results["all_predictions"]
-            if args.scale_values:
-                all_labels = all_labels * (args.scale_max - args.scale_min) + args.scale_min
-                all_predictions = all_predictions * (args.scale_max - args.scale_min) + args.scale_min
-            epoch_results["rmse"] = math.sqrt(np.square(np.subtract(all_labels,all_predictions)).mean())
-            results["epoch_rmse"].append(epoch_results["rmse"])
-        else:
-            epoch_results["rmse"] = np.nan
-        results["epoch_rmse"].append(epoch_results["rmse"])
+        for val_i, (val_result, val_dataset, val_dataloader) in enumerate(zip(val_results, val_datasets, val_dataloaders)):
+            results[f"epoch_loss_val{val_i}"].append(val_result["val_loss"])
+            results[f"epoch_corr_val{val_i}"].append(val_result["pearson_correlation"])
+            results[f"epoch_acc_val{val_i}"].append(val_result["val_accuracy"])
 
-        if epoch_results["val_loss"] < best_loss: # or epoch_results["pearson_correlation"] > best_pearson_corr:
-            best_loss = epoch_results["val_loss"]
-            best_pearson_corr = epoch_results["pearson_correlation"]
-            best_rmse = epoch_results["rmse"]
+            # scale back values before rsme calculation
+            if len(val_result["all_labels"]) > 0:
+                all_labels = val_result["all_labels"]
+                all_predictions = val_result["all_predictions"]
+                if args.scale_values:
+                    all_labels = all_labels * (args.scale_max - args.scale_min) + args.scale_min
+                    all_predictions = all_predictions * (args.scale_max - args.scale_min) + args.scale_min
+                    val_result["rmse"] = math.sqrt(np.square(np.subtract(all_labels,all_predictions)).mean())
+                    results[f"epoch_rmse_val{val_i}"].append(val_result["rmse"])
+            else:
+                val_result["rmse"] = np.nan
+            results[f"epoch_rmse_val{val_i}"].append(val_result["rmse"])
 
-            if not np.isnan(epoch_results["rmse"]):
-                best_data = [[x, y] for (x, y) in zip(all_predictions, all_labels)]
-                best_table = wandb.Table(data=best_data, columns=["predicted", "true"])
-                wandb.log({"scatter_plot": wandb.plot.scatter(best_table, "predicted", "true",
-                                                              title="Label vs. Predictions")})
+            if val_result["val_loss"] < best_loss: # or val_result["pearson_correlation"] > best_pearson_corr:
+                best_loss = val_result["val_loss"]
+                best_pearson_corr = val_result["pearson_correlation"]
+                best_rmse = val_result["rmse"]
 
-                plot_correlation(x=all_labels, y=all_predictions,
-                                 path=os.path.join(plot_path, f"{train_dataset.full_dataset_name}-{data_type}.png"))
-                result_df = pd.DataFrame({
-                        "pdb": epoch_results["all_pdbs"],
-                        "prediction": all_predictions,
-                        "labels": all_labels
-                })
-                result_df.to_csv(os.path.join(prediction_path, f"{train_dataset.full_dataset_name}-{data_type}.csv"),
-                                 index=False)
-            best_model = deepcopy(model)
+                if not np.isnan(val_result["rmse"]):
+                    best_data = [[x, y] for (x, y) in zip(all_predictions, all_labels)]
+                    best_table = wandb.Table(data=best_data, columns=["predicted", "true"])
+                    wandb.log({"scatter_plot": wandb.plot.scatter(best_table, "predicted", "true",
+                                                                title="Label vs. Predictions")})
 
-        logger.info(
-            f'Epochs: {i + 1} | Train-Loss: {epoch_results["total_train_loss"] / len(train_dataloader) : .3f}  | '
-            f'Val-Loss: {epoch_results["total_val_loss"] / len(val_dataloader) : .3f} | '
-            f'Val-r: {epoch_results["pearson_correlation"]: .4f} | '
-            f'p-value r=0: {epoch_results["pearson_correlation_p"]: .4f} | RMSE: {epoch_results["rmse"]} | '
-            f'Val-Acc: {epoch_results["val_accuracy"]: .4f} | '
-            f'Patience: {patience} '
-            f'LR: {optimizer.param_groups[0]["lr"]: .6f}')
+                    plot_correlation(x=all_labels, y=all_predictions,
+                                    path=os.path.join(plot_path, f"{train_dataset.full_dataset_name}-{data_type}.png"))
+                    # result_df = pd.DataFrame({
+                    #         "pdb": val_result["all_pdbs"],
+                    #         "prediction": all_predictions,
+                    #         "labels": all_labels
+                    # })
+                    # result_df.to_csv(os.path.join(prediction_path, f"{train_dataset.full_dataset_name}-{data_type}.csv"),
+                    #                 index=False)
+                best_model = deepcopy(model)
 
-        if val_dataset.affinity_type == "-log(Kd)" and np.isnan(epoch_results["pearson_correlation"]):
-            preds_nan = any(np.isnan(epoch_results["all_predictions"]))
-            preds_same = np.all(epoch_results["all_predictions"] == epoch_results["all_predictions"][0])
-            labels_nan = any(np.isnan(epoch_results["all_labels"]))
-            labels_same = np.all(epoch_results["all_labels"] == epoch_results["all_labels"][0])
+            # TODO do for both vals
+            logger.info(
+                f'Epochs: {i + 1} | Train-Loss: {total_train_loss / len(train_dataloader) : .3f}  | '
+                f'Val{val_i}-Loss: {val_result["total_val_loss"] / len(val_dataloader) : .3f} | '
+                f'Val{val_i}-r: {val_result["pearson_correlation"]: .4f} | '
+                f'p-value{val_i} r=0: {val_result["pearson_correlation_p"]: .4f} | RMSE: {val_result["rmse"]} | '
+                f'Val{val_i}-Acc: {val_result["val_accuracy"]: .4f} | '
+                f'Patience: {patience} '
+                f'LR: {optimizer.param_groups[0]["lr"]: .6f}')
 
-            results["best_loss"] = best_loss
-            results["best_correlation"] = best_pearson_corr
-            results["best_rmse"] = best_rmse
+            if val_dataset.affinity_type == "-log(Kd)" and np.isnan(val_result["pearson_correlation"]):
+                preds_nan = any(np.isnan(val_result["all_predictions"]))
+                preds_same = np.all(val_result["all_predictions"] == val_result["all_predictions"][0])
+                labels_nan = any(np.isnan(val_result["all_labels"]))
+                labels_same = np.all(val_result["all_labels"] == val_result["all_labels"][0])
 
-            logger.error(
-                f"Pearon correlation is NaN. Preds NaN:{preds_nan}. Preds Same {preds_same}. Labels NaN: {labels_nan}. Labels Same {labels_same}")
-            return results, best_model
+                results["best_loss"] = best_loss
+                results["best_correlation"] = best_pearson_corr
+                results["best_rmse"] = best_rmse
 
-        wandb_log = {
-            "val_loss": epoch_results["total_val_loss"] / (len(val_dataset) / args.batch_size),
-            "train_loss": epoch_results["total_train_loss"] / (len(train_dataset) / args.batch_size),
-            "pearson_correlation": epoch_results["pearson_correlation"],
-            f"{val_dataset.full_dataset_name}:{data_type}_val_loss": epoch_results["total_val_loss"] / (
-                    len(val_dataset) / args.batch_size),
-            f"{val_dataset.full_dataset_name}:{data_type}_val_corr": epoch_results["pearson_correlation"],
-            f"{val_dataset.full_dataset_name}:{data_type}_val_rmse": epoch_results["rmse"]
-        }
+                logger.error(
+                    f"Pearon correlation is NaN. Preds NaN:{preds_nan}. Preds Same {preds_same}. Labels NaN: {labels_nan}. Labels Same {labels_same}")
+                return results, best_model
 
-        wandb.log(wandb_log, commit=True)
+            wandb_log = {
+                f"val{val_i}_loss": val_result["total_val_loss"] / (len(val_dataset) / args.batch_size),
+                "train_loss": total_train_loss / (len(train_dataset) / args.batch_size),
+                f"val{val_i}_pearson_correlation": val_result["pearson_correlation"],
+                f"{val_dataset.full_dataset_name}{val_i}:{data_type}_val_loss": val_result["total_val_loss"] / (
+                        len(val_dataset) / args.batch_size),
+                f"{val_dataset.full_dataset_name}{val_i}:{data_type}_val_corr": val_result["pearson_correlation"],
+                f"{val_dataset.full_dataset_name}{val_i}:{data_type}_val_rmse": val_result["rmse"]
+            }
+
+            wandb.log(wandb_log, commit=True)
 
         stop_training = True
         for param_group in optimizer.param_groups:
@@ -354,9 +355,9 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_dataset: 
                 param_group['lr'] < args.stop_at_learning_rate)
         if stop_training:
             if use_wandb:
-                run.summary[f"{val_dataset.full_dataset_name}:{data_type}_val_corr"] = best_pearson_corr
-                run.summary[f"{val_dataset.full_dataset_name}:{data_type}_val_loss"] = best_loss
-                run.summary[f"{val_dataset.full_dataset_name}:{data_type}_val_rmse"] = best_rmse
+                run.summary[f"{val_datasets[0].full_dataset_name}:{data_type}_val_corr"] = best_pearson_corr
+                run.summary[f"{val_datasets[0].full_dataset_name}:{data_type}_val_loss"] = best_loss
+                run.summary[f"{val_datasets[0].full_dataset_name}:{data_type}_val_rmse"] = best_rmse
             break
 
         model.train()
@@ -427,7 +428,7 @@ def load_model(num_node_features: int, num_edge_features: int, dataset_names: Li
     return model
 
 
-def get_dataloader(args: Namespace, train_dataset: AffinityDataset, val_dataset: AffinityDataset) -> Tuple[
+def get_dataloader(args: Namespace, train_dataset: AffinityDataset, val_datasets: List[AffinityDataset]) -> Tuple[
     DataLoader, DataLoader]:
     """ Get dataloader for train and validation dataset
 
@@ -452,10 +453,11 @@ def get_dataloader(args: Namespace, train_dataset: AffinityDataset, val_dataset:
 
     train_dataloader = DL_torch(train_dataset, num_workers=args.num_workers, batch_size=batch_size,
                                 shuffle=args.shuffle, collate_fn=AffinityDataset.collate)
-    val_dataloader = DL_torch(val_dataset, num_workers=args.num_workers, batch_size=batch_size,
-                              collate_fn=AffinityDataset.collate)
 
-    return train_dataloader, val_dataloader
+    val_dataloaders = [DL_torch(val_dataset, num_workers=args.num_workers, batch_size=batch_size,
+                              collate_fn=AffinityDataset.collate) for val_dataset in val_datasets]
+
+    return train_dataloader, val_dataloaders
 
 
 def train_val_split(config: Dict, dataset_name: str, validation_set: int, validation_size: int = 20) -> Tuple[List, List]:
@@ -598,7 +600,7 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int, valida
 
 
 def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespace) -> Tuple[
-    AffinityDataset, AffinityDataset]:
+    AffinityDataset, List[AffinityDataset]]:
     """ Get train and validation datasets for a specific dataset and data type
 
     1. Get train and validation splits
@@ -647,25 +649,28 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
                                  num_threads=args.num_workers,
                                  load_embeddings=args.embeddings_path
                                  )
-    val_data = AffinityDataset(config, args.relaxed_pdbs, dataset_name, val_ids,
-                               node_type=args.node_type,
-                               max_nodes=args.max_num_nodes,
-                               interface_distance_cutoff=args.interface_distance_cutoff,
-                               interface_hull_size=args.interface_hull_size,
-                               max_edge_distance=args.max_edge_distance,
-                               pretrained_model=args.pretrained_model,
-                               scale_values=args.scale_values,
-                               scale_min=args.scale_min,
-                               scale_max=args.scale_max,
-                               relative_data=relative_data,
-                               save_graphs=args.save_graphs,
-                               force_recomputation=args.force_recomputation,
-                               preprocess_data=args.preprocess_graph,
-                               num_threads=args.num_workers,
-                               load_embeddings=args.embeddings_path
-                               )
 
-    return train_data, val_data
+    val_datas = [AffinityDataset(config, relaxed, dataset_name, val_ids,
+                                node_type=args.node_type,
+                                max_nodes=args.max_num_nodes,
+                                interface_distance_cutoff=args.interface_distance_cutoff,
+                                interface_hull_size=args.interface_hull_size,
+                                max_edge_distance=args.max_edge_distance,
+                                pretrained_model=args.pretrained_model,
+                                scale_values=args.scale_values,
+                                scale_min=args.scale_min,
+                                scale_max=args.scale_max,
+                                relative_data=relative_data,
+                                save_graphs=args.save_graphs,
+                                force_recomputation=args.force_recomputation,
+                                preprocess_data=args.preprocess_graph,
+                                num_threads=args.num_workers,
+                                load_embeddings=args.embeddings_path
+                                )
+                 for relaxed in [args.relaxed_pdbs, not args.relaxed_pdbs]
+                 ]
+
+    return train_data, val_datas
 
 
 def get_bucket_dataloader(args: Namespace, train_datasets: List[AffinityDataset], val_datasets: List[AffinityDataset]):
@@ -796,6 +801,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
     Returns:
         Tuple: Results as dict, trained model
     """
+    raise NotImplementedError
     plot_path = os.path.join(args.config["plot_path"],
                              f"{args.node_type}/bucket_learning/val_set_{args.validation_set}")
     Path(plot_path).mkdir(exist_ok=True, parents=True)
