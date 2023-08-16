@@ -667,7 +667,7 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
                                 num_threads=args.num_workers,
                                 load_embeddings=args.embeddings_path
                                 )
-                 for relaxed in [args.relaxed_pdbs, not args.relaxed_pdbs]
+                 for relaxed in [bool(args.relaxed_pdbs), not args.relaxed_pdbs]
                  ]
 
     return train_data, val_datas

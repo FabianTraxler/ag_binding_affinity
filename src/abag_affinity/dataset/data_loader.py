@@ -36,7 +36,7 @@ class AffinityDataset(Dataset):
     """
 
     def __init__(self, config: Dict,
-                 is_relaxed: bool,
+                 is_relaxed: Union[bool, str],
                  dataset_name: str,
                  pdb_ids: Optional[List] = None,
                  node_type: str = "residue",
@@ -119,11 +119,8 @@ class AffinityDataset(Dataset):
 
         # No need to include IPA in model path because the graph should have the same features regardless
         self.is_relaxed = is_relaxed
-        self.graph_dir = os.path.join(self.config["processed_graph_path"], self.full_dataset_name, node_type, pretrained_model if pretrained_model in ["DeepRefine", "Binding_DDG"] else "", f"embeddings_{load_embeddings}_relaxed_{is_relaxed}")
-        self.processed_graph_files = os.path.join(self.graph_dir, "{}.npz")
-        if self.save_graphs or preprocess_data:
-            logger.debug(f"Saving processed graphs in {self.graph_dir}")
-            Path(self.graph_dir).mkdir(exist_ok=True, parents=True)
+        self.graph_dir = os.path.join(self.config["processed_graph_path"], self.full_dataset_name, node_type, pretrained_model if pretrained_model in ["DeepRefine", "Binding_DDG"] else "", f"embeddings_{load_embeddings}_relaxed_{{is_relaxed}}")
+        self.processed_graph_files = os.path.join(self.graph_dir, "{filestem}.npz")
         # create path for clean pdbs
         self.interface_dir = os.path.join(self.config["interface_pdbs"], ("relaxed" if self.is_relaxed else ""), self.full_dataset_name)
         logger.debug(f"Saving cleaned pdbs in {self.interface_dir}")
@@ -148,9 +145,14 @@ class AffinityDataset(Dataset):
 
         self.num_threads = num_threads
 
-        if self.preprocess_data:
-            logger.debug(f"Preprocessing {node_type}-graphs for {self.full_dataset_name}")
-            self.preprocess()
+        if self.save_graphs or preprocess_data:
+            for relaxed in {True:[True], False:[False], "both": [True, False]}[self.is_relaxed]:
+                logger.debug(f"Saving processed graphs in {self.graph_dir.format(is_relaxed=relaxed)}")
+                Path(self.graph_dir.format(is_relaxed=relaxed)).mkdir(exist_ok=True, parents=True)
+
+                if self.preprocess_data:
+                    logger.debug(f"Preprocessing {node_type}-graphs for {self.full_dataset_name}")
+                    self.preprocess(relaxed)
 
     def update_valid_pairs(self):
         """ Find for each data point a valid partner
@@ -224,7 +226,10 @@ class AffinityDataset(Dataset):
         if self.relative_data:
             return len(self.relative_pairs)
         else:
-            return len(self.pdb_ids)
+            if self.is_relaxed == "both":
+                return len(self.pdb_ids) * 2
+            else:
+                return len(self.pdb_ids)
 
     def get(self, idx: int):
         """
@@ -233,7 +238,7 @@ class AffinityDataset(Dataset):
         raise NotImplementedError
 
 
-    def preprocess(self):
+    def preprocess(self, relaxed):
         """ Preprocess graphs to reduce redundant processing during training +
         avoid file conflicts during parallel dataloading
 
@@ -242,15 +247,14 @@ class AffinityDataset(Dataset):
         Returns:
             None
         """
-        Path(self.graph_dir).mkdir(exist_ok=True, parents=True)
         if self.interface_hull_size is not None and self.interface_hull_size != "" and self.interface_hull_size != "None":
-            Path(os.path.join(self.graph_dir, f"interface_hull_{self.interface_hull_size}")).mkdir(exist_ok=True,
+            Path(os.path.join(self.graph_dir.format(is_relaxed=relaxed), f"interface_hull_{self.interface_hull_size}")).mkdir(exist_ok=True,
                                                                                                    parents=True)
         graph_dicts2process = []
         deeprefine_graphs2process = []
         for df_idx, row in self.data_df.iterrows():
             # Pre-Load Dictionary containing all relevant information to generate graphs
-            file_path = self.processed_graph_files.format(df_idx)
+            file_path = self.processed_graph_files.format(filestem=df_idx, is_relaxed=relaxed)
             if not os.path.exists(file_path) or self.force_recomputation:
                 graph_dicts2process.append((row, file_path))
 
@@ -260,9 +264,9 @@ class AffinityDataset(Dataset):
 
             # get final file name of graph
             if self.interface_hull_size is None or self.interface_hull_size == "" or self.interface_hull_size == "None":
-                graph_filepath = os.path.join(self.graph_dir, str(df_idx) + ".pickle")
+                graph_filepath = os.path.join(self.graph_dir.format(is_relaxed=relaxed), str(df_idx) + ".pickle")
             else:
-                graph_filepath = os.path.join(self.graph_dir, f"interface_hull_{self.interface_hull_size}",
+                graph_filepath = os.path.join(self.graph_dir.format(is_relaxed=relaxed), f"interface_hull_{self.interface_hull_size}",
                                               str(df_idx) + ".pickle")
             # Pre-Load DeepRefine graphs
 
@@ -298,10 +302,10 @@ class AffinityDataset(Dataset):
         if self.pretrained_model == "DeepRefine":
             logger.debug(
                 f"Preprocessing {len(deeprefine_graphs2process)} DeepRefine graphs with {self.num_threads} threads")
-            submit_jobs(self.preload_deeprefine_graph, deeprefine_graphs2process, self.num_threads)
+            submit_jobs(self.preload_deeprefine_graph, deeprefine_graphs2process, self.num_threads, relaxed=relaxed)
 
 
-    def preload_deeprefine_graph(self, idx: str, pdb_filepath: str, row: pd.Series):
+    def preload_deeprefine_graph(self, idx: str, pdb_filepath: str, row: pd.Series, relaxed: bool):
         """ Function to get graph dict of Deeprefine graphs and store to disc
 
         Used by preprocess functionality
@@ -319,9 +323,9 @@ class AffinityDataset(Dataset):
                                       self.interface_distance_cutoff, self.interface_hull_size)
 
         if self.interface_hull_size is None or self.interface_hull_size == "" or self.interface_hull_size == "None":
-            graph_filepath = os.path.join(self.graph_dir, idx + ".pickle")
+            graph_filepath = os.path.join(self.graph_dir.format(is_relaxed=relaxed), idx + ".pickle")
         else:
-            graph_filepath = os.path.join(self.graph_dir, f"interface_hull_{self.interface_hull_size}",
+            graph_filepath = os.path.join(self.graph_dir.format(is_relaxed=relaxed), f"interface_hull_{self.interface_hull_size}",
                                           idx + ".pickle")
 
         with open(graph_filepath, 'wb') as f:
@@ -434,7 +438,7 @@ class AffinityDataset(Dataset):
 
         return node_features
 
-    def get_graph_dict(self, df_idx: str) -> Dict:
+    def get_graph_dict(self, df_idx: str, relaxed: Optional[bool] = None) -> Dict:
         """ Get the graph dict for a data point
 
         Either load from disc or compute anew
@@ -445,7 +449,7 @@ class AffinityDataset(Dataset):
         Returns:
             Dict: graph information for index
         """
-        file_path = self.processed_graph_files.format(df_idx)
+        file_path = self.processed_graph_files.format(filestem=df_idx, is_relaxed=relaxed)
         graph_dict = {}
 
         if os.path.exists(file_path) and (not self.force_recomputation or self.preprocess_data):  # how is it ensured that not every iteration leads to recomputation?
@@ -473,11 +477,11 @@ class AffinityDataset(Dataset):
                                          affinity_type=self.affinity_type,
                                          load_embeddings=self.load_embeddings,
                                          save_path=self.save_graphs and file_path,
-                                         relaxed=self.is_relaxed
+                                         relaxed=self.is_relaxed if relaxed is None else relaxed
                                          )
         return graph_dict
 
-    def load_graph(self, df_idx: str) -> Tuple[HeteroData, Dict]:
+    def load_graph(self, df_idx: str, relaxed) -> Tuple[HeteroData, Dict]:
         """ Load a data point either from disc or compute it anew
 
         Args:
@@ -487,7 +491,7 @@ class AffinityDataset(Dataset):
             HeteroData: PyG HeteroData object
             Dict: Metadata for graph
         """
-        graph_dict = self.get_graph_dict(df_idx)
+        graph_dict = self.get_graph_dict(df_idx, relaxed)
         node_features = self.get_node_features(graph_dict)
         edge_indices, edge_features = self.get_edges(graph_dict)
 
@@ -516,7 +520,7 @@ class AffinityDataset(Dataset):
 
         return graph, graph_dict
 
-    def load_deeprefine_graph(self, df_idx: str) -> dgl.DGLGraph:
+    def load_deeprefine_graph(self, df_idx: str, relaxed) -> dgl.DGLGraph:
         """Load a data point for Deeprefine model either from disc or compute it anew
 
         Utilize DeepRefine functionality to get graphs
@@ -528,12 +532,12 @@ class AffinityDataset(Dataset):
             dgl.DGLGraph: DGL graph object
         """
         if self.interface_hull_size is None or self.interface_hull_size == "" or self.interface_hull_size == "None":
-            graph_filepath = os.path.join(self.graph_dir, df_idx + ".pickle")
+            graph_filepath = os.path.join(self.graph_dir.format(is_relaxed=relaxed), df_idx + ".pickle")
         else:
-            if not os.path.exists(os.path.join(self.graph_dir, f"interface_hull_{self.interface_hull_size}")):
+            if not os.path.exists(os.path.join(self.graph_dir.format(is_relaxed=relaxed), f"interface_hull_{self.interface_hull_size}")):
                 Path(os.path.join(self.graph_dir, f"interface_hull_{self.interface_hull_size}")).mkdir(exist_ok=True,
                                                                                                        parents=True)
-            graph_filepath = os.path.join(self.graph_dir, f"interface_hull_{self.interface_hull_size}",
+            graph_filepath = os.path.join(self.graph_dir.format(is_relaxed=relaxed), f"interface_hull_{self.interface_hull_size}",
                                           df_idx + ".pickle")
 
         compute_graph = True
@@ -552,7 +556,7 @@ class AffinityDataset(Dataset):
             pdb_filepath, _ = get_pdb_path_and_id(row, self.dataset_name, self.config, self.is_relaxed)
 
             graph = load_deeprefine_graph(df_idx, pdb_filepath, self.interface_dir,
-                                          self.interface_distance_cutoff, self.interface_hull_size)
+                                          self.interface_distance_cutoff, self.interface_hull_size, relaxed)
 
             if self.save_graphs and not os.path.exists(graph_filepath):
                 with open(graph_filepath, 'wb') as f:
@@ -560,7 +564,7 @@ class AffinityDataset(Dataset):
 
         return graph
 
-    def load_data_point(self, df_idx: str) -> Dict:
+    def load_data_point(self, df_idx: str, relaxed: Optional[bool] = None) -> Dict:
         """ Functionality to load the correct graph + all necessary meta information
 
         Loads either a PyG graph or DGL graph based on the model used later on
@@ -577,14 +581,14 @@ class AffinityDataset(Dataset):
         else:
             filepath = os.path.join(self.interface_dir, f"interface_hull_{self.interface_hull_size}", df_idx + ".pdb")
 
-        graph, graph_dict = self.load_graph(df_idx)
+        graph, graph_dict = self.load_graph(df_idx, relaxed)
         data_point = {
             "filepath": filepath,
             "graph": graph,
         }
 
         if self.pretrained_model == "DeepRefine":
-            deeprefine_graph = self.load_deeprefine_graph(df_idx)
+            deeprefine_graph = self.load_deeprefine_graph(df_idx, relaxed)
             nodes = graph_dict["graph_nodes"]
             data_point["deeprefine_graph"] = node_subgraph(deeprefine_graph, nodes)
 
@@ -599,8 +603,14 @@ class AffinityDataset(Dataset):
         Returns:
             Dict: Graph object and meta information to this data point
         """
+        if self.is_relaxed == "both":
+            relaxed = bool(idx // len(self.pdb_ids))
+            idx = idx % len(self.pdb_ids)
+        else:
+            relaxed = bool(self.is_relaxed)
+
         pdb_id = self.pdb_ids[idx]
-        graph_data = self.load_data_point(pdb_id)
+        graph_data = self.load_data_point(pdb_id, relaxed)
 
         data = {
             "relative": False,
@@ -630,9 +640,9 @@ class AffinityDataset(Dataset):
         }
 
         pdb_id, other_pdb_id = self.relative_pairs[idx]
-        data["input"].append(self.load_data_point(pdb_id))
+        data["input"].append(self.load_data_point(pdb_id, relaxed=self.is_relaxed))
 
-        data["input"].append(self.load_data_point(other_pdb_id))
+        data["input"].append(self.load_data_point(other_pdb_id, relaxed=self.is_relaxed))
 
         return data
 

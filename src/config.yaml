@@ -14,22 +14,6 @@ DATASETS:
     summary: "abag_affinity_dataset.csv"
     affinity_type: "-log(Kd)"
 
-  abag_affinity_of_embeddings:
-    folder_path: "results/abag_affinity_dataset"
-    pdb_path: "pdbs"
-    relaxed_pdb_path: "pdbs"
-    summary: "abag_affinity_dataset.csv"
-    embeddings: "of_embeddings"
-    affinity_type: "-log(Kd)"
-
-  abag_affinity_rf_embeddings:
-    folder_path: "results/abag_affinity_dataset"
-    pdb_path: "pdbs"
-    relaxed_pdb_path: "pdbs"
-    summary: "abag_affinity_dataset.csv"
-    embeddings: "rf_embeddings"
-    affinity_type: "-log(Kd)"
-
   PDBBind:
     folder_path: "results/PDBBind"
     pdb_path: "pdbs"
@@ -38,17 +22,15 @@ DATASETS:
 
   AntibodyBenchmark:
     folder_path: "results/antibody_benchmark"
-    pdb_path: "pdbs_bound"
-    relaxed_pdb_path: "pdbs_relaxed"
+    pdb_path: "pdbs_bound"  # TODO rename to "pdbs"
     summary: "benchmark.csv"
     affinity_type: "-log(Kd)"
 
-  DMS:
+  DMS:  # TODO relaxed path is not mutated_fixinsert_relaxed but mutated_relaxed -.-
     folder_path: "results/DMS"
     summary: "" # summary for every subdataset
     mutated_pdb_path: "mutated_fixinsert"
     pdb_path: "mutated_fixinsert"
-    relaxed_mutated_pdb_path: "mutated_relaxed"
     affinity_types:
       phillips21_bindin: "-log(Kd)"
       starr21_prosp_covid: "E"
