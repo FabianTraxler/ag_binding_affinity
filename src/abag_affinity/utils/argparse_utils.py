@@ -90,7 +90,7 @@ def parse_args(artifical_args=None) -> Namespace:
     # -train config
     optional.add_argument("-b", "--batch_size", type=int, help="Batch size used for training", default=1)
     optional.add_argument("-e", "--max_epochs", type=int, help="Max number of training epochs", default=200)
-    optional.add_argument("-lr", "--learning_rate", type=float, help="Initial learning rate", default=1e-4)
+    optional.add_argument("-lr", "--learning_rate", type=float, help="Initial learning rate", default=1e-5)
     optional.add_argument("-p", "--patience", type=int,
                           help="Number of epochs with no improvement until end of training",
                           default=None)
