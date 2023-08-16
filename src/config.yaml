@@ -5,14 +5,12 @@ DATASETS:
     folder_path: "results/SKEMPI_v2"
     summary: "skempi_v2.csv"
     mutated_pdb_path: "mutated"
-    relaxed_mutated_pdb_path: "mutated_relaxed"
     pdb_path: "mutated"
     affinity_type: "-log(Kd)"
 
   abag_affinity:
     folder_path: "results/abag_affinity_dataset"
     pdb_path: "pdbs"
-    relaxed_pdb_path: "pdbs_relaxed"
     summary: "abag_affinity_dataset.csv"
     affinity_type: "-log(Kd)"
 
@@ -35,7 +33,6 @@ DATASETS:
   PDBBind:
     folder_path: "results/PDBBind"
     pdb_path: "pdbs"
-    relaxed_pdb_path: "pdbs_relaxed"
     summary: "pdbbind.csv"
     affinity_type: "-log(Kd)"
 

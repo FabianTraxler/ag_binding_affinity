@@ -118,13 +118,14 @@ class AffinityDataset(Dataset):
         self.results_dir = os.path.join(self.config["PROJECT_ROOT"], self.config["RESULTS"]["path"])
 
         # No need to include IPA in model path because the graph should have the same features regardless
+        self.is_relaxed = is_relaxed
         self.graph_dir = os.path.join(self.config["processed_graph_path"], self.full_dataset_name, node_type, pretrained_model if pretrained_model in ["DeepRefine", "Binding_DDG"] else "", f"embeddings_{load_embeddings}_relaxed_{is_relaxed}")
         self.processed_graph_files = os.path.join(self.graph_dir, "{}.npz")
         if self.save_graphs or preprocess_data:
             logger.debug(f"Saving processed graphs in {self.graph_dir}")
             Path(self.graph_dir).mkdir(exist_ok=True, parents=True)
         # create path for clean pdbs
-        self.interface_dir = os.path.join(self.config["interface_pdbs"], self.full_dataset_name)
+        self.interface_dir = os.path.join(self.config["interface_pdbs"], ("relaxed" if self.is_relaxed else ""), self.full_dataset_name)
         logger.debug(f"Saving cleaned pdbs in {self.interface_dir}")
         Path(self.interface_dir).mkdir(exist_ok=True, parents=True)
 
@@ -255,7 +256,7 @@ class AffinityDataset(Dataset):
 
             if "pdb" not in row:
                 row["pdb"] = "-".join((row["publication"], row["ab_ag"]))
-            pdb_path, _ = get_pdb_path_and_id(row, self.dataset_name, self.config)
+            pdb_path, _ = get_pdb_path_and_id(row, self.dataset_name, self.config, self.is_relaxed)
 
             # get final file name of graph
             if self.interface_hull_size is None or self.interface_hull_size == "" or self.interface_hull_size == "None":
@@ -283,13 +284,14 @@ class AffinityDataset(Dataset):
             """
 
             graph_dict = load_graph_dict(row, self.dataset_name, self.config, self.interface_dir,
-                                        node_type=self.node_type,
-                                        interface_distance_cutoff=self.interface_distance_cutoff,
-                                        interface_hull_size=self.interface_hull_size,
-                                        max_edge_distance=self.max_edge_distance,
-                                        affinity_type=self.affinity_type,
-                                        load_embeddings=self.load_embeddings,
-                                        save_path=out_path
+                                         node_type=self.node_type,
+                                         interface_distance_cutoff=self.interface_distance_cutoff,
+                                         interface_hull_size=self.interface_hull_size,
+                                         max_edge_distance=self.max_edge_distance,
+                                         affinity_type=self.affinity_type,
+                                         load_embeddings=self.load_embeddings,
+                                         save_path=out_path,
+                                         relaxed=self.is_relaxed
                                         )
         submit_jobs(preload_graph_dict, graph_dicts2process, self.num_threads)
 
@@ -470,7 +472,8 @@ class AffinityDataset(Dataset):
                                          max_edge_distance=self.max_edge_distance,
                                          affinity_type=self.affinity_type,
                                          load_embeddings=self.load_embeddings,
-                                         save_path=self.save_graphs and file_path
+                                         save_path=self.save_graphs and file_path,
+                                         relaxed=self.is_relaxed
                                          )
         return graph_dict
 
@@ -546,7 +549,7 @@ class AffinityDataset(Dataset):
 
         if compute_graph:  # graph not loaded from disc
             row = self.data_df.loc[df_idx]
-            pdb_filepath, _ = get_pdb_path_and_id(row, self.dataset_name, self.config)
+            pdb_filepath, _ = get_pdb_path_and_id(row, self.dataset_name, self.config, self.is_relaxed)
 
             graph = load_deeprefine_graph(df_idx, pdb_filepath, self.interface_dir,
                                           self.interface_distance_cutoff, self.interface_hull_size)

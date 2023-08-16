@@ -197,7 +197,7 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--debug", action=BooleanOptionalAction, default=False, help="Start debugger on a free port starting from 5678")
 
     args = parser.parse_args(artifical_args)
-    args.config = read_config(args.config_file, args.relaxed_pdbs)
+    args.config = read_config(args.config_file)
 
     if args.wandb_name == "":
         args.wandb_name = f'{args.train_strategy}' \
