@@ -1,5 +1,4 @@
 """Module providing implementations of different training modalities"""
-
 import logging
 import os
 from pathlib import Path

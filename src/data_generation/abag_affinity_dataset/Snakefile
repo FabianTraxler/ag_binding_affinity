@@ -8,8 +8,7 @@ TESTSET_SIZE = 50
 REDUNDANCY_CUTOFF = 0.8
 
 # link changes every day - please copy link for "summary file" from  http://opig.stats.ox.ac.uk/webapps/newsabdab/sabdab/search/?ABtype=All&method=All&species=All&resolution=&rfactor=&antigen=All&ltype=All&constantregion=All&affinity=True&isin_covabdab=All&isin_therasabdab=All&chothiapos=&restype=ALA&field_0=Antigens&keyword_0=#downloads
-sabdab_link = "https://opig.stats.ox.ac.uk/webapps/newsabdab/sabdab/summary/20230301_0138378/"
-
+sabdab_link = "https://opig.stats.ox.ac.uk/webapps/newsabdab/sabdab/summary/20230508_0647843/"
 
 pdb_folder_name = "pdbs"
 redundancy_file = "abdb_redundancy_info.txt"
@@ -114,7 +113,7 @@ checkpoint generate_dataset:
 
 rule relax_structures:
     input:
-        join(dataset_results_folder, "pdbs/{pdb_id}.pdb")
+        ancient(join(dataset_results_folder, "pdbs/{pdb_id}.pdb"))
     output:
         join(dataset_results_folder, "pdbs_relaxed/{pdb_id}.pdb")
     conda:
@@ -128,6 +127,23 @@ rule expand_openfold_embeddings:
     output:
         directory(join(dataset_results_folder, "of_embeddings"))
     run:
+        import torch
+        from pathlib import Path
+        dat = torch.load(input[0], map_location='cpu')
+        outdir = Path(output[0])
+        outdir.mkdir(exist_ok=True)
+
+        for d in dat:
+            pdb_id = d['pdb_fn']
+            torch.save(d, outdir / (pdb_id.lower() + '.pt'))
+
+rule expand_rfdiffusion_embeddings:
+    input:
+        join(resource_folder, "abdb_rfdiffusion_embeddings.pt")   # TODO not sure if this is the input we get from marco
+    output:
+        directory(join(dataset_results_folder, "rf_embeddings"))
+    run:
+        # TODO: convert data points such that they are compatible with the of_embeddings (facilitating loading during training)
         import torch
         from pathlib import Path
         dat = torch.load(input[0], map_location='cpu')
