@@ -127,18 +127,17 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
         optimizer.step()
         # break
 
-    total_loss_val = 0
-    all_predictions = np.array([])
-    all_continuous_predictions = np.array([])
-    all_binary_predictions = np.array([])
-    all_labels = np.array([])
-    all_continuous_labels = np.array([])
-    all_binary_labels = np.array([])
-    all_pdbs = []
-
     model.eval()
     results = []
     for val_dataloader in val_dataloaders:
+        total_loss_val = 0
+        all_predictions = np.array([])
+        all_continuous_predictions = np.array([])
+        all_binary_predictions = np.array([])
+        all_labels = np.array([])
+        all_continuous_labels = np.array([])
+        all_binary_labels = np.array([])
+        all_pdbs = []
         for data in tqdm(val_dataloader, disable=not tqdm_output):
             output, label = forward_step(model, data, device)
 
