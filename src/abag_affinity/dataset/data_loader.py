@@ -36,6 +36,7 @@ class AffinityDataset(Dataset):
     """
 
     def __init__(self, config: Dict,
+                 is_relaxed: bool,
                  dataset_name: str,
                  pdb_ids: Optional[List] = None,
                  node_type: str = "residue",
@@ -56,6 +57,7 @@ class AffinityDataset(Dataset):
 
         Args:
             config: Dict with data configuration
+            is_relaxed: Boolean indicator if relaxed structures are used
             dataset_name: Name of the dataset
             pdb_ids: List of PDB IDs to use in this dataset
             node_type: Type of graph nodes
@@ -93,6 +95,9 @@ class AffinityDataset(Dataset):
         if "-" in dataset_name: # part of DMS dataset
             dataset_name, publication_code = dataset_name.split("-")
             self.affinity_type = self.config["DATASETS"][dataset_name]["affinity_types"][publication_code]
+
+            if self.affinity_type == "E" and not relative_data:
+                logging.warning("Enrichment values are used 'absolutely'")
             self.dataset_name = dataset_name
             self.publication = publication_code
             self.full_dataset_name = dataset_name + "-" + publication_code
@@ -111,12 +116,15 @@ class AffinityDataset(Dataset):
 
         # create path for results and processed graphs
         self.results_dir = os.path.join(self.config["PROJECT_ROOT"], self.config["RESULTS"]["path"])
-        self.graph_dir = os.path.join(self.config["processed_graph_path"], dataset_name, node_type, pretrained_model)
+
+        # No need to include IPA in model path because the graph should have the same features regardless
+        self.graph_dir = os.path.join(self.config["processed_graph_path"], self.full_dataset_name, node_type, pretrained_model if pretrained_model in ["DeepRefine", "Binding_DDG"] else "", f"embeddings_{load_embeddings}_relaxed_{is_relaxed}")
+        self.processed_graph_files = os.path.join(self.graph_dir, "{}.npz")
         if self.save_graphs or preprocess_data:
             logger.debug(f"Saving processed graphs in {self.graph_dir}")
             Path(self.graph_dir).mkdir(exist_ok=True, parents=True)
         # create path for clean pdbs
-        self.interface_dir = os.path.join(self.config["interface_pdbs"], dataset_name)
+        self.interface_dir = os.path.join(self.config["interface_pdbs"], self.full_dataset_name)
         logger.debug(f"Saving cleaned pdbs in {self.interface_dir}")
         Path(self.interface_dir).mkdir(exist_ok=True, parents=True)
 
@@ -125,31 +133,31 @@ class AffinityDataset(Dataset):
 
         # load dataframe with metainfo
         self.data_df, pdb_ids = self.load_df(pdb_ids)
+        self.pdb_ids = pdb_ids
 
         # set dataset to load relative or absolute data points
         self.relative_data = relative_data
         if relative_data:
             self.get = self.get_relative
-            self.data_points = self.get_valid_pairs(pdb_ids)
-
-            self.preprocess_data = True  # necessary to preprocess graphs in order to avoid race conditions in workers
+            logger.info(f"Forcing graph preprocessing, in order to avoid race conditions in workers")
+            self.preprocess_data = True
+            self.update_valid_pairs()  # should not be necessary in theory, but __repr__ calls len(), which requires the pairs
         else:
             self.get = self.get_absolute
-            self.data_points = pdb_ids
 
         self.num_threads = num_threads
 
         if self.preprocess_data:
-            logger.debug(f"Preprocessing {node_type}-graphs for {self.dataset_name}")
+            logger.debug(f"Preprocessing {node_type}-graphs for {self.full_dataset_name}")
             self.preprocess()
 
-    def get_valid_pairs(self, pdb_ids: List) -> List:
+    def update_valid_pairs(self):
         """ Find for each data point a valid partner
-        If no partner is found than ignore the datapoint
+        If no partner is found then ignore the datapoint
 
         Criteria are:
-        - -log(Kd) values available: Different PDB ID
-        - E values available: Difference of E must be higher than average NLL
+        - If -log(Kd) values available: Different PDB ID
+        - If E values available: Difference of E must be higher than average NLL
 
         Args:
             pdb_ids: List of PDB Ids to find a partner for
@@ -157,8 +165,9 @@ class AffinityDataset(Dataset):
         Returns:
             List: All Pairs of mutation data points of the same complex
         """
+        assert self.relative_data, "This function is only available for relative data"
         all_data_points = []
-        for pdb_id in pdb_ids:
+        for pdb_id in self.pdb_ids:
             other_pdb_id = self.get_compatible_pair(pdb_id)
             if other_pdb_id is None:
                 # do not use this pdb
@@ -167,7 +176,7 @@ class AffinityDataset(Dataset):
 
         logger.debug(f"There are in total {len(all_data_points)} valid pairs")
 
-        return all_data_points
+        self.relative_pairs = all_data_points
 
     def get_compatible_pair(self, pdb_id: str) -> str:
         """ Find a compatible data point for a PDB ID
@@ -211,7 +220,10 @@ class AffinityDataset(Dataset):
 
     def len(self) -> int:
         """Returns the length of the dataset"""
-        return len(self.data_points)
+        if self.relative_data:
+            return len(self.relative_pairs)
+        else:
+            return len(self.pdb_ids)
 
     def get(self, idx: int):
         """
@@ -237,7 +249,7 @@ class AffinityDataset(Dataset):
         deeprefine_graphs2process = []
         for df_idx, row in self.data_df.iterrows():
             # Pre-Load Dictionary containing all relevant information to generate graphs
-            file_path = os.path.join(self.graph_dir, str(df_idx) + ".npz")
+            file_path = self.processed_graph_files.format(df_idx)
             if not os.path.exists(file_path) or self.force_recomputation:
                 graph_dicts2process.append((row, file_path))
 
@@ -258,36 +270,34 @@ class AffinityDataset(Dataset):
 
         # start processing with given threads
         logger.debug(f"Preprocessing {len(graph_dicts2process)} graph dicts with {self.num_threads} threads")
-        submit_jobs(self.preload_graph_dict, graph_dicts2process, self.num_threads)
+
+        def preload_graph_dict(row: pd.Series, out_path: str):
+            """ Function to get graph dict and store to disc. Used to parallelize preprocessing
+
+            Args:
+                row: Dataframe row corresponding to data point
+                out_path: path to store the resulting dict
+
+            Returns:
+                None
+            """
+
+            graph_dict = load_graph_dict(row, self.dataset_name, self.config, self.interface_dir,
+                                        node_type=self.node_type,
+                                        interface_distance_cutoff=self.interface_distance_cutoff,
+                                        interface_hull_size=self.interface_hull_size,
+                                        max_edge_distance=self.max_edge_distance,
+                                        affinity_type=self.affinity_type,
+                                        load_embeddings=self.load_embeddings,
+                                        save_path=out_path
+                                        )
+        submit_jobs(preload_graph_dict, graph_dicts2process, self.num_threads)
 
         if self.pretrained_model == "DeepRefine":
             logger.debug(
                 f"Preprocessing {len(deeprefine_graphs2process)} DeepRefine graphs with {self.num_threads} threads")
             submit_jobs(self.preload_deeprefine_graph, deeprefine_graphs2process, self.num_threads)
 
-    def preload_graph_dict(self, row: pd.Series, out_path: str):
-        """ Function to get graph dict and store to disc
-
-        Used by preprocess functionality
-
-        Args:
-            row: Dataframe row corresponding to data point
-            out_path: path to store the resulting dict
-
-        Returns:
-            None
-        """
-        raise NotImplementedError("For simiplicity, I would abandon this function?")
-
-        graph_dict = load_graph_dict(row, self.dataset_name, self.config, self.interface_dir,
-                                     node_type=self.node_type,
-                                     interface_distance_cutoff=self.interface_distance_cutoff,
-                                     interface_hull_size=self.interface_hull_size,
-                                     max_edge_distance=self.max_edge_distance,
-                                     affinity_type=self.affinity_type,
-                                     load_embeddings=self.load_embeddings)
-
-        np.savez_compressed(out_path, **graph_dict)
 
     def preload_deeprefine_graph(self, idx: str, pdb_filepath: str, row: pd.Series):
         """ Function to get graph dict of Deeprefine graphs and store to disc
@@ -433,10 +443,10 @@ class AffinityDataset(Dataset):
         Returns:
             Dict: graph information for index
         """
-        file_path = os.path.join(self.graph_dir, df_idx + ".npz")
+        file_path = self.processed_graph_files.format(df_idx)
         graph_dict = {}
 
-        if os.path.exists(file_path) and (not self.force_recomputation or self.preprocess_data):
+        if os.path.exists(file_path) and (not self.force_recomputation or self.preprocess_data):  # how is it ensured that not every iteration leads to recomputation?
             try:
                 graph_dict = dict(np.load(file_path, allow_pickle=True))
                 compute_graph = False
@@ -459,14 +469,9 @@ class AffinityDataset(Dataset):
                                          interface_hull_size=self.interface_hull_size,
                                          max_edge_distance=self.max_edge_distance,
                                          affinity_type=self.affinity_type,
-                                         load_embeddings=self.load_embeddings
+                                         load_embeddings=self.load_embeddings,
+                                         save_path=self.save_graphs and file_path
                                          )
-
-            if self.save_graphs and not os.path.exists(file_path):
-                graph_dict.pop("atom_names", None)  # remove unnecessary information that takes lot of storage
-                assert len(graph_dict["node_features"]) == len(graph_dict["closest_residues"])
-                np.savez_compressed(file_path, **graph_dict)
-
         return graph_dict
 
     def load_graph(self, df_idx: str) -> Tuple[HeteroData, Dict]:
@@ -591,13 +596,14 @@ class AffinityDataset(Dataset):
         Returns:
             Dict: Graph object and meta information to this data point
         """
-        pdb_id = self.data_points[idx]
+        pdb_id = self.pdb_ids[idx]
         graph_data = self.load_data_point(pdb_id)
 
         data = {
             "relative": False,
             "affinity_type": self.affinity_type,
             "input": graph_data,
+            "dataset_name": self.full_dataset_name
         }
         # pdb.set_trace()
         return data
@@ -616,10 +622,11 @@ class AffinityDataset(Dataset):
         data = {
             "relative": True,
             "affinity_type": self.affinity_type,
-            "input": []
+            "input": [],
+            "dataset_name": self.full_dataset_name
         }
 
-        pdb_id, other_pdb_id = self.data_points[idx]
+        pdb_id, other_pdb_id = self.relative_pairs[idx]
         data["input"].append(self.load_data_point(pdb_id))
 
         data["input"].append(self.load_data_point(other_pdb_id))
@@ -661,9 +668,13 @@ class AffinityDataset(Dataset):
         affinity_type = input_dicts[0]["affinity_type"]
         assert all([affinity_type == input_dict["affinity_type"] for input_dict in input_dicts])
 
+        dataset_name = input_dicts[0]["dataset_name"]
+        assert all([dataset_name == input_dict["dataset_name"] for input_dict in input_dicts])
+
         data_batch = {
             "relative": relative_data,
-            "affinity_type": affinity_type
+            "affinity_type": affinity_type,
+            "dataset_name": dataset_name
         }
         if relative_data:  # relative data
             input_graphs = []

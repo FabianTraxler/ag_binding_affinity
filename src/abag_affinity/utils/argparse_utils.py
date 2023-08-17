@@ -90,10 +90,10 @@ def parse_args(artifical_args=None) -> Namespace:
     # -train config
     optional.add_argument("-b", "--batch_size", type=int, help="Batch size used for training", default=1)
     optional.add_argument("-e", "--max_epochs", type=int, help="Max number of training epochs", default=200)
-    optional.add_argument("-lr", "--learning_rate", type=float, help="Initial learning rate", default=1e-4)
+    optional.add_argument("-lr", "--learning_rate", type=float, help="Initial learning rate", default=1e-5)
     optional.add_argument("-p", "--patience", type=int,
                           help="Number of epochs with no improvement until end of training",
-                          default=30)
+                          default=None)
     optional.add_argument("--lr_scheduler", type=str, default="plateau",
                           choices=["constant", "plateau", "exponential"],
                           help="Type of learning rate scheduler",)
@@ -193,7 +193,8 @@ def parse_args(artifical_args=None) -> Namespace:
                           help="Specify the path to a file with additional arguments",
                           default=None)
     optional.add_argument("--embeddings_path", action=BooleanOptionalAction, default=True, help="Whether to use embeddings.")  # TODO no option to provide path at the moment
-
+    optional.add_argument("--seed", type=int, default=42, help="Seed for random number generator")
+    optional.add_argument("--debug", action=BooleanOptionalAction, default=False, help="Start debugger on a free port starting from 5678")
 
     args = parser.parse_args(artifical_args)
     args.config = read_config(args.config_file, args.relaxed_pdbs)
