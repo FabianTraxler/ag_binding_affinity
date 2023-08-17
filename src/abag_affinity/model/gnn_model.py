@@ -11,6 +11,32 @@ from .graph_conv_layers import NaiveGraphConv, GuidedGraphConv
 import pytorch_lightning as pl
 
 
+class DatasetAdjustment(nn.Module):
+    """
+    Dataset-specific adjustment layer (linear layer)
+    Theoretically there is a sigmoidal relationship between the log-affinity and the enrichment value. However, in pooled (DMS) experiments the relationship is much more complex (and potentially linear). 
+    As we observed that DMS modeling works better with sigmoid, we include it here
+
+    TODO: Can be experimented with to see whether it improves learning from distinct datasets (e.g. by adding an additional layer)
+    Args:
+        output_sigmoid: Whether to apply a sigmoid to the output
+
+    """
+    def __init__(self, output_sigmoid=False):
+        super(DatasetAdjustment, self).__init__()
+        self.linear = nn.Linear(1, 1)
+        self.output_sigmoid = output_sigmoid
+
+    def forward(self, x):
+        x = self.linear(x)
+        if self.output_sigmoid:
+            num_excessive = (x == 0).sum() + (x == 1).sum()
+            if num_excessive > 0:
+                print(f"WARNING: Vanishing gradients in {num_excessive} of {len(x.flatten())} due to excessively large values from NN.")
+            x = torch.sigmoid(x)
+        return x
+
+
 class AffinityGNN(pl.LightningModule):
     def __init__(self, node_feat_dim: int, edge_feat_dim: int,
                  num_nodes: int = None,
@@ -92,7 +118,7 @@ class AffinityGNN(pl.LightningModule):
                                                   nonlinearity=nonlinearity,  num_fc_layers=num_fc_layers, device=device)
         # Dataset-specific output layers
         self.dataset_names = dataset_names
-        self.dataset_layers = nn.ModuleList([nn.Linear(1, 1) for _ in dataset_names])  # TODO could use more sophisticated modules (1 -> gelu -> 2 -> gelu  -> 1)
+        self.dataset_layers = nn.ModuleList([DatasetAdjustment(output_sigmoid=True) for _ in dataset_names])
         self.scaled_output = scaled_output
 
         self.float()
@@ -125,15 +151,7 @@ class AffinityGNN(pl.LightningModule):
             dataset_index = self.dataset_names.index(dataset_adjustment)
             affinity = self.dataset_layers[dataset_index](affinity)
 
-            # Theoretically there is a sigmoidal relationship between the log-affinity and the enrichment value. However, in pooled (DMS) experiments the relationship is much more complex (and potentially linear)
-            # As we observed that DMS modeling works better with sigmoid, we include it here
-            affinity = torch.sigmoid(affinity)
-            num_excessive = (affinity == 0).sum() + (affinity == 1).sum()
-            if num_excessive > 0:
-                print(f"WARNING: Vanishing gradients in {num_excessive} of {len(affinity.flatten())} due to excessively large values from NN.")
-
-            # scale output to [0, 1] to make it it easier for the model
-            if not self.scaled_output:
+            if self.dataset_layers[dataset_index].output_sigmoid and not self.scaled_output:
                 raise NotImplementedError("Would need to allow scaling the sigmoidal values back to the original range")
 
         output["x"] = affinity
