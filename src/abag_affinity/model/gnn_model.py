@@ -23,7 +23,8 @@ class AffinityGNN(pl.LightningModule):
                  nonlinearity: str = "relu",
                  num_fc_layers: int = 3, fc_size_halving: bool = True,
                  device: torch.device = torch.device("cpu"),
-                 args=None):  # provide args so they can be saved by the LightningModule (hparams)
+                 args=None,
+                 feature_list=[]):  # provide args so they can be saved by the LightningModule (hparams)
         super(AffinityGNN, self).__init__()
         self.save_hyperparameters()
         if args is not None:
@@ -71,6 +72,7 @@ class AffinityGNN(pl.LightningModule):
                                                   aggregation_method=aggregation_method, size_halving=fc_size_halving,
                                                   nonlinearity=nonlinearity,  num_fc_layers=num_fc_layers, device=device)
 
+        self.feature_list = feature_list
         self.float()
 
         self.to(device)
@@ -119,6 +121,15 @@ class AffinityGNN(pl.LightningModule):
     def configure_optimizers(self, *args):
         pass
 
+    def check_feature_compatiblity(self, feature_list):
+        if feature_list != self.feature_list: 
+            if set(feature_list) != set(self.feature_list):
+                raise ValueError(f"Feature list of the model does not match the feature list given. Model's feature list: {self.feature_list}, given feature list: {feature_list}")
+            else:
+                raise ValueError(f"The order of the features in the list of the model does not match the one of the givel list. Model's feature list: {self.feature_list}, given feature list: {feature_list}")
+        return True
+
+
     def get_affinity_inputs(self, residue_positions, node_features, chain_type=None, chain_idx=None, atom_positions =None, pairwise_features = None):
         """
         Convert Data to the format of the Affinity Prediction model
@@ -132,6 +143,7 @@ class AffinityGNN(pl.LightningModule):
            pairwise_features: torch.Tensor (Batchsize x NNodes x NNodes x NFeatures) - The pairwise features of each atom
         """
 
+        # maybe not needed now
         data_batch = []
         for i in range(residue_positions.shape[0]):
             atom_pos = atom_positions[i]
