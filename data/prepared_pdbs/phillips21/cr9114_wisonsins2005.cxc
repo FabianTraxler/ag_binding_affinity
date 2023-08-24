@@ -1,4 +1,4 @@
-open /home/moritz/Projects/ag_binding_affinity/data_acquisition/phillips21_predictions/output/cr9114_wisconsins2005_unrelaxed_rank_1_model_1.pdb
+open /home/moritz/ag_binding_affinity/data_acquisition/phillips21_predictions/output/cr9114_wisconsins2005_unrelaxed_rank_1_model_1.pdb
 open 4FQY
 mm #1 to #2
 sel #1/H
