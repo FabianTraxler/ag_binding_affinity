@@ -3,12 +3,38 @@
 import torch
 import torch.nn as nn
 
-from typing import Dict
+from typing import Dict, List, Optional
 
 from .utils import pretrained_models, pretrained_embeddings, NoOpModel
 from .regression_heads import EdgeRegressionHead, RegressionHead
 from .graph_conv_layers import NaiveGraphConv, GuidedGraphConv
 import pytorch_lightning as pl
+
+
+class DatasetAdjustment(nn.Module):
+    """
+    Dataset-specific adjustment layer (linear layer)
+    Theoretically there is a sigmoidal relationship between the log-affinity and the enrichment value. However, in pooled (DMS) experiments the relationship is much more complex (and potentially linear). 
+    As we observed that DMS modeling works better with sigmoid, we include it here
+
+    TODO: Can be experimented with to see whether it improves learning from distinct datasets (e.g. by adding an additional layer)
+    Args:
+        output_sigmoid: Whether to apply a sigmoid to the output
+
+    """
+    def __init__(self, output_sigmoid=False):
+        super(DatasetAdjustment, self).__init__()
+        self.linear = nn.Linear(1, 1)
+        self.output_sigmoid = output_sigmoid
+
+    def forward(self, x):
+        x = self.linear(x)
+        if self.output_sigmoid:
+            num_excessive = (x == 0).sum() + (x == 1).sum()
+            if num_excessive > 0:
+                print(f"WARNING: Vanishing gradients in {num_excessive} of {len(x.flatten())} due to excessively large values from NN.")
+            x = torch.sigmoid(x)
+        return x
 
 
 class AffinityGNN(pl.LightningModule):
@@ -23,8 +49,34 @@ class AffinityGNN(pl.LightningModule):
                  nonlinearity: str = "relu",
                  num_fc_layers: int = 3, fc_size_halving: bool = True,
                  device: torch.device = torch.device("cpu"),
-                 args=None,
                  feature_list=[]):  # provide args so they can be saved by the LightningModule (hparams)
+                 scaled_output: bool = False,
+                 dataset_names: List = None,
+                 args=None):  # provide args so they can be saved by the LightningModule (hparams)
+        """
+        Args:
+            node_feat_dim: Dimension of node features
+            edge_feat_dim: Dimension of edge features
+            num_nodes: Number of nodes in the graph
+            pretrained_model: Name of pretrained model to use
+            pretrained_model_path: Path to pretrained model
+            gnn_type: Type of GNN to use
+            layer_type: Type of GNN layer to use
+            num_gat_heads: Number of GAT heads to use
+            num_gnn_layers: Number of GNN layers to use
+            channel_halving: Halve the number of channels after each GNN layer
+            channel_doubling: Double the number of channels after each GNN layer
+            node_type: Type of node to use
+            aggregation_method: Method to aggregate node embeddings
+            nonlinearity: Nonlinearity to use
+            num_fc_layers: Number of fully connected layers to use
+            fc_size_halving: Halve the size of the fully connected layers after each layer
+            device: Device to use
+            scaled_output: Whether to scale the output to the range using a sigmoid [0, 1]. Warning, this does not work too nicely apparently
+            dataset_names: Names of all used datasets (for dataset-adjustment layers. avoid :absolute, :relative identifiers)
+            args: Arguments passed to the LightningModule
+        """
+
         super(AffinityGNN, self).__init__()
         self.save_hyperparameters()
         if args is not None:
@@ -71,21 +123,27 @@ class AffinityGNN(pl.LightningModule):
             self.regression_head = RegressionHead(self.graph_conv.embedding_dim, num_nodes=num_nodes,
                                                   aggregation_method=aggregation_method, size_halving=fc_size_halving,
                                                   nonlinearity=nonlinearity,  num_fc_layers=num_fc_layers, device=device)
+        # Dataset-specific output layers
+        self.dataset_names = dataset_names
+        self.dataset_layers = nn.ModuleList([DatasetAdjustment(output_sigmoid=True) for _ in dataset_names])
+        self.scaled_output = scaled_output
 
         self.feature_list = feature_list
         self.float()
 
         self.to(device)
 
-    def forward(self, data: Dict) -> Dict:
+    def forward(self, data: Dict, dataset_adjustment: Optional[str]=None) -> Dict:
         """
 
         Args:
             data: Dict with "graph": HeteroData and "filename": str and optional "deeprefine_graph": dgl.DGLGraph
+            dataset_adjustment: Whether to run a dataset-specific module (linear layer) at the end (to map E-values to binding affinities)
 
         Returns:
             torch.Tensor
         """
+        output = {}
         # calculate pretrained node embeddings
         data = pretrained_embeddings(data, self.pretrained_model)
 
@@ -95,9 +153,16 @@ class AffinityGNN(pl.LightningModule):
         # calculate binding affinity
         affinity = self.regression_head(graph)
 
-        output = {
-            "x": affinity
-        }
+        # dataset-specific scaling (could be done before or after scale_output)
+        output["dataset_adjusted"] = bool(dataset_adjustment)
+        if dataset_adjustment:
+            dataset_index = self.dataset_names.index(dataset_adjustment)
+            affinity = self.dataset_layers[dataset_index](affinity)
+
+            if self.dataset_layers[dataset_index].output_sigmoid and not self.scaled_output:
+                raise NotImplementedError("Would need to allow scaling the sigmoidal values back to the original range")
+
+        output["x"] = affinity
         return output
 
     def on_save_checkpoint(self, checkpoint):

@@ -49,9 +49,9 @@ DATASETS:
   DMS:
     folder_path: "results/DMS"
     summary: "" # summary for every subdataset
-    mutated_pdb_path: "mutated"
-    pdb_path: "mutated"
-    relaxed_mutated_pdb_path: "mutated"  # TODO
+    mutated_pdb_path: "mutated_fixinsert"
+    pdb_path: "mutated_fixinsert"
+    relaxed_mutated_pdb_path: "mutated_relaxed"
     affinity_types:
       phillips21_bindin: "-log(Kd)"
       starr21_prosp_covid: "E"

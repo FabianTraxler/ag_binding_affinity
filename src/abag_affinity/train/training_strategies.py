@@ -14,10 +14,6 @@ from .utils import get_skempi_corr, load_model, load_datasets, train_loop, finet
     get_abag_test_score
 from ..model.gnn_model import AffinityGNN
 
-# TODO: create global seeding mechanism
-random.seed(125)
-np.random.seed(125)
-torch.manual_seed(125)
 
 
 torch.cuda.empty_cache()
@@ -54,7 +50,7 @@ def model_train(args:Namespace, validation_set: int = None) -> Tuple[AffinityGNN
     use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
 
-    model = load_model(train_data.num_features, train_data.num_edge_features, args, device)
+    model = load_model(train_data.num_features, train_data.num_edge_features, [dataset_name], args, device)
 
     logger.debug(f"Training with  {dataset_name}")
     logger.debug(f"Training done on GPU: {next(model.parameters()).is_cuda}")
@@ -94,7 +90,7 @@ def pretrain_model(args:Namespace) -> Tuple[AffinityGNN, Dict]:
 
         if model is None: # only load model for first dataset
             logger.debug(f"Loading  Model")
-            model = load_model(train_data.num_features, train_data.num_edge_features, args, device)
+            model = load_model(train_data.num_features, train_data.num_edge_features, datasets, args, device)
             logger.debug(f"Model Memory usage: {torch.cuda.max_memory_allocated()/(1<<20):,.0f} MB")
         logger.debug(f"Training with  {dataset_name}")
         logger.debug(f"Training done on GPU: {next(model.parameters()).is_cuda}")
@@ -152,7 +148,7 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
         if len(val_data) > 0:
             val_datasets.append(val_data)
 
-    model = load_model(train_datasets[0].num_features, train_datasets[0].num_edge_features, args, device)
+    model = load_model(train_datasets[0].num_features, train_datasets[0].num_edge_features, datasets, args, device)
     logger.debug(f"Training done on GPU = {next(model.parameters()).is_cuda}")
 
     logger.info("Training with {}".format(", ".join([dataset.dataset_name for dataset in train_datasets])))

@@ -1,12 +1,10 @@
 # Inspiration from PyRosetta tutorial notebooks
 # https://nbviewer.org/github/RosettaCommons/PyRosetta.notebooks/blob/master/notebooks/06.08-Point-Mutation-Scan.ipynb
-import sys
 from pathlib import Path
-from typing import Dict, List, Tuple
+import tempfile
+from typing import Dict, Tuple
 import pyrosetta
-from pyrosetta.toolbox.mutants import mutate_residue
-from pyrosetta.toolbox.rcsb import pose_from_rcsb
-from pyrosetta.rosetta.core.pose import Pose, add_comment, dump_comment_pdb
+from pyrosetta.rosetta.core.pose import Pose, dump_comment_pdb
 from pyrosetta.rosetta.protocols.relax import FastRelax
 from Bio.PDB.PDBList import PDBList
 from Bio.PDB.PDBParser import PDBParser
@@ -17,30 +15,7 @@ import tarfile
 import shutil
 import subprocess
 
-
-three2one_code = {'CYS': 'C', 'ASP': 'D', 'SER': 'S', 'GLN': 'Q', 'LYS': 'K',
-     'ILE': 'I', 'PRO': 'P', 'THR': 'T', 'PHE': 'F', 'ASN': 'N',
-     'GLY': 'G', 'HIS': 'H', 'LEU': 'L', 'ARG': 'R', 'TRP': 'W',
-     'ALA': 'A', 'VAL':'V', 'GLU': 'E', 'TYR': 'Y', 'MET': 'M'}
-
-
-if "snakemake" not in globals(): # use fake snakemake object for debugging
-    project_root = (Path(__file__).parents[4]).resolve()
-    out_folder = os.path.join(project_root, "data/DMS/")
-
-    complexes = [("wu17_in","c05", "h1solisl06")]#[("madan21_mutat_hiv","vfp1602", "fp8v1")] #("starr21_prosp_covid","lycov016", "cov2rbd")
-
-    file = out_folder + "prepared_pdbs/{}/{}_{}.pdb"
-
-    metadata_file = os.path.join(project_root, "data/metadata_dms_studies.yaml")
-
-
-    snakemake = type('', (), {})()
-    snakemake.output = [file.format(complex, antibody, antigen) for (complex, antibody, antigen) in complexes ]
-    snakemake.params = {}
-    snakemake.params["metadata_file"] = metadata_file
-    snakemake.params["project_root"] = project_root
-
+from common import substitute_chain, order_substitutions, mutate
 
 pyrosetta.init()#extra_options="-mute all")
 
@@ -51,7 +26,6 @@ relax = FastRelax()
 scorefxn = pyrosetta.get_fa_scorefxn()
 relax.set_scorefxn(scorefxn)
 relax.constrain_relax_to_start_coords(True)
-
 
 def get_complex_metadata(publication:str, antibody: str, antigen: str, metadata: Dict) -> Dict:
     publication_data = metadata[publication]
@@ -87,8 +61,13 @@ def load_large_file(pdb_id: str, download_fodler: str):
 
 
 def clean_tidy_pdb(pdb_file: str, out_file: str):
-    # Clean temporary PDB file and then save its cleaned version as the original PDB file
-    # retry 3 times because these commands sometimes do not properly write to disc
+    """
+    Apparently, the dms_curated.csv mutations are defined on insert-fixed residue uindices
+
+    TODO could/should use the function in pdb_processing.py
+    Clean temporary PDB file and then save its cleaned version as the original PDB file
+    retry 3 times because these commands sometimes do not properly write to disc
+    """
     retries = 0
     while not os.path.exists(out_file):
         command = f'pdb_sort "{pdb_file}" | pdb_tidy | pdb_fixinsert | pdb_delhetatm > "{out_file}"'
@@ -100,8 +79,6 @@ def clean_tidy_pdb(pdb_file: str, out_file: str):
 
     return out_file
 
-
-
 def get_pdb(publication:str, antibody: str, antigen: str, metadata: Dict, project_root: str) -> Tuple[pyrosetta.Pose, str]:
     complex_metadata = get_complex_metadata(publication, antibody, antigen, metadata)
     #keep_chains = complex_metadata["chains"]["antibody"] + complex_metadata["chains"]["antigen"]
@@ -112,7 +89,8 @@ def get_pdb(publication:str, antibody: str, antigen: str, metadata: Dict, projec
             filename = load_large_file(complex_metadata["id"].lower(), f"{publication}:{antibody}:{antigen}")
         # remove irrelevant chains
         #filename = clean_tidy_pdb(filename, keep_chains)
-        filename = remove_chains(filename, complex_metadata["chains"])
+        chain_renaming = {v: k for rename_dict in complex_metadata["chains"].values() for k,v in rename_dict.items()}
+        filename = remove_and_rename_chains(filename, chain_renaming)
         pose = load_pose(filename)
         mutations = ""
         if "mutations" in complex_metadata:
@@ -130,38 +108,23 @@ def get_pdb(publication:str, antibody: str, antigen: str, metadata: Dict, projec
         raise RuntimeError(f"Neither 'id' nor 'file' found in complex metadata: {publication}, {antibody}, {antigen}")
 
 
-def remove_chains(filename: str, keep_chains: Dict) -> Pose:
-    # use BioPython for easier handling
+def remove_and_rename_chains(filename: str, chain_renaming: Dict) -> str:
+    renaming_commands = " | ".join([
+        f"pdb_rplchain -{chain}:{new_id}"
+        for chain, new_id in order_substitutions(chain_renaming).items()
+    ])
 
-    structure = PDBParser().get_structure("_", filename)
+    with tempfile.NamedTemporaryFile(suffix=".tmp", delete=False) as tmp_file:
+        tmp_pdb_filepath = tmp_file.name
+    command = f"pdb_sort {filename} | pdb_tidy | pdb_selchain -{','.join(chain_renaming.keys())} | {renaming_commands} > {tmp_pdb_filepath}"
+    subprocess.run(command, shell=True, check=True)
 
-    remove_chains = []
-    # get all chains and mark redundant ones
-    all_chains = list(structure.get_chains())
-    for i, chain in enumerate(all_chains):
-        if chain.id not in keep_chains["antibody"] and chain.id not in keep_chains["antigen"]:
-            remove_chains.append((chain.id, chain.parent.id))
-
-    for (redundant_chain, model) in remove_chains:
-        structure[model].detach_child(redundant_chain)
-
-    class ModelSelect(Select):
-        def accept_residue(self, res):
-            if res.parent.parent.id == 0:
-                return True
-            else:
-                return False
-
-    io = PDBIO()
-    io.set_structure(structure)
-    io.save(filename, ModelSelect())
-
-    pose = load_pose(filename)
-
-    return pose
+    return tmp_pdb_filepath
 
 
 def load_pose_without_header(pdb_path: str):
+    raise NotImplementedError("code is broken")
+
     with open(pdb_path) as f:
         lines = f.readlines()
 
@@ -213,67 +176,31 @@ def convert_mutations(mutation_code: str):
 
     return decoded_mutations
 
-
-def mutate(pose: Pose, mutations: List[Dict]):
-    errors = []
-    warnings = []
-    for mutation in mutations:
-        original_residue = pose.pdb_rsd((mutation["chain"], mutation["index"]))
-        if original_residue is None:
-            warnings.append(f"Residue in chain {mutation['chain']} at index {mutation['index']} not found")
-            continue
-        original_residue_name = original_residue.name()
-        if original_residue_name.upper()[:3] not in three2one_code:
-            # check if mutation is correct
-            errors.append(f"Residue name in chain {mutation['chain']} at index {mutation['index']} with name "
-                          f"{original_residue_name.upper()} cannot be converted to one-letter-code")
-            continue
-        if three2one_code[original_residue_name.upper()[:3]] != mutation["original_amino_acid"]:
-            # check if mutation is correct
-            errors.append(f"Original residue in chain {mutation['chain']} at index {mutation['index']} does not match "
-                          f"found residue {three2one_code[original_residue_name.upper()[:3]]} != {mutation['original_amino_acid']}")
-            continue
-
-        mutate_residue(pose, pose.pdb_info().pdb2pose(mutation["chain"], mutation["index"]), mutation["new_amino_acid"], pack_radius=10, pack_scorefxn=pyrosetta.get_fa_scorefxn())
-    return errors, warnings
-
 out_path = snakemake.output[0]
 Path(out_path).parent.mkdir(parents=True, exist_ok=True)
 
-antibody, antigen = out_path.split("/")[-1].split(".")[0].split("_")
-publication = out_path.split("/")[-2]
+publication = snakemake.wildcards.publication
 
 if "mason21" in publication:
     publication = "mason21_optim_therap_antib_by_predic"
 
-with open(snakemake.params["metadata_file"], "r") as f:
+with open(snakemake.input["metadata_file"], "r") as f:
     metadata = yaml.safe_load(f)
 
 project_root = snakemake.params["project_root"]
 
 # load pose and get mutations
-pose, mutation_code = get_pdb(publication, antibody, antigen, metadata, project_root)
+pose, mutation_code = get_pdb(publication, snakemake.wildcards.antibody, snakemake.wildcards.antigen, metadata, project_root)
+mutation_code = substitute_chain(metadata, mutation_code, snakemake.wildcards.publication, snakemake.wildcards.antibody, snakemake.wildcards.antigen)
 
-errors = []
-warnings= []
-
-if mutation_code != "": # mutate and relax
-    # mutation
+if mutation_code != "":
+    # Mutate
     decoded_mutation = convert_mutations(mutation_code)
-    errors, warnings = mutate(pose, decoded_mutation)
+    mutate(pose, decoded_mutation)
 
-    if len(errors) == 0:
-        # only relax pose if there are no errors before
-        relax.apply(pose)
+# Relax
+relax.apply(pose)
 
-if len(errors) > 0:
-    with open(out_path.replace(".pdb", ".err"), "w") as f:
-        f.write("\n".join(errors))
-
-if len(warnings) > 0:
-    with open(out_path.replace(".pdb", ".warn"), "w") as f:
-        f.write("\n".join(warnings))
-# save to disc to let snakemake process continue
-dump_comment_pdb(out_path + ".tmp", pose)
+pose.dump_pdb(out_path + ".tmp")
 clean_tidy_pdb(out_path + ".tmp", out_path)
 

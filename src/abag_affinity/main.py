@@ -55,6 +55,10 @@ def logging_setup(args: Namespace):
 
     return main_logger
 
+def seed(num):
+    random.seed(num)
+    np.random.seed(num)
+    torch.manual_seed(num)
 
 def run_sweep(args: Namespace, logger):
     import traceback
@@ -116,6 +120,8 @@ def run_sweep(args: Namespace, logger):
             args.tqdm_output = False  # disable tqdm output to reduce log syncing
 
             logger.info(f"Performing {args.train_strategy}")
+
+            seed(args.seed)
             training[args.train_strategy](args)
             wandb.finish(0)
         except Exception as e:
@@ -133,6 +139,19 @@ def run_sweep(args: Namespace, logger):
     wandb.agent(args.sweep_id, function=sweep_train, count=args.sweep_runs, project="abag_binding_affinity")
 
 
+def start_debugger():
+    import debugpy
+    for port in range(5678, 5689):
+        try:
+            debugpy.listen(("0.0.0.0", port))
+            print(f"Debugger listening on port {port}")
+            # debugpy.wait_for_client()
+            break
+        except (subprocess.CalledProcessError, RuntimeError, OSError) as e:
+            pass
+    else:
+        logging.warning("No free port found for debugger")
+
 def main() -> Dict:
     """ Main functionality of the abag_affinity module
 
@@ -143,6 +162,8 @@ def main() -> Dict:
     """
     args = parse_args()
     logger = logging_setup(args)
+    if args.debug:
+        start_debugger()
 
     from guided_protein_diffusion.utils.interact import init_interactive_environment
     init_interactive_environment(
@@ -159,6 +180,8 @@ def main() -> Dict:
         run_sweep(args, logger)
     else:
         logger.info(f"Performing {args.train_strategy}")
+
+        seed(args.seed)
         if args.cross_validation:
             model, results = cross_validation(args)
         else:

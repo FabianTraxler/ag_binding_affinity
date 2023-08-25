@@ -11,20 +11,24 @@ class TwinWrapper(torch.nn.Module):
         self.backbone_net = backbone_net
         self.device = self.backbone_net.device
 
-    def forward(self, data: Dict) -> Dict:
+    def forward(self, data: Dict, rel_temperature: float=0.2) -> Dict:
+        """
+        Relative temperature of 0.2, because in the scale [0-1], softmax leads to weak probabilities (close to 0.5)
+        """
         data_1, data_2 = data["input"]
+        dataset_adjustment = data["dataset_name"] if data["affinity_type"] == "E" else None
 
         # put data on device before pass and then delete again
         # load to device
         data_1["graph"] = data_1["graph"].to(self.device)
         if "deeprefine_graph" in data_1:
             data_1["deeprefine_graph"] = data_1["deeprefine_graph"].to(self.device)
-        out_1 = self.backbone_net(data_1)
+        out_1 = self.backbone_net(data_1, dataset_adjustment=dataset_adjustment)
 
         data_2["graph"] = data_2["graph"].to(self.device)
         if "deeprefine_graph" in data_2:
             data_2["deeprefine_graph"] = data_2["deeprefine_graph"].to(self.device)
-        out_2 = self.backbone_net(data_2)
+        out_2 = self.backbone_net(data_2, dataset_adjustment=dataset_adjustment)
 
         output = {
             "relative": data["relative"],
@@ -39,7 +43,7 @@ class TwinWrapper(torch.nn.Module):
             diff_1 = output["x1"] - output["x2"]
             diff_2 = output["x2"] - output["x1"]
             class_preds = torch.stack((diff_1, diff_2)).T
-            output["x_prob"] = torch.nn.functional.softmax(class_preds)
+            output["x_prob"] = torch.nn.functional.softmax(class_preds/rel_temperature)
             output["x"] = torch.argmax(output["x_prob"], dim=1)
         else:
             raise ValueError(f"Wrong affinity type given - expected one of (-log(Kd), E) but got {data['affinity_type']}")

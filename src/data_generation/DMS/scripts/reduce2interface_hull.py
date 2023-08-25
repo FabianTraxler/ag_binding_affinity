@@ -1,6 +1,7 @@
 # Inspiration from PyRosetta tutorial notebooks
 # https://nbviewer.org/github/RosettaCommons/PyRosetta.notebooks/blob/master/notebooks/06.08-Point-Mutation-Scan.ipynb
 from pathlib import Path
+import shutil
 from typing import Dict, List
 import yaml
 import os
@@ -57,7 +58,6 @@ def get_chain_infos(complex_metadata: Dict) -> List:
 
 
 def reduce2interface_hull(pdb_filepath: str, out_path: str,
-                          prot_chains: List,
                           interface_size: int, interface_hull_size: int):
     """ Reduce PDB file to only contain residues in interface-hull
 
@@ -85,8 +85,8 @@ def reduce2interface_hull(pdb_filepath: str, out_path: str,
     coords = atom_df[["x_coord", "y_coord", "z_coord"]].to_numpy()
     distances = sp.distance_matrix(coords, coords)
 
-    prot_1_idx = atom_df[atom_df["chain_id"].isin(prot_chains[0])].index.to_numpy().astype(int)
-    prot_2_idx = atom_df[atom_df["chain_id"].isin(prot_chains[1])].index.to_numpy().astype(int)
+    prot_1_idx = atom_df[atom_df["chain_id"].isin(["L", "H"])].index.to_numpy().astype(int)
+    prot_2_idx = atom_df[atom_df["chain_id"].isin(["A", "B", "C", "D", "E"])].index.to_numpy().astype(int)
 
     # get interface
     abag_distance = distances[prot_1_idx, :][:, prot_2_idx]
@@ -130,5 +130,9 @@ with open(snakemake.params["metadata_file"], "r") as f:
 
 complex_metadata = get_complex_metadata(publication, antibody, antigen, metadata)
 
-reduce2interface_hull(file_path, out_path, interface_size, interface_hull_size)
+if interface_hull_size is None or interface_size is None:
+    # copy the file
+    shutil.copy(file_path, out_path)
+else:
+    reduce2interface_hull(file_path, out_path, interface_size, interface_hull_size)
 
