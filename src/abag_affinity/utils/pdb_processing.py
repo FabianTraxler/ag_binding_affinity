@@ -262,7 +262,7 @@ def get_residue_edge_encodings(distance_matrix: np.ndarray, residue_infos: List,
     Returns:
         np.ndarray: Tensor edge information about interface closeness, chain identity, protein identity, distances
     """
-    A = np.zeros((4, len(residue_infos), len(residue_infos)))
+    A = np.zeros((4, len(residue_infos), len(residue_infos))).astype(distance_matrix.dtype)
 
     contact_map = distance_matrix < distance_cutoff
 
