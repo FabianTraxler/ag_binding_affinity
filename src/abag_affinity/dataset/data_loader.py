@@ -463,7 +463,7 @@ class AffinityDataset(Dataset):
                                          max_edge_distance=self.max_edge_distance,
                                          affinity_type=self.affinity_type,
                                          embeddings_type=self.embeddings_type,
-                                         embeddings_path=self.embeddings_path)
+                                         embeddings_path=self.embeddings_path,
                                          )
 
             if self.save_graphs and not os.path.exists(file_path):

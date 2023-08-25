@@ -121,7 +121,7 @@ class AffinityGNN(pl.LightningModule):
     def configure_optimizers(self, *args):
         pass
 
-    def check_feature_compatiblity(self, feature_list):
+    def check_feature_list(self, feature_list):
         if feature_list != self.feature_list: 
             if set(feature_list) != set(self.feature_list):
                 raise ValueError(f"Feature list of the model does not match the feature list given. Model's feature list: {self.feature_list}, given feature list: {feature_list}")
