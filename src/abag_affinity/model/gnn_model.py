@@ -49,7 +49,7 @@ class AffinityGNN(pl.LightningModule):
                  nonlinearity: str = "relu",
                  num_fc_layers: int = 3, fc_size_halving: bool = True,
                  device: torch.device = torch.device("cpu"),
-                 feature_list=[]):  # provide args so they can be saved by the LightningModule (hparams)
+                 feature_list=[],  # provide args so they can be saved by the LightningModule (hparams)
                  scaled_output: bool = False,
                  dataset_names: List = None,
                  args=None):  # provide args so they can be saved by the LightningModule (hparams)

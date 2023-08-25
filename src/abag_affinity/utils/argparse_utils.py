@@ -194,7 +194,7 @@ def parse_args(artifical_args=None) -> Namespace:
                           default=None)
     optional.add_argument("--embeddings_path", type=str, default="", help="Path to embeddins file.")  # TODO no option to provide path at the moment
     optional.add_argument("--embeddings_type", type=str, default="", choices=["", "rf_embeddings", "of_embeddings"], help="Type of embeddings to use.")
-    optional.add_argument("--node_features_list", type=str,
+    optional.add_argument("--node_feature_list", type=str,
                           help='List of external node features that are included in node embeddings', default=[], nargs='+')
     optional.add_argument("--seed", type=int, default=42, help="Seed for random number generator")
     optional.add_argument("--debug", action=BooleanOptionalAction, default=False, help="Start debugger on a free port starting from 5678")
