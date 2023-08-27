@@ -3,10 +3,11 @@ import yaml
 from pathlib import Path
 import itertools
 
-# old todos:
+# Now
+# TODO Convert the AF2 resulting PDBs in terms of residue_indices and chain IDs to resemble the input_pdbs
+
+# Future
 # TODO make this a submodule of the other DMS pipeline
-# TODO We should relax. Sidechain packing is too weak <- we anyways use AF2 now
-# TODO for now, we rely on manually generated files. ultimately, we want them to be generated with AF2. In the ideal scenario, they should be pulled automatically, using my metadata file
 # TODO What to do with dms_curated.csv? Generated here: /home/moritz/wiki/roam/20220805103344-obtaining_antibody_binding_data.org
 
 project_root = Path(workflow.basedir).parents[2] # two directories above - absolute paths not working
@@ -70,7 +71,7 @@ rule get_template:
 
     """
     input:
-        METADATA_FILE
+        ancient(METADATA_FILE)
     output:
         template_dir=directory(dms_results / "structure_templates" / "{publication}" / "{complex}")
     conda:
@@ -106,7 +107,7 @@ rule predict_structures:
         colabfold_batch --overwrite-existing-results --msa-mode single_sequence --rank multimer --templates --custom-template-path {input.template_dir} {input.fasta} {params.output_folder} 2>&1 | tee {log}
         cd {params.output_folder}
         # The file name is determined by the FASTA header and other factors
-        for rank in `seq 1 5`; do  # TODO we should define the loop over output.af_output and output.link. BUT not sure if we need this link anyways
+        for rank in `seq 1 5`; do  # We need this loop because the output files names or "stochastic"
             ln -s {wildcards.publication}__{wildcards.complex}_unrelaxed_rank_00${{rank}}_alphafold2_multimer_v3_model_?_seed_000.pdb {wildcards.complex}_${{rank}}.pdb
         done
         '''

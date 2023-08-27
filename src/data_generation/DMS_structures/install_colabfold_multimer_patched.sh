@@ -49,7 +49,7 @@ rm -rf __pycache__
 
 # Moritz: Patch colabfold for proper multimer use
 cd ${CONDA_PREFIX}/lib/python3.10/site-packages/alphafold
-sed -i  '$i \ \ template_mask = jnp.ones_like(template_mask)' model/modules_multimer.py
+sed -i -e "s#multichain_mask_2d=multichain_mask#multichain_mask_2d=jnp.ones_like(multichain_mask)#g" model/modules_multimer.py
 
 # start downloading weights
 cd ${COLABFOLDDIR}

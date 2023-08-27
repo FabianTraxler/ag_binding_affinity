@@ -7,11 +7,11 @@ Initial complex structure PDB drafts were created manually and assisted by AF2. 
 - muwhpc:~/af_predictions
 
 In the case of phillips21, this led to muwhpc:/msc/home/mschae83/af_predictions/ab_ag_complexes/phillips21_predictions and then ~/ag_binding_affinity/data/prepared_pdbs/phillips21.
-All others were generated automatically using rosetta-based mutations onto the given input structures, based on the mutations in the metadata_dms_studies.yaml
+All others were generated automatically using rosetta-based mutations onto the given input structures, based on the mutations in the metadata_dms_studies.yaml (TODO check where Fabian implemented this code)
 
+From these, the final complexes were derived and stored in ag_binding_affinity/results/prepared_pdbs (sometimes/always in scfv form)
 
-From these, the final complexes were derived and stored in ag_binding_affinity/results/prepared_pdbs (scfv)
-
+This is on hold at the moment. See issue https://github.com/moritzschaefer/guided-protein-diffusion/issues/294 for next steps.
 
 # What now?
 
@@ -37,8 +37,7 @@ This pipeline relies on the installation of the `colabfold_multimer_patch`  envi
 ## Modifications to alphafold/colabfold (now included in the install script so nothing needs to be done)
 The following tweaks were applied to colabfold to allow this (see also [[id:d3f15b68-62fe-4cf4-bb78-46f09c928cef][Using multimer templates for AlphaFold multimer prediciton]] in Moritz' notes):
 
-- Set template_mask to 1 everywhere
-  https://github.com/deepmind/alphafold/blob/main/alphafold/model/modules_multimer.py#L657
+- Set multichain_mask = jnp.ones_like(multichain_mask) (see ./install_colabfold_multimer_patched.sh)
 - Generate only 1 template (max_hit=1 instead of 20) colabfold/batch.py
 
 # Previous analyses
