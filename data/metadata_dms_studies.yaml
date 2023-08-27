@@ -138,249 +138,250 @@ phillips21_bindin:  # antibody is defined as scFv. For now, we leave it as such.
     CR6261: https://cdn.elifesciences.org/articles/71393/elife-71393-fig1-data2-v3.csv
   raw_data: PRJNA741613
 
-# wu17_in:
-#   dms_target: fv
-#   fv_type: fab  # scfv did not work, therefore they used fab vectors
-#   doi: 10.1038/ncomms15371
-#   complexes: # there was a third one to H5, but it does not bind..
-#     - antigen:
-#         name: h3perth09
-#         full_name: A/Perth/16/2009 (H3N2)
-#       antibody:
-#         name: c05
-#         full_name: C05
-#       # pdb: 4FP8 / 5UMN
-#       pdb:
-#         id: 4FP8
-#         mutations: KA50E;NA53D;NA54S;RA57Q;IA62K;DA63N;HA75Q;VA78G;EA82K;TA83K;FA94Y;IA121N;TA122N;GA124S;TA126N;GA135T;NA137S;KA140I;GA142R;PA143S;GA144K;SA145N;GA146S;KA156H;SA157L;GA158N;SA159F;TA160K;VA163A;DA172E;NA173Q;SA186G;NA188D;QA189K;EA190D;TA192I;SA193F;VA196A;VA202I;RA207K;IA213V;IA214S;WA222R;GA225N;LA226I;SA227P;VA242I;VA244L;NA248T;MA260I;TA262S;DA275G;TA276K;IA278N;KA299R;KA307R;GA310K;HA311Q;HA312N
-#         chains:
-#           antigen:
-#             A: B
-#           antibody:
-#             L: L
-#             H: H
-#       comment: "this one is from the authors, but 6D0U has higher scores. both look *very* similar"
-#     - antigen:
-#         name: h1solisl06
-#         full_name: A/Solomon Islands/3/2006 (H1N1)
-#       antibody:
-#         name: c05
-#         full_name: C05
-#       # pdb: 6ML8 (4FP8 / 5UMN)
-#       pdb:
-#         id: 6ML8
-#         mutations: RA60L;KA64I;NA73S;IA74V;VA78I;SA86L;LA88I;NA90R;RA91E;AA97V;TA99K;SA102P;DA111H;RA138S;RA146T;TA149S;AA151S;PA153S;AA155N;RA156G;KA157E;VA165L;EA169G;AA170K;SA173L;RA179K;VA182A;QA185K;SA199P;EA202G;EA203D;RA209H;DA211E;NA221H;NA223S;RA225K;SA240E;MA243I;TA261N;WA268R;PA277F;TA283N;LA288M;TA293A;IA311V;TA326A;VA340I
-#       # comment: "this one is for H3, but should be fine nevertheless? map an H1 structure on it?"
-#         chains:
-#           antigen:
-#             A: A
-#             # - B  # not really
-#           antibody:
-#             L: L
-#             H: H
-#   source_code: https://github.com/wchnicholas/C05mut
-#   raw_data: PRJNA326694
-#   use_for: "discrete relative"
-#   comment: "K_D measurements are unreliable"
-#   data:
-#     - https://github.com/wchnicholas/C05mut/blob/master/data/VariantFreqTable.tsv
-#     - https://github.com/wchnicholas/C05mut/blob/master/data/AAFreqTable.tsv
+wu17_in:
+  dms_target: fv
+  fv_type: fab  # scfv did not work, therefore they used fab vectors
+  doi: 10.1038/ncomms15371
+  complexes: # there was a third one to H5, but it does not bind..
+    - antigen:
+        name: h3perth09
+        full_name: A/Perth/16/2009 (H3N2)
+      antibody:
+        name: c05
+        full_name: C05
+      # pdb: 4FP8 / 5UMN
+      pdb:
+        id: 4FP8
+        mutations: KA50E;NA53D;NA54S;RA57Q;IA62K;DA63N;HA75Q;VA78G;EA82K;TA83K;FA94Y;IA121N;TA122N;GA124S;TA126N;GA135T;NA137S;KA140I;GA142R;PA143S;GA144K;SA145N;GA146S;KA156H;SA157L;GA158N;SA159F;TA160K;VA163A;DA172E;NA173Q;SA186G;NA188D;QA189K;EA190D;TA192I;SA193F;VA196A;VA202I;RA207K;IA213V;IA214S;WA222R;GA225N;LA226I;SA227P;VA242I;VA244L;NA248T;MA260I;TA262S;DA275G;TA276K;IA278N;KA299R;KA307R;GA310K;HA311Q;HA312N
+        chains:
+          antigen:
+            A: B
+          antibody:
+            L: L
+            H: H
+      comment: "this one is from the authors, but 6D0U has higher scores. both look *very* similar"
+    - antigen:
+        name: h1solisl06
+        full_name: A/Solomon Islands/3/2006 (H1N1)
+      antibody:
+        name: c05
+        full_name: C05
+      # pdb: 6ML8 (4FP8 / 5UMN)
+      pdb:
+        id: 6ML8
+        mutations: RA60L;KA64I;NA73S;IA74V;VA78I;SA86L;LA88I;NA90R;RA91E;AA97V;TA99K;SA102P;DA111H;RA138S;RA146T;TA149S;AA151S;PA153S;AA155N;RA156G;KA157E;VA165L;EA169G;AA170K;SA173L;RA179K;VA182A;QA185K;SA199P;EA202G;EA203D;RA209H;DA211E;NA221H;NA223S;RA225K;SA240E;MA243I;TA261N;WA268R;PA277F;TA283N;LA288M;TA293A;IA311V;TA326A;VA340I
+      # comment: "this one is for H3, but should be fine nevertheless? map an H1 structure on it?"
+        chains:
+          antigen:
+            A: A
+            # - B  # not really
+          antibody:
+            L: L
+            H: H
+  source_code: https://github.com/wchnicholas/C05mut
+  raw_data: PRJNA326694
+  use_for: "discrete relative"
+  comment: "K_D measurements are unreliable"
+  data:
+    - https://github.com/wchnicholas/C05mut/blob/master/data/VariantFreqTable.tsv
+    - https://github.com/wchnicholas/C05mut/blob/master/data/AAFreqTable.tsv
 
-# starr21_prosp_covid:
-#   dms_target: antigen
-#   fv_type: fv
-#   doi: 10.1126/science.abf9302
-#   complexes:
-#     - antigen:
-#         name: cov2rbd
-#         full_name: SARS_COV2_RBD
-#       antibody:
-#         name: lycov016
-#         full_name: LY-CoV016/CB6/JS016/Etesevimab
-#       comment: 'when you look at 7C01, you see that the CDRs/the the epitope might interact with additional proteins, therefore skewing the binding affinity. alternative antibody names: CB6, JS016'
-#       pdb:
-#         id: 7C01
-#         chains:
-#           antigen:
-#             A: A
-#           antibody:
-#             L: L
-#             H: H
-#     - antigen:
-#         name: cov2rbd
-#         full_name: SARS_COV2_RBD
-#       antibody:
-#         name: regn10933
-#         full_name: REGN10933
-#       pdb:
-#         id: 6XDG
-#         chains:
-#           antigen:
-#             A: E
-#           antibody:
-#             H: B
-#             L: D
-#     - antigen:
-#         name: cov2rbd
-#         full_name: SARS_COV2_RBD
-#       antibody:
-#         name: regn10987
-#         full_name: REGN10987
-#       pdb:
-#         id: 6XDG
-#         chains:
-#           antigen:
-#             A: E
-#           antibody:
-#             L: A
-#             H: C
-#   comment: "negative selection; Just use 'E' for continuous relative comparison"
-#   use_for: "continuous relative"  # as noted, LY-CoV016 might be a bit sketchy. but should be good enough for 'conctinuous relative...
-#   source_code: https://github.com/jbloomlab/SARS-CoV-2-RBD_MAP_clinical_Abs
-#   data: https://www.science.org/doi/suppl/10.1126/science.abf9302/suppl_file/abf9302_datas1.csv; github as well (see code)
-#   raw_data: PRJNA639956/BioSample SAMN16850904; https://doi.org/10.5281/zenodo.4443311
+starr21_prosp_covid:
+  dms_target: antigen
+  fv_type: fv
+  doi: 10.1126/science.abf9302
+  complexes:
+    - antigen:
+        name: cov2rbd
+        full_name: SARS_COV2_RBD
+      antibody:
+        name: lycov016
+        full_name: LY-CoV016/CB6/JS016/Etesevimab
+      comment: 'when you look at 7C01, you see that the CDRs/the the epitope might interact with additional proteins, therefore skewing the binding affinity. alternative antibody names: CB6, JS016'
+      pdb:
+        id: 7C01
+        chains:
+          antigen:
+            A: A
+          antibody:
+            L: L
+            H: H
+    # - antigen:
+    #     name: cov2rbd
+    #     full_name: SARS_COV2_RBD
+    #   antibody:
+    #     name: regn10933
+    #     full_name: REGN10933
+    #   pdb:
+    #     id: 6XDG
+    #     chains:
+    #       antigen:
+    #         A: E
+    #       antibody:
+    #         H: B
+    #         L: D
+    # - antigen:
+    #     name: cov2rbd
+    #     full_name: SARS_COV2_RBD
+    #   antibody:
+    #     name: regn10987
+    #     full_name: REGN10987
+    #   pdb:
+    #     id: 6XDG
+    #     chains:
+    #       antigen:
+    #         A: E
+    #       antibody:
+    #         L: A
+    #         H: C
+  comment: "negative selection; Just use 'E' for continuous relative comparison"
+  use_for: "continuous relative"  # as noted, LY-CoV016 might be a bit sketchy. but should be good enough for 'conctinuous relative...
+  source_code: https://github.com/jbloomlab/SARS-CoV-2-RBD_MAP_clinical_Abs
+  data: https://www.science.org/doi/suppl/10.1126/science.abf9302/suppl_file/abf9302_datas1.csv; github as well (see code)
+  raw_data: PRJNA639956/BioSample SAMN16850904; https://doi.org/10.5281/zenodo.4443311
 
-# wu20_differ_ha_h3_h1:
-#   dms_target: antigen
-#   fv_type: igg
-#   doi: 10.1126/science.aaz5143
-#   comment: "The HK68 complexes should be good (and are the most relevant anyways), but the other ones are a bit sketchy. I should remodel them with AF2 at some point (we can use this as augmenation dataset then without any problems!). T111 is burried, maybe exclude.."
-#   complexes:
-#     - antigen:
-#         name: h3hk68
-#         full_name: A/Hong Kong/1/1968 (H3N2)
-#       antibody:
-#         name: cr9114
-#         full_name: CR9114
-#       pdb:
-#         id: 4FQY
-#         chains:
-#           antigen:
-#             B: B
-#             A: A # doesn't really touch
-#           antibody:
-#             L: L
-#             H: H
-#     - antigen:
-#         name: h3hk68
-#         full_name: A/Hong Kong/1/1968 (H3N2)
-#       antibody:
-#         full_name: FI6v3
-#         name: fi6v3
-#       pdb:
-#         id: 3ZTJ # alternative: 7X6L (maybe merge with 3ZTJ)
-#         mutations: SC9P;TC10G;IC182V;SE9P;TE10G;IE182V;RF123G;EF132D
-#         chains:
-#           antigen:
-#             A: F
-#             B: E # doesn't really touch
-#             C: C # might touch a little bit
-#           antibody:
-#             H: K
-#             L: L
-#     - antigen:
-#         name: h1solisl06
-#         full_name: A/Solomon Islands/3/2006 (H1N1)
-#         uniprot: https://www.uniprot.org/uniprotkb/A7Y8I1/entry
-#       antibody:
-#         full_name: FI6v3
-#         name: fi6v3
-#       pdb:
-#         id: 3ZTJ
-#         mutations: NF12G;EF15T;IF18V;FF24Y;RF25H;SF29E;EF30Q;TF32S;QF34Y;LF38Q;AF43N;DF46N;QF47G;NF49T;GF50N;LF52V;RF54S;TF59M;EF61T;KF62Q;HF64T;QF65A;IF66V;EF67G;SF71N;EF72K;VF73L;GF75R;IF77M;QF78E;DF79N;EF81N;YF83K;EF85D;TF87G;KF88F;LF91I;SF93T;AF101L;QF105E;HF106R;IF108L;LF110F;TF111H;EF114N;MF115V;NF116K;KF117N;FF119Y;TF122V;RF123K;RF124S;RF127K;EF128N;EF131K;MF133I;KF139E;IF140F;DF145N;NF146D;AF147E;IF149M;IF152V;RF153K;HF159Y;DF160P;VF161K;RF163S;DF164E;AF166S;LF167K;NF168L;FF171E
-#         chains:
-#           antigen:
-#             A: F
-#             # - E # only include this and C if we properly mutate it, which is difficult (too many mutations)
-#             # - C # 
-#           antibody:
-#             H: K
-#             L: L
-#         comment: "use 6XSK to validate the relaxed/output model! HA1 is not mutated at all. this is flawed.. maybe here AF2 is the better way?"
-#       comment: "pdb is for H3-strain"
-#     - antigen:
-#         name: h1mich15
-#         full_name: A/Michigan/45/2015 (H1N1) 
-#         uniprot: https://www.uniprot.org/uniprotkb/A0A144YDV8/entry 
-#       antibody:
-#         full_name: FI6v3
-#         name: fi6v3
-#       pdb:
-#         id: 3ZTJ
-#         mutations: NF12G;EF15T;IF18V;FF24Y;RF25H;SF29E;EF30Q;TF32S;QF34Y;AF43N;QF47K;NF49T;GF50N;LF52V;RF54S;TF59M;EF61T;KF62Q;HF64T;QF65A;IF66V;EF67G;SF71N;EF72H;VF73L;GF75K;QF78E;DF79N;EF81N;YF83K;EF85D;TF87G;KF88F;IF89L;LF91I;SF93T;AF101L;QF105E;HF106R;IF108L;LF110Y;TF111H;EF114N;MF115V;NF116K;KF117N;FF119Y;TF122V;RF124N;RF127K;EF128N;EF131K;MF133I;KF139E;IF140F;AF147T;IF149M;IF152V;RF153K;HF159Y;DF160P;VF161K;RF163S;DF164E;LF167K;NF168L;FF171E
-#         chains:
-#           antigen:
-#             A: F
-#             B: E # doesn't really touch
-#           antibody:
-#             H: K
-#             L: L
-#       comment: "as always: match and mutate the pdb to match the input sequence"
-#     - antigen:
-#         name: h1wsn33
-#         full_name: A/WSN/1933 (H1N1) 
-#         uniprot: https://www.uniprot.org/uniprotkb/P03454/entry
-#       antibody:
-#         name: cr9114
-#         full_name: CR9114
-#       pdb:
-#         id: 5CJS
-#         mutations: TD10I;VD18I;YD63F;ID66V;YD70F;KD72N;SD73L;RD75K;MD76R;KD77M;QD78E;ID79N;ED80L;DD81N;ID83K;ED84V;ED85D;ID86D;ED87G;SD88F;KD89L;QD90D;CD93T;SD113L;ND145D;DD146N;KD153R;RD176V;SD177K;VD179E;PD180S;RD181M;SD183V;PD184Y;GD185Q;HD186I;HD187L;HD188A;HD189I;HD190Y;HD191S;VC19I;LC20F;TC25A;NC35D;GC36R;GC37H;GC38N;YC41L;VC42C;CC43K;SC44L;AC45K;KC46G;LC47I;RC48A;MC49P;VC50L
-#         chains:
-#           antigen:
-#             A: D
-#             B: C
-#           antibody:
-#             L: L
-#             H: H
-#     - antigen:
-#         name: h3/perth09
-#         full_name: A/Perth/16/2009 (H3N2)
-#         uniprot: https://www.uniprot.org/uniprotkb/C6KNH7/entry
-#       antibody:
-#         full_name: FI6v3
-#         name: fi6v3
-#       pdb:
-#         id: 3ZTJ
-#         mutations: DC2K;LC25I;DC31N;KC50E;NC53D;NC54S;RC57Q;IC62K;DC63N;HC75Q;VC78G;EC82K;TC83K;FC94Y;IC121N;TC122N;GC124S;TC126N;GC135T;NC137S;KC140I;GC142R;PC143S;GC144K;SC145N;GC146S;KC156H;SC157L;GC158N;SC159F;TC160K;VC163A;DC172E;NC173Q;IC182V;SC186G;NC188D;QC189K;EC190D;TC192I;SC193F;VC196A;VC202I;RC207K;IC213V;IC214S;WC222R;GC225N;LC226I;SC227P;VC242I;VC244L;NC248T;MC260I;TC262S;DC275G;TC276K;IC278N;KC299R;KC307R;DE2K;LE25I;DE31N;KE50E;NE53D;NE54S;RE57Q;IE62K;DE63N;HE75Q;VE78G;EE82K;TE83K;FE94Y;IE121N;TE122N;GE124S;TE126N;GE135T;NE137S;KE140I;GE142R;PE143S;GE144K;SE145N;GE146S;KE156H;SE157L;GE158N;SE159F;TE160K;VE163A;DE172E;NE173Q;IE182V;SE186G;NE188D;QE189K;EE190D;TE192I;SE193F;VE196A;VE202I;RE207K;IE213V;IE214S;WE222R;GE225N;LE226I;SE227P;VE242I;VE244L;NE248T;ME260I;TE262S;DE275G;TE276K;IE278N;KE299R;KE307R;LF2I;IF18V;TF32R;VF55L;EF57G;RF123K;RF124K;EF132D;EF150G
-#         chains:
-#           antigen:
-#             A: F
-#             B: E # doesn't really touch
-#             C: C # maybe touch
-#           antibody:
-#             H: K
-#             L: L
-#     - antigen:
-#         name: h1wsn33
-#         antigen: A/WSN/1933 (H1N1)
-#         uniprot: https://www.uniprot.org/uniprotkb/P03454/entry
-#       antibody:
-#         full_name: FI6v3
-#         name: fi6v3
-#       pdb:
-#         id: 3ZTJ
-#         mutations: NF12G;EF15T;FF24Y;RF25H;SF29E;EF30Q;TF32S;QF34Y;LF38Q;AF43N;DF46N;QF47G;NF49T;GF50N;LF52V;RF54S;TF59M;EF61T;KF62Q;HF64T;QF65A;IF66V;EF67G;SF71N;EF72N;VF73L;GF75K;IF77M;QF78E;DF79N;EF81N;YF83K;EF85D;TF87G;KF88F;IF89L;LF91I;SF93T;AF101L;QF105E;HF106R;IF108L;LF110F;TF111H;SF113L;EF114N;MF115V;NF116K;KF117N;FF119Y;TF122V;RF123K;RF124S;RF127K;EF128N;EF131K;MF133I;KF139E;IF140F;AF147E;IF149M;IF152V;HF159Y;DF160P;VF161K;RF163S;DF164E;AF166S;LF167K;NF168L;FF171E
-#         chains:
-#           antigen:
-#             A: F
-#           antibody:
-#             H: K
-#             L: L
-#   comment: "not full DMS, but many combinations. They have structures for 3 selected mutations (6NHP, 6NHQ, 6NHR), but without antibody..; heavily disbalanced dataset!... T111 mutation is probably not in the binding site...; there is a kd_table available. later: create mapping for F_ABs and IgGs and train on both in a relative manner"
-#   use_for: "discrete relative"
-#   source_code:
-#     - https://github.com/wchnicholas/HAstemEscape
-#     - https://github.com/jbloomlab/HA_stalkbnAb_MAP
-#     - https://github.com/wchnicholas/CR9114mut
-#   data: # (same as in the github)
-#     - https://doi.org/10.5281/zenodo.3660739
-#     - https://doi.org/10.5281/zenodo.3660467
-#     - https://doi.org/10.5281/zenodo.3660731
-#   raw_data:
-#     - PRJNA510654
-#     - PRJNA493101
-#     - PRJNA510700
+wu20_differ_ha_h3_h1:
+  dms_target: antigen
+  fv_type: igg
+  doi: 10.1126/science.aaz5143
+  comment: "The HK68 complexes should be good (and are the most relevant anyways), but the other ones are a bit sketchy. I should remodel them with AF2 at some point (we can use this as augmenation dataset then without any problems!). T111 is burried, maybe exclude.."
+  complexes:
+    - antigen:
+        name: h3hk68
+        full_name: A/Hong Kong/1/1968 (H3N2)
+      antibody:
+        name: cr9114
+        full_name: CR9114
+      pdb:
+        id: 4FQY
+        chains:
+          antigen:
+            B: B
+            A: A # doesn't really touch
+          antibody:
+            L: L
+            H: H
+    - antigen:
+        name: h3hk68
+        full_name: A/Hong Kong/1/1968 (H3N2)
+      antibody:
+        full_name: FI6v3
+        name: fi6v3
+      pdb:
+        id: 3ZTJ # alternative: 7X6L (maybe merge with 3ZTJ)
+        mutations: SC9P;TC10G;IC182V;SE9P;TE10G;IE182V;RF123G;EF132D
+        chains:
+          antigen:
+            A: F
+            B: E # doesn't really touch
+            C: C # might touch a little bit
+          antibody:
+            H: K
+            L: L
+    - antigen:
+        name: h1solisl06
+        full_name: A/Solomon Islands/3/2006 (H1N1)
+        uniprot: https://www.uniprot.org/uniprotkb/A7Y8I1/entry
+      antibody:
+        full_name: FI6v3
+        name: fi6v3
+      pdb:
+        id: 3ZTJ
+        mutations: NF12G;EF15T;IF18V;FF24Y;RF25H;SF29E;EF30Q;TF32S;QF34Y;LF38Q;AF43N;DF46N;QF47G;NF49T;GF50N;LF52V;RF54S;TF59M;EF61T;KF62Q;HF64T;QF65A;IF66V;EF67G;SF71N;EF72K;VF73L;GF75R;IF77M;QF78E;DF79N;EF81N;YF83K;EF85D;TF87G;KF88F;LF91I;SF93T;AF101L;QF105E;HF106R;IF108L;LF110F;TF111H;EF114N;MF115V;NF116K;KF117N;FF119Y;TF122V;RF123K;RF124S;RF127K;EF128N;EF131K;MF133I;KF139E;IF140F;DF145N;NF146D;AF147E;IF149M;IF152V;RF153K;HF159Y;DF160P;VF161K;RF163S;DF164E;AF166S;LF167K;NF168L;FF171E
+        chains:
+          antigen:
+            A: F
+            # - E # only include this and C if we properly mutate it, which is difficult (too many mutations)
+            # - C # 
+          antibody:
+            H: K
+            L: L
+        comment: "use 6XSK to validate the relaxed/output model! HA1 is not mutated at all. this is flawed.. maybe here AF2 is the better way?"
+      comment: "pdb is for H3-strain"
+    - antigen:
+        name: h1mich15
+        full_name: A/Michigan/45/2015 (H1N1) 
+        uniprot: https://www.uniprot.org/uniprotkb/A0A144YDV8/entry 
+      antibody:
+        full_name: FI6v3
+        name: fi6v3
+      pdb:
+        id: 3ZTJ
+        mutations: NF12G;EF15T;IF18V;FF24Y;RF25H;SF29E;EF30Q;TF32S;QF34Y;AF43N;QF47K;NF49T;GF50N;LF52V;RF54S;TF59M;EF61T;KF62Q;HF64T;QF65A;IF66V;EF67G;SF71N;EF72H;VF73L;GF75K;QF78E;DF79N;EF81N;YF83K;EF85D;TF87G;KF88F;IF89L;LF91I;SF93T;AF101L;QF105E;HF106R;IF108L;LF110Y;TF111H;EF114N;MF115V;NF116K;KF117N;FF119Y;TF122V;RF124N;RF127K;EF128N;EF131K;MF133I;KF139E;IF140F;AF147T;IF149M;IF152V;RF153K;HF159Y;DF160P;VF161K;RF163S;DF164E;LF167K;NF168L;FF171E
+        chains:
+          antigen:
+            A: F
+            B: E # doesn't really touch
+          antibody:
+            H: K
+            L: L
+      comment: "as always: match and mutate the pdb to match the input sequence"
+    # - antigen:
+    #     name: h1wsn33
+    #     full_name: A/WSN/1933 (H1N1) 
+    #     uniprot: https://www.uniprot.org/uniprotkb/P03454/entry
+    #   antibody:
+    #     name: cr9114
+    #     full_name: CR9114
+    #   pdb:
+    #     id: 5CJS
+    #     mutations: TD10I;VD18I;YD63F;ID66V;YD70F;KD72N;SD73L;RD75K;MD76R;KD77M;QD78E;ID79N;ED80L;DD81N;ID83K;ED84V;ED85D;ID86D;ED87G;SD88F;KD89L;QD90D;CD93T;SD113L;ND145D;DD146N;KD153R;RD176V;SD177K;VD179E;PD180S;RD181M;SD183V;PD184Y;GD185Q;HD186I;HD187L;HD188A;HD189I;HD190Y;HD191S;VC19I;LC20F;TC25A;NC35D;GC36R;GC37H;GC38N;YC41L;VC42C;CC43K;SC44L;AC45K;KC46G;LC47I;RC48A;MC49P;VC50L
+    #     chains:
+    #       antigen:
+    #         A: D
+    #         B: C
+    #       antibody:
+    #         L: L
+    #         H: H
+    # - antigen:
+    #     name: h3/perth09
+    #     full_name: A/Perth/16/2009 (H3N2)
+    #     uniprot: https://www.uniprot.org/uniprotkb/C6KNH7/entry
+    #   antibody:
+    #     full_name: FI6v3
+    #     name: fi6v3
+    #   pdb:
+    #     id: 3ZTJ
+    #     mutations: DC2K;LC25I;DC31N;KC50E;NC53D;NC54S;RC57Q;IC62K;DC63N;HC75Q;VC78G;EC82K;TC83K;FC94Y;IC121N;TC122N;GC124S;TC126N;GC135T;NC137S;KC140I;GC142R;PC143S;GC144K;SC145N;GC146S;KC156H;SC157L;GC158N;SC159F;TC160K;VC163A;DC172E;NC173Q;IC182V;SC186G;NC188D;QC189K;EC190D;TC192I;SC193F;VC196A;VC202I;RC207K;IC213V;IC214S;WC222R;GC225N;LC226I;SC227P;VC242I;VC244L;NC248T;MC260I;TC262S;DC275G;TC276K;IC278N;KC299R;KC307R;DE2K;LE25I;DE31N;KE50E;NE53D;NE54S;RE57Q;IE62K;DE63N;HE75Q;VE78G;EE82K;TE83K;FE94Y;IE121N;TE122N;GE124S;TE126N;GE135T;NE137S;KE140I;GE142R;PE143S;GE144K;SE145N;GE146S;KE156H;SE157L;GE158N;SE159F;TE160K;VE163A;DE172E;NE173Q;IE182V;SE186G;NE188D;QE189K;EE190D;TE192I;SE193F;VE196A;VE202I;RE207K;IE213V;IE214S;WE222R;GE225N;LE226I;SE227P;VE242I;VE244L;NE248T;ME260I;TE262S;DE275G;TE276K;IE278N;KE299R;KE307R;LF2I;IF18V;TF32R;VF55L;EF57G;RF123K;RF124K;EF132D;EF150G
+    #     chains:
+    #       antigen:
+    #         A: F
+    #         B: E # doesn't really touch
+    #         C: C # maybe touch
+    #       antibody:
+    #         H: K
+    #         L: L
+    # - antigen:
+    #     name: h1wsn33
+    #     antigen: A/WSN/1933 (H1N1)
+    #     uniprot: https://www.uniprot.org/uniprotkb/P03454/entry
+    #   antibody:
+    #     full_name: FI6v3
+    #     name: fi6v3
+    #   pdb:
+    #     id: 3ZTJ
+    #     mutations: NF12G;EF15T;FF24Y;RF25H;SF29E;EF30Q;TF32S;QF34Y;LF38Q;AF43N;DF46N;QF47G;NF49T;GF50N;LF52V;RF54S;TF59M;EF61T;KF62Q;HF64T;QF65A;IF66V;EF67G;SF71N;EF72N;VF73L;GF75K;IF77M;QF78E;DF79N;EF81N;YF83K;EF85D;TF87G;KF88F;IF89L;LF91I;SF93T;AF101L;QF105E;HF106R;IF108L;LF110F;TF111H;SF113L;EF114N;MF115V;NF116K;KF117N;FF119Y;TF122V;RF123K;RF124S;RF127K;EF128N;EF131K;MF133I;KF139E;IF140F;AF147E;IF149M;IF152V;HF159Y;DF160P;VF161K;RF163S;DF164E;AF166S;LF167K;NF168L;FF171E
+    #     chains:
+    #       antigen:
+    #         A: F
+    #       antibody:
+    #         H: K
+    #         L: L
+  comment: "not full DMS, but many combinations. They have structures for 3 selected mutations (6NHP, 6NHQ, 6NHR), but without antibody..; heavily disbalanced dataset!... T111 mutation is probably not in the binding site...; there is a kd_table available. later: create mapping for F_ABs and IgGs and train on both in a relative manner"
+  use_for: "discrete relative"
+  source_code:
+    - https://github.com/wchnicholas/HAstemEscape
+    - https://github.com/jbloomlab/HA_stalkbnAb_MAP
+    - https://github.com/wchnicholas/CR9114mut
+  data: # (same as in the github)
+    - https://doi.org/10.5281/zenodo.3660739
+    - https://doi.org/10.5281/zenodo.3660467
+    - https://doi.org/10.5281/zenodo.3660731
+  raw_data:
+    - PRJNA510654
+    - PRJNA493101
+    - PRJNA510700
+
 
 # mason21_optim_therap_antib_by_predic:
 #   dms_target: fv
@@ -409,466 +410,466 @@ phillips21_bindin:  # antibody is defined as scFv. For now, we leave it as such.
 #   raw_data: can ask derek mason
 
 
-# taft22_deep_mutat_learn_predic_ace2:
+taft22_deep_mutat_learn_predic_ace2:
+  dms_target: antigen
+  fv_type: igg
+  doi: 10.1016/j.cell.2022.08.024
+  comment: 'Data is binary by design. But should be good enough for our purposes (siamese learning)'
+  data: 'supp data (csvs)'
+  complexes:
+    - antigen:
+        name: cov2rbd
+        full_name: SARS_COV2_RBD
+      antibody:
+        name: a23581
+        full_name: A23-58.1
+      pdb:
+        id: 7LRS
+        chains:
+          antigen:
+            A: C
+          antibody:
+            L: E
+            H: D
+    - antigen:
+        name: cov2rbd
+        full_name: SARS_COV2_RBD
+      antibody:
+        name: gr32a4  # seems to be a typo on their end
+        full_name: G32A4
+      pdb:
+        id: 7SWN
+        chains:
+          antigen:
+            A: A
+          antibody:
+            L: L
+            H: H
+    - antigen:
+        name: cov2rbd
+        full_name: SARS_COV2_RBD
+      antibody:
+        name: ly1404
+        full_name: LY-CoV1404
+      pdb:
+        comment: 'The antigen builds a homodimer from which both monomers bind to the antibody. This can lead to a convoluted signal.'
+        id: 7MMO
+        chains:
+          antigen:
+            A: C
+          antibody:
+            H: A
+            L: B
+    - antigen:
+        name: cov2rbd
+        full_name: SARS_COV2_RBD
+      antibody:
+        name: lycov016
+        full_name: LY-CoV016/CB6/JS016/Etesevimab
+      pdb:
+        id: 7C01
+        chains:
+          antigen:
+            A: A
+          antibody:
+            L: L
+            H: H
+      comment: 'Similarly to 7MMO, when you look at 7C01, you see that the CDRs/the the epitope might interact with additional proteins, therefore skewing the binding affinity. alternative antibody names: CB6, JS016'
+    - antigen:
+        name: cov2rbd
+        full_name: SARS_COV2_RBD
+      antibody:
+        name: regn10987
+        full_name: REGN10987
+      pdb:
+        id: 6XDG
+        chains:
+          antigen:
+            A: E
+          antibody:
+            L: A
+            H: C
+    # - antigen:
+    #     name: cov2rbd
+    #     full_name: SARS_COV2_RBD
+    #   antibody:
+    #     name: regn10933
+    #     full_name: REGN10933
+    #   pdb:
+    #     id: 6XDG
+    #     chains:
+    #       antigen:
+    #         A: E
+    #       antibody:
+    #         H: B
+    #         L: D
+    - antigen:
+        name: cov2rbd
+        full_name: SARS_COV2_RBD
+      antibody:
+        name: ly555
+        full_name: LY-CoV555
+      pdb:
+        id: 7KMG  # TODO: maybe *add* 7L3N as alternative. They are quite different and it's hard to tell which one is more realistic
+        chains:
+          antigen:
+            A: C
+            # B: F  # although this binds in the crystal, I don't think this is too relevant in solution...
+          antibody:
+            H: A
+            L: B
+    - antigen:
+        name: cov2rbd
+        full_name: SARS_COV2_RBD
+      antibody:
+        name: s2e12
+        full_name: S2E12
+      pdb:
+        id: 7K45  # alternatives: 7K4N,7R6X. They are all very similar
+        chains:
+          antigen:
+            A: B
+          antibody:
+            L: L
+            H: H
+    - antigen:
+        name: cov2rbd
+        full_name: SARS_COV2_RBD
+      antibody:
+        name: s2h97
+        full_name: S2H97
+      pdb:
+        id: 7M7W
+        chains:
+          antigen:
+            A: R
+          antibody:
+            L: E
+            H: F
+    - antigen:
+        name: cov2rbd
+        full_name: SARS_COV2_RBD
+      antibody:
+        name: s309
+        full_name: S309
+      pdb:
+        id: 7R6W  # alternative: 6WPS
+        chains:
+          antigen:
+            A: R
+          antibody:
+            H: A  # TODO make sure the direction/order is correct
+            L: B
+
+b.20_funct_screen_strat_engin_chimer:
+  dms_target: fv
+  fv_type: scfv  # (via CARs)
+  complexes:
+    - antigen:
+        name: her2
+        full_name: ERBB2
+        uniprot: https://www.uniprot.org/uniprotkb/P04626/entry
+      antibody:
+        full_name: Trastuzumab(4D5)-derived scFV
+        name: trastuzumab
+      pdb:
+        id: 6OGE  # Alternatives 6BGT/7MN8/((6ZQK))
+        chains:
+          antibody:
+            L: D
+            H: E
+          antigen:
+            A: A
+  comment: "screen on binding affinity and activation potential; raw data is undocumented; available structures are for FVs. data for scF_Vs.."
+  source_code: null
+  doi: 10.1016/j.ymthe.2020.08.003
+  WT_seq: WGGDGFYAMD
+  data: Provided by email
+  raw_data: https://www.ncbi.nlm.nih.gov/sra/?term=PRJNA649781
+
+madan21_mutat_hiv:
+  dms_target: fv
+  fv_type: fab  # todo: most of the fvs (in this document) are actually fabs!
+  doi: 10.1073/pnas.2011653118
+  complexes:
+    - antigen:
+        name: fp8v1
+        full_name: BG505-FP8v1
+      antibody:
+        name: vfp1602
+        full_name: vFP16.02
+      pdb:
+        id: 6CDI  # antigen is only a small peptide in 6CDO, but DMS was carried out with the full trimer
+        mutations: Lc520C
+        chains:
+          antigen:
+            A: c
+          antibody:
+            L: l
+            H: h
+    - antigen:
+        name: fp8v2
+        full_name: BG505-FP8v2
+      antibody:
+        name: vfp1602
+        full_name: vFP16.02
+      pdb:
+        id: 6CDI  # antigen is only a small peptide in 6CDO, but DMS was carried out with the full trimer
+        mutations: Lc520C;Ic515L
+        chains:
+          antigen:
+            A: c
+          antibody:
+            L: l
+            H: h
+  anchors: "Figure S6 is against the BG505-FP8v1. IC50 is proportional and could be used in addition"
+  source_code: https://github.com/wchnicholas/C05mut
+  raw_data: PRJNA326694
+  comment: "HIV fusion peptide (FP). they also have a high throughput neutralization screen (see Dataset_S01). maybe ideal for anchoring? 6WWC and 6WX2 contain single point mutations (good for validation)"
+  data: email,https://www.pnas.org/doi/suppl/10.1073/pnas.2011653118/suppl_file/pnas.2011653118.sd02.xlsx
+
+# TODO alcantara23_deep_mutat_scann_predic_escap
+
+# TODO if fv_fype == f_v, check if it's actually igg (igg vs fab/fv makes a difference)
+
+# sourisseau19_deep_mutat_scann_compr_maps:
+#   dms_target: antigen
+#   fv_type: fv
+#   doi: 10.1128/JVI.01291-19
+#   antigen:
+#     - name: zikv_e
+#       structure: 5IRE
+#   antibody:
+#     - name: ZKA-182
+#       structure: null
+#     - name: ZKA-64
+#       structure: null
+#   raw_data: https://www.ncbi.nlm.nih.gov/bioproject/?term=PRJNA530795
+#   plasmid_sequence: https://www.ncbi.nlm.nih.gov/nuccore/KX830961.1
+#   source_code: https://github.com/jbloomlab/ZIKV_DMS_with_EvansLab/
+#   comment: "complex-structure missing.. good for any validation purposes"
+  
+# TODO second prio (glycosylation?)
+# klesmith19_fine_epitop_mappin_cd19_extrac:
+#   dms_target: antigen
+#   fv_type: fv
+#   doi: 10.1021/acs.biochem.9b00808
+#   complexes:
+#     - antigen: CD19_ECD
+#       antibody: FMC63
+#       structure: nil
+#     - antigen: CD19_ECD
+#       antibody: 4G7-2E3
+#       structure: nil
+#     - antigen: CD19_ECD
+#       antibody: 3B10
+#       structure: nil:
+#   raw_data: 10.6084/m9.figshare.8298161
+#   dms_size: 8640
+#   source_code: https://github.com/JKlesmith/CD19_Epitope_Mapping
+#   comment: "Colligated selection mutational z-score and feature data are available in Excel File S1. cd19-b43 structure exists"
+
+#TODO see later
+# greaney21_compl_mappin_mutat_sars_cov:
+#   dms_target: antigen
+#   fv_type: fv
+#   doi: 10.1016/j.chom.2020.11.007
+#   complexes:
+#     - antigen: SARS_COV1_RBD
+#       antibody: rCR3022
+#       pdb: 6W41
+#     - antigen: SARS_COV2_RBD
+#       antibody: COV2-2677
+#     - antigen: SARS_COV2_RBD
+#       antibody: COV2-2082
+#     - antigen: SARS_COV2_RBD
+#       antibody: COV2-2094
+#     - antigen: SARS_COV2_RBD
+#       antibody: COV2-2165
+#     - antigen: SARS_COV2_RBD
+#       antibody: COV2-2832
+#     - antigen: SARS_COV2_RBD
+#       antibody: COV2-2479
+#     - antigen: SARS_COV2_RBD
+#       antibody: COV2-2050
+#     - antigen: SARS_COV2_RBD
+#       antibody: COV2-2096
+#     - antigen: SARS_COV2_RBD
+#       antibody: COV2-2499
+#   comment: "(rough) structures for 5 complexes; just use the calculated escape factors (highest value = 0.01 * the affinity of ACE2<->RBD, lowest value=ACE2<->0.8*RBD binding affinity?); in the case of fabian's project (static structures) make sure to filter for those mutations that are within the interaction region; figure 3 provides IC50 values which might be used to map the 'escape values' to K_{d}s. Sett Table S1!"
+#   source_code: https://github.com/jbloomlab/SARS-CoV-2-RBD_MAP_Crowe_antibodies
+#   raw_data: TODO
+
+# TODO continue from here
+# warszawski19_optim_antib_affin_stabil_by:
+#   dms_target: fv
+#   fv_type: scfv
+#   doi: 10.1371/journal.pcbi.1007207
+#   complexes:
+#     - antigen: lysozyme
+#       antibody:
+#             - D44.1 
+#       pdb: 1MLC
+#     - antigen: lysozyme
+#       antibody:
+#             - D44.1^{des}
+#       pdb: 6GC2
+#       comment: "The PDB is FV only. Need to manually model the complex. Ignore for now since it's only one additional structure"
+#   comment: "positive selection; some K_ds are available"
+#   source_code:
+#   data: https://doi.org/10.1371/journal.pcbi.1007207.s010
+#   raw_data:
+
+# koenig17_mutat:
+#   dms_target: fv
+#   fv_type: fv (not sure)
+#   doi: 10.1073/pnas.1613231114
+#   complexes:
+#     - antigen: VEGF
+#       antibody: G6.31
+#       pdb: 2FJG
+#   comment: "Only binding to VEGF is relevant after all; positive+negative selection; TODO write an email?"
+#   source_code: null
+#   data: Provided by Email
+#   raw_data: null
+
+# forsyth13_deep:
+#   dms_target: fv
+#   fv_type: fv
+#   doi: 10.4161/mabs.24979
+#   complexes:
+#     - antigen: HER2
+#       antibody: trastuzumab
+#       pdb: 6BGT/6OGE/7MN8
+#   comment: "awesome screen; but data is only in PDF format. needs to be extracted..."
+#   source_code: null
+#   data: https://www.tandfonline.com/doi/suppl/10.4161/mabs.24979/suppl_file/kmab_a_10924979_sm0001.zip
+#   raw_data: null
+# doud18_how_h1:
+#   dms_target: antigen
+#   fv_type: fv
+#   doi: 10.1038/s41467-018-03665-3
+#   complexes:
+#     - antigen: A/WSN/1933 (H1N1)
+#       antibody: FI6v3
+#       pdb: 3ZTN
+#       comment: "FI6v3 is extremely broad, and neutralizes both group 1 and group 2 HAs"
+#     - antigen: A/WSN/1933 (H1N1)
+#       antibody: C179
+#       pdb: 4HLZ
+#       comment: "C179 is less broad, and neutralizes only some group 1 HAs. pdb is for H2N2 but should be fine"
+#     - antigen: A/WSN/1933 (H1N1)
+#       antibody: S139/1
+#       pdb: 4GMS
+#       comment: "S139/1 binds to residues in HA’s receptor-binding pocket, and which can neutralize both group 1 and group 2 HAs"
+#   comment: ""
+#   source_code: https://github.com/jbloomlab/HA_antibody_ease_of_escape
+#   data:  # the first one seems to contain everything..
+#     - https://static-content.springer.com/esm/art%3A10.1038%2Fs41467-018-03665-3/MediaObjects/41467_2018_3665_MOESM5_ESM.zip
+#     - https://static-content.springer.com/esm/art%3A10.1038%2Fs41467-018-03665-3/MediaObjects/41467_2018_3665_MOESM6_ESM.html
+#     - https://static-content.springer.com/esm/art%3A10.1038%2Fs41467-018-03665-3/MediaObjects/41467_2018_3665_MOESM7_ESM.zip
+#   raw_data: https://www.ncbi.nlm.nih.gov/sra/?term=SAMN05789126
+
+# # dingens17_compr_mappin_hiv_escap_broad_neutr_antib:
+# #   dms_target: antigen
+# #   fv_type: fv
+# #   doi: 10.1016/j.chom.2017.05.003
+# #   complexes:
+# #     - antigen: HIV1_Env
+# #       antibody: PGT151
+# #       pdb: 5FUU(,6OLP)
+# #   comment: "like many other DMS applications, they have a couple of K_D experiments that could help up scale the enrichment values obtained from the DMS; data can be easily computed with provided script"
+# #   source_code: https://github.com/adingens/BF520_MutationalAntigenicProfiling_PGT151
+# #   data: https://www.cell.com/cms/10.1016/j.chom.2017.05.003/attachment/de4e20a4-1d94-48d6-a840-bba251d49e13/mmc3.zip (data s2)
+# #   raw_data: SRX2548567–SRX2548579
+
+# doud17_compl:
+#   dms_target: antigen
+#   fv_type: fv
+#   doi: 10.1371/journal.ppat.1006271
+#   complexes:
+#     - antigen: A/WSN/1933 (H1N1)
+#       antibody: H17-L19
+#       comment: "They run the experiments at different antibody concentrations, targets 'Ca2'"
+#     - antigen: A/WSN/1933 (H1N1)
+#       antibody: H17-L10
+#       comment: "targets Ca1"
+#     - antigen: A/WSN/1933 (H1N1)
+#       antibody: H17-L7
+#       comment: "targets Cb"
+#     - antigen: A/WSN/1933 (H1N1)
+#       antibody: H18-S415
+#       comment: "targets Cb"
+#   comment: "no structures available; like other publications, they have a numbering scheme in their supp files; like many other DMS applications, they have a couple of K_D-like experiments that could help up scale the enrichment values obtained from the DMS; data can be easily computed with provided script"
+#   source_code: https://github.com/mbdoud/mutational_antigenic_profiling
+#   data:  https://doi.org/10.1371/journal.ppat.1006271.s009
+#   raw_data: https://www.ncbi.nlm.nih.gov/sra/?term=SAMN05789126
+
+
+# medina-cucurella18_pro_ngf:
 #   dms_target: antigen
 #   fv_type: igg
-#   doi: 10.1016/j.cell.2022.08.024
-#   comment: 'Data is binary by design. But should be good enough for our purposes (siamese learning)'
-#   data: 'supp data (csvs)'
+#   doi: 10.1002/bit.26706
 #   complexes:
-#     - antigen:
-#         name: cov2rbd
-#         full_name: SARS_COV2_RBD
-#       antibody:
-#         name: a23581
-#         full_name: A23-58.1
-#       pdb:
-#         id: 7LRS
-#         chains:
-#           antigen:
-#             A: C
-#           antibody:
-#             L: E
-#             H: D
-#     - antigen:
-#         name: cov2rbd
-#         full_name: SARS_COV2_RBD
-#       antibody:
-#         name: gr32a4  # seems to be a typo on their end
-#         full_name: G32A4
-#       pdb:
-#         id: 7SWN
-#         chains:
-#           antigen:
-#             A: A
-#           antibody:
-#             L: L
-#             H: H
-#     - antigen:
-#         name: cov2rbd
-#         full_name: SARS_COV2_RBD
-#       antibody:
-#         name: ly1404
-#         full_name: LY-CoV1404
-#       pdb:
-#         comment: 'The antigen builds a homodimer from which both monomers bind to the antibody. This can lead to a convoluted signal.'
-#         id: 7MMO
-#         chains:
-#           antigen:
-#             A: C
-#           antibody:
-#             H: A
-#             L: B
-#     - antigen:
-#         name: cov2rbd
-#         full_name: SARS_COV2_RBD
-#       antibody:
-#         name: lycov016
-#         full_name: LY-CoV016/CB6/JS016/Etesevimab
-#       pdb:
-#         id: 7C01
-#         chains:
-#           antigen:
-#             A: A
-#           antibody:
-#             L: L
-#             H: H
-#       comment: 'Similarly to 7MMO, when you look at 7C01, you see that the CDRs/the the epitope might interact with additional proteins, therefore skewing the binding affinity. alternative antibody names: CB6, JS016'
-#     - antigen:
-#         name: cov2rbd
-#         full_name: SARS_COV2_RBD
-#       antibody:
-#         name: regn10987
-#         full_name: REGN10987
-#       pdb:
-#         id: 6XDG
-#         chains:
-#           antigen:
-#             A: E
-#           antibody:
-#             L: A
-#             H: C
-#     - antigen:
-#         name: cov2rbd
-#         full_name: SARS_COV2_RBD
-#       antibody:
-#         name: regn10933
-#         full_name: REGN10933
-#       pdb:
-#         id: 6XDG
-#         chains:
-#           antigen:
-#             A: E
-#           antibody:
-#             H: B
-#             L: D
-#     - antigen:
-#         name: cov2rbd
-#         full_name: SARS_COV2_RBD
-#       antibody:
-#         name: ly555
-#         full_name: LY-CoV555
-#       pdb:
-#         id: 7KMG  # TODO: maybe *add* 7L3N as alternative. They are quite different and it's hard to tell which one is more realistic
-#         chains:
-#           antigen:
-#             A: C
-#             B: F
-#           antibody:
-#             H: A
-#             L: B
-#     - antigen:
-#         name: cov2rbd
-#         full_name: SARS_COV2_RBD
-#       antibody:
-#         name: s2e12
-#         full_name: S2E12
-#       pdb:
-#         id: 7K45  # alternatives: 7K4N,7R6X. They are all very similar
-#         chains:
-#           antigen:
-#             A: B
-#           antibody:
-#             L: L
-#             H: H
-#     - antigen:
-#         name: cov2rbd
-#         full_name: SARS_COV2_RBD
-#       antibody:
-#         name: s2h97
-#         full_name: S2H97
-#       pdb:
-#         id: 7M7W
-#         chains:
-#           antigen:
-#             A: R
-#           antibody:
-#             L: E
-#             H: F
-#     - antigen:
-#         name: cov2rbd
-#         full_name: SARS_COV2_RBD
-#       antibody:
-#         name: s309
-#         full_name: S309
-#       pdb:
-#         id: 7R6W  # alternative: 6WPS
-#         chains:
-#           antigen:
-#             A: R
-#           antibody:
-#             H: A  # TODO make sure the direction/order is correct
-#             L: B
+#     - antigen: pro-cNGF
+#       antibody: tanezumab
+#       pdb: 4EDW
+#     - antigen: Pro?1,2-cNGF
+#       antibody: tanezumab
+#       pdb: 4EDW  # not sure if applicable
+#     - antigen: Pro.v4-cNGF
+#       antibody: tanezumab
+#       pdb: 4EDW  # not sure if applicable
+#   source_code: https://github.com/JKlesmith
+#   raw_data: SAMN07693504–SAMN07693526
+#   comment: "HIV fusion peptide (FP). they also have a high throughput neutralization screen (see Dataset_S01). maybe ideal for anchoring?"
+#   data:
+#     - S1
+#     - S5
+#     - S7
 
-# b.20_funct_screen_strat_engin_chimer:
-#   dms_target: fv
-#   fv_type: scfv  # (via CARs)
+# doolan15_confor_depen_epitop_recog_prion:
+#   dms_target: antigen
+#   fv_type: scfv # except EP1820Y
+#   doi: 10.1016/j.jmb.2014.10.024
 #   complexes:
-#     - antigen:
-#         name: her2
-#         full_name: ERBB2
-#         uniprot: https://www.uniprot.org/uniprotkb/P04626/entry
-#       antibody:
-#         full_name: Trastuzumab(4D5)-derived scFV
-#         name: trastuzumab
+#     - antigen: mouse PrP
+#       antibody: ICSM18
+#       anchors: See Fig 3
 #       pdb:
-#         id: 6OGE  # Alternatives 6BGT/7MN8/((6ZQK))
+#         id: 6SUZ # alternative: 2W9E
 #         chains:
-#           antibody:
-#             L: D
-#             H: E
-#           antigen:
-#             A: A
-#   comment: "screen on binding affinity and activation potential; raw data is undocumented; available structures are for FVs. data for scF_Vs.."
-#   source_code: null
-#   doi: 10.1016/j.ymthe.2020.08.003
-#   WT_seq: WGGDGFYAMD
-#   data: Provided by email
-#   raw_data: https://www.ncbi.nlm.nih.gov/sra/?term=PRJNA649781
+#           antigen: A
+#           light: L
+#           heavy: H
+#     - antigen: mouse PrP
+#       antibody:
+#             - D18
+#       comment: "PDB doesn't exist, but could maybe be modeled manually?"
+#     - antigen: mouse PrP
+#       antibody: 6H4
+#       comment: "PDB doesn't exist, but could maybe be modeled manually?"
+#     - antigen: mouse PrP
+#       antibody: EP1802Y
+#       comment: "PDB doesn't exist, but could maybe be modeled manually? This is an IgG antibody."
+#   source_code: https://ars.els-cdn.com/content/image/1-s2.0-S0022283614005750-mmc1.zip
+#   raw_data:
+#   data: https://ars.els-cdn.com/content/image/1-s2.0-S0022283614005750-mmc2.docx
+#   comment: "Data would need to be extracted manually from pixelated images in supp data"
 
-# madan21_mutat_hiv:
-#   dms_target: fv
-#   fv_type: fab  # todo: most of the fvs (in this document) are actually fabs!
-#   doi: 10.1073/pnas.2011653118
+# kowalsky15_rapid_fine_confor_epitop_mappin:
+#   dms_target: antigen
+#   fv_type: "?"
+#   doi: 10.1074/jbc.M115.676635
+#   comment: "Only focus on the one with PDB probably, as we don't have structures for the other two"
 #   complexes:
-#     - antigen:
-#         name: fp8v1
-#         full_name: BG505-FP8v1
-#       antibody:
-#         name: vfp1602
-#         full_name: vFP16.02
-#       pdb:
-#         id: 6CDI  # antigen is only a small peptide in 6CDO, but DMS was carried out with the full trimer
-#         mutations: Lc520C
-#         chains:
-#           antigen:
-#             A: c
-#           antibody:
-#             L: l
-#             H: h
-#     - antigen:
-#         name: fp8v2
-#         full_name: BG505-FP8v2
-#       antibody:
-#         name: vfp1602
-#         full_name: vFP16.02
-#       pdb:
-#         id: 6CDI  # antigen is only a small peptide in 6CDO, but DMS was carried out with the full trimer
-#         mutations: Lc520C;Ic515L
-#         chains:
-#           antigen:
-#             A: c
-#           antibody:
-#             L: l
-#             H: h
-#   anchors: "Figure S6 is against the BG505-FP8v1. IC50 is proportional and could be used in addition"
-#   source_code: https://github.com/wchnicholas/C05mut
-#   raw_data: PRJNA326694
-#   comment: "HIV fusion peptide (FP). they also have a high throughput neutralization screen (see Dataset_S01). maybe ideal for anchoring? 6WWC and 6WX2 contain single point mutations (good for validation)"
-#   data: email,https://www.pnas.org/doi/suppl/10.1073/pnas.2011653118/suppl_file/pnas.2011653118.sd02.xlsx
-
-# # TODO alcantara23_deep_mutat_scann_predic_escap
-
-# # TODO if fv_fype == f_v, check if it's actually igg (igg vs fab/fv makes a difference)
-
-# # sourisseau19_deep_mutat_scann_compr_maps:
-# #   dms_target: antigen
-# #   fv_type: fv
-# #   doi: 10.1128/JVI.01291-19
-# #   antigen:
-# #     - name: zikv_e
-# #       structure: 5IRE
-# #   antibody:
-# #     - name: ZKA-182
-# #       structure: null
-# #     - name: ZKA-64
-# #       structure: null
-# #   raw_data: https://www.ncbi.nlm.nih.gov/bioproject/?term=PRJNA530795
-# #   plasmid_sequence: https://www.ncbi.nlm.nih.gov/nuccore/KX830961.1
-# #   source_code: https://github.com/jbloomlab/ZIKV_DMS_with_EvansLab/
-# #   comment: "complex-structure missing.. good for any validation purposes"
-  
-# # TODO second prio (glycosylation?)
-# # klesmith19_fine_epitop_mappin_cd19_extrac:
-# #   dms_target: antigen
-# #   fv_type: fv
-# #   doi: 10.1021/acs.biochem.9b00808
-# #   complexes:
-# #     - antigen: CD19_ECD
-# #       antibody: FMC63
-# #       structure: nil
-# #     - antigen: CD19_ECD
-# #       antibody: 4G7-2E3
-# #       structure: nil
-# #     - antigen: CD19_ECD
-# #       antibody: 3B10
-# #       structure: nil:
-# #   raw_data: 10.6084/m9.figshare.8298161
-# #   dms_size: 8640
-# #   source_code: https://github.com/JKlesmith/CD19_Epitope_Mapping
-# #   comment: "Colligated selection mutational z-score and feature data are available in Excel File S1. cd19-b43 structure exists"
-
-# #TODO see later
-# # greaney21_compl_mappin_mutat_sars_cov:
-# #   dms_target: antigen
-# #   fv_type: fv
-# #   doi: 10.1016/j.chom.2020.11.007
-# #   complexes:
-# #     - antigen: SARS_COV1_RBD
-# #       antibody: rCR3022
-# #       pdb: 6W41
-# #     - antigen: SARS_COV2_RBD
-# #       antibody: COV2-2677
-# #     - antigen: SARS_COV2_RBD
-# #       antibody: COV2-2082
-# #     - antigen: SARS_COV2_RBD
-# #       antibody: COV2-2094
-# #     - antigen: SARS_COV2_RBD
-# #       antibody: COV2-2165
-# #     - antigen: SARS_COV2_RBD
-# #       antibody: COV2-2832
-# #     - antigen: SARS_COV2_RBD
-# #       antibody: COV2-2479
-# #     - antigen: SARS_COV2_RBD
-# #       antibody: COV2-2050
-# #     - antigen: SARS_COV2_RBD
-# #       antibody: COV2-2096
-# #     - antigen: SARS_COV2_RBD
-# #       antibody: COV2-2499
-# #   comment: "(rough) structures for 5 complexes; just use the calculated escape factors (highest value = 0.01 * the affinity of ACE2<->RBD, lowest value=ACE2<->0.8*RBD binding affinity?); in the case of fabian's project (static structures) make sure to filter for those mutations that are within the interaction region; figure 3 provides IC50 values which might be used to map the 'escape values' to K_{d}s. Sett Table S1!"
-# #   source_code: https://github.com/jbloomlab/SARS-CoV-2-RBD_MAP_Crowe_antibodies
-# #   raw_data: TODO
-
-# # TODO continue from here
-# # warszawski19_optim_antib_affin_stabil_by:
-# #   dms_target: fv
-# #   fv_type: scfv
-# #   doi: 10.1371/journal.pcbi.1007207
-# #   complexes:
-# #     - antigen: lysozyme
-# #       antibody:
-# #             - D44.1 
-# #       pdb: 1MLC
-# #     - antigen: lysozyme
-# #       antibody:
-# #             - D44.1^{des}
-# #       pdb: 6GC2
-# #       comment: "The PDB is FV only. Need to manually model the complex. Ignore for now since it's only one additional structure"
-# #   comment: "positive selection; some K_ds are available"
-# #   source_code:
-# #   data: https://doi.org/10.1371/journal.pcbi.1007207.s010
-# #   raw_data:
-
-# # koenig17_mutat:
-# #   dms_target: fv
-# #   fv_type: fv (not sure)
-# #   doi: 10.1073/pnas.1613231114
-# #   complexes:
-# #     - antigen: VEGF
-# #       antibody: G6.31
-# #       pdb: 2FJG
-# #   comment: "Only binding to VEGF is relevant after all; positive+negative selection; TODO write an email?"
-# #   source_code: null
-# #   data: Provided by Email
-# #   raw_data: null
-
-# # forsyth13_deep:
-# #   dms_target: fv
-# #   fv_type: fv
-# #   doi: 10.4161/mabs.24979
-# #   complexes:
-# #     - antigen: HER2
-# #       antibody: trastuzumab
-# #       pdb: 6BGT/6OGE/7MN8
-# #   comment: "awesome screen; but data is only in PDF format. needs to be extracted..."
-# #   source_code: null
-# #   data: https://www.tandfonline.com/doi/suppl/10.4161/mabs.24979/suppl_file/kmab_a_10924979_sm0001.zip
-# #   raw_data: null
-# # doud18_how_h1:
-# #   dms_target: antigen
-# #   fv_type: fv
-# #   doi: 10.1038/s41467-018-03665-3
-# #   complexes:
-# #     - antigen: A/WSN/1933 (H1N1)
-# #       antibody: FI6v3
-# #       pdb: 3ZTN
-# #       comment: "FI6v3 is extremely broad, and neutralizes both group 1 and group 2 HAs"
-# #     - antigen: A/WSN/1933 (H1N1)
-# #       antibody: C179
-# #       pdb: 4HLZ
-# #       comment: "C179 is less broad, and neutralizes only some group 1 HAs. pdb is for H2N2 but should be fine"
-# #     - antigen: A/WSN/1933 (H1N1)
-# #       antibody: S139/1
-# #       pdb: 4GMS
-# #       comment: "S139/1 binds to residues in HA’s receptor-binding pocket, and which can neutralize both group 1 and group 2 HAs"
-# #   comment: ""
-# #   source_code: https://github.com/jbloomlab/HA_antibody_ease_of_escape
-# #   data:  # the first one seems to contain everything..
-# #     - https://static-content.springer.com/esm/art%3A10.1038%2Fs41467-018-03665-3/MediaObjects/41467_2018_3665_MOESM5_ESM.zip
-# #     - https://static-content.springer.com/esm/art%3A10.1038%2Fs41467-018-03665-3/MediaObjects/41467_2018_3665_MOESM6_ESM.html
-# #     - https://static-content.springer.com/esm/art%3A10.1038%2Fs41467-018-03665-3/MediaObjects/41467_2018_3665_MOESM7_ESM.zip
-# #   raw_data: https://www.ncbi.nlm.nih.gov/sra/?term=SAMN05789126
-
-# # # dingens17_compr_mappin_hiv_escap_broad_neutr_antib:
-# # #   dms_target: antigen
-# # #   fv_type: fv
-# # #   doi: 10.1016/j.chom.2017.05.003
-# # #   complexes:
-# # #     - antigen: HIV1_Env
-# # #       antibody: PGT151
-# # #       pdb: 5FUU(,6OLP)
-# # #   comment: "like many other DMS applications, they have a couple of K_D experiments that could help up scale the enrichment values obtained from the DMS; data can be easily computed with provided script"
-# # #   source_code: https://github.com/adingens/BF520_MutationalAntigenicProfiling_PGT151
-# # #   data: https://www.cell.com/cms/10.1016/j.chom.2017.05.003/attachment/de4e20a4-1d94-48d6-a840-bba251d49e13/mmc3.zip (data s2)
-# # #   raw_data: SRX2548567–SRX2548579
-
-# # doud17_compl:
-# #   dms_target: antigen
-# #   fv_type: fv
-# #   doi: 10.1371/journal.ppat.1006271
-# #   complexes:
-# #     - antigen: A/WSN/1933 (H1N1)
-# #       antibody: H17-L19
-# #       comment: "They run the experiments at different antibody concentrations, targets 'Ca2'"
-# #     - antigen: A/WSN/1933 (H1N1)
-# #       antibody: H17-L10
-# #       comment: "targets Ca1"
-# #     - antigen: A/WSN/1933 (H1N1)
-# #       antibody: H17-L7
-# #       comment: "targets Cb"
-# #     - antigen: A/WSN/1933 (H1N1)
-# #       antibody: H18-S415
-# #       comment: "targets Cb"
-# #   comment: "no structures available; like other publications, they have a numbering scheme in their supp files; like many other DMS applications, they have a couple of K_D-like experiments that could help up scale the enrichment values obtained from the DMS; data can be easily computed with provided script"
-# #   source_code: https://github.com/mbdoud/mutational_antigenic_profiling
-# #   data:  https://doi.org/10.1371/journal.ppat.1006271.s009
-# #   raw_data: https://www.ncbi.nlm.nih.gov/sra/?term=SAMN05789126
-
-
-# # medina-cucurella18_pro_ngf:
-# #   dms_target: antigen
-# #   fv_type: igg
-# #   doi: 10.1002/bit.26706
-# #   complexes:
-# #     - antigen: pro-cNGF
-# #       antibody: tanezumab
-# #       pdb: 4EDW
-# #     - antigen: Pro?1,2-cNGF
-# #       antibody: tanezumab
-# #       pdb: 4EDW  # not sure if applicable
-# #     - antigen: Pro.v4-cNGF
-# #       antibody: tanezumab
-# #       pdb: 4EDW  # not sure if applicable
-# #   source_code: https://github.com/JKlesmith
-# #   raw_data: SAMN07693504–SAMN07693526
-# #   comment: "HIV fusion peptide (FP). they also have a high throughput neutralization screen (see Dataset_S01). maybe ideal for anchoring?"
-# #   data:
-# #     - S1
-# #     - S5
-# #     - S7
-
-# # doolan15_confor_depen_epitop_recog_prion:
-# #   dms_target: antigen
-# #   fv_type: scfv # except EP1820Y
-# #   doi: 10.1016/j.jmb.2014.10.024
-# #   complexes:
-# #     - antigen: mouse PrP
-# #       antibody: ICSM18
-# #       anchors: See Fig 3
-# #       pdb:
-# #         id: 6SUZ # alternative: 2W9E
-# #         chains:
-# #           antigen: A
-# #           light: L
-# #           heavy: H
-# #     - antigen: mouse PrP
-# #       antibody:
-# #             - D18
-# #       comment: "PDB doesn't exist, but could maybe be modeled manually?"
-# #     - antigen: mouse PrP
-# #       antibody: 6H4
-# #       comment: "PDB doesn't exist, but could maybe be modeled manually?"
-# #     - antigen: mouse PrP
-# #       antibody: EP1802Y
-# #       comment: "PDB doesn't exist, but could maybe be modeled manually? This is an IgG antibody."
-# #   source_code: https://ars.els-cdn.com/content/image/1-s2.0-S0022283614005750-mmc1.zip
-# #   raw_data:
-# #   data: https://ars.els-cdn.com/content/image/1-s2.0-S0022283614005750-mmc2.docx
-# #   comment: "Data would need to be extracted manually from pixelated images in supp data"
-
-# # kowalsky15_rapid_fine_confor_epitop_mappin:
-# #   dms_target: antigen
-# #   fv_type: "?"
-# #   doi: 10.1074/jbc.M115.676635
-# #   comment: "Only focus on the one with PDB probably, as we don't have structures for the other two"
-# #   complexes:
-# #     - antigen: TNF-alpha
-# #       antibody: hu1B7
-# #       pdb: 4G3Y
-# #     - antigen: PTxS1
-# #       antibody: hu1B7
-# #       pdb: null
-# #     - antigen: TROP2
-# #       antibody: m7E6
-# #       pdb: null
-# #   data: supp data (csvs)
+#     - antigen: TNF-alpha
+#       antibody: hu1B7
+#       pdb: 4G3Y
+#     - antigen: PTxS1
+#       antibody: hu1B7
+#       pdb: null
+#     - antigen: TROP2
+#       antibody: m7E6
+#       pdb: null
+#   data: supp data (csvs)
