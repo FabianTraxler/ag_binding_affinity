@@ -81,41 +81,56 @@ rule get_initial_complex:
     TODO relaxation should be done in a separate thread
     """
     input:
-        metadata_file=ancient(metadata_file),
+        metadata_file=ancient(metadata_file)
     output:
-        out_folder / "prepared_clean_pdbs/{publication}/{antibody,[^/]+}_{antigen,[^/]+}.pdb"
+        out_folder / "prepared_pdbs" / "{publication}/{antibody,[^/]+}_{antigen,[^/]+}.pdb"
     params:
         project_root=project_root
     conda: "../../../envs/generation_environment.yml"
     threads: 1
     script: "scripts/get_complex.py"
 
-rule reduce2interface_hull:
+rule rename_chains:
     """
-    TODO exploit/modify this function to reduce protein size in another manner (for those proteins that are too large).
-    Specifically, reduce heavy and light chain to only contain the variable part (~110AAs each)
+    Just copies the manually prepared PDBs from prepared_pdbs and renames their chains. We don't clean them, because the mutations still need to be applied.
+
+    Note: we could have alternatively used the metdadata information in the rule `input_pdb_to_fasta`, to order the chains correctly.
     """
     input:
-        out_folder / "prepared_clean_pdbs/{publication}/{antibody}_{antigen}.pdb"
+        pdb=out_folder / "prepared_pdbs" / "{publication}" / "{complex}.pdb",  # TODO prepared_pdbs/ should go into data/ maybe. Or where do I have code to generate them?
+        metadata=ancient(metadata_file)
     output:
-        out_folder / "interface_hull_pdbs/{publication,[^/]+}/{antibody,[^/]+}_{antigen,[^/]+}.pdb"
-    params:
-        metadata_file=metadata_file,
-        interface_size=INTERFACE_SIZE,
-        interface_hull_size=INTERFACE_HULL_SIZE
-    conda: "../../../envs/generation_environment.yml"
-    resources:
-        mem_mb=50000
-    script: "scripts/reduce2interface_hull.py"
+        base_structure_folder / "{publication}" / "{complex}.pdb"
+    conda:
+        "ag_binding_diffusion3"
+    script:
+        "scripts/rename_chains.py"
 
+# rule reduce2interface_hull:
+#     """
+#     TODO exploit/modify this function to reduce protein size in another manner (for those proteins that are too large).
+#     Specifically, reduce heavy and light chain to only contain the variable part (~110AAs each). Note: There are scFvs! (if L chain is missing, all is fine.)
+#     """
+#     input:
+#         base_structure_folder / "{publication}/{antibody}_{antigen}.pdb"
+#     output:
+#         out_folder / "reduced_sized_pdbs/{publication,[^/]+}/{antibody,[^/]+}_{antigen,[^/]+}.pdb"
+#     params:
+#         metadata_file=metadata_file,
+#         interface_size=INTERFACE_SIZE,
+#         interface_hull_size=INTERFACE_HULL_SIZE
+#     conda: "../../../envs/generation_environment.yml"
+#     resources:
+#         mem_mb=50000
+#     script: "scripts/reduce2interface_hull.py"
 
 rule mutate_complex:
     """
     Generate a single mutation
     """
     input:
-        dms_curated=ancient(dms_info_file),
-        pdb=out_folder / "interface_hull_pdbs" / "{publication}/{antibody}_{antigen}.pdb",
+        dms_curated=rules.subset_dms_data.output[0],
+        pdb=base_structure_folder / "{publication}/{antibody}_{antigen}.pdb",
     output:
         mutated_pdb = out_folder / "mutated" / "{publication}" / "{antibody,[^/]+}_{antigen,[^/]+}" / "{mut}.pdb"
         #out_folder / "mutated/{publication}/{antibody}_{antigen}/{mutation_code}.pdb"

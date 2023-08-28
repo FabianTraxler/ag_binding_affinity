@@ -1,7 +1,7 @@
 SCORE_PATH = dms_results / "structure_prediction_matching" / "{publication}" / "{complex}_{rank}.score"
 rule match_scores:
     input:
-        initial_pdb=rules.rename_chains.output[0],
+        initial_pdb=dms_results / "prepared_renamed_pdbs" / "{publication}" / "{complex}.pdb"
         af_pdb=str(AF_OUTPUT_PATH).format(rank="{rank}"),
     output:
         output=SCORE_PATH

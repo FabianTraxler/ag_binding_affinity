@@ -31,25 +31,9 @@ rule all:
         # [d.replace('input_pdb', 'output_pdb') for d in glob.glob('input_pdb/*/*.pdb')]
         # [d.replace('input_pdb', 'input_fasta').replace('.pdb', '.fasta') for d in glob.glob('input_pdb/*/*.pdb')]
 
-rule rename_chains:
-    """
-    Just copies the manually prepared PDBs from prepared_pdbs and renames their chains. We don't clean them, because the mutations still need to be applied.
-
-    Note: we could have alternatively used the metdadata information in the rule `input_pdb_to_fasta`, to order the chains correctly.
-    """
-    input:
-        pdb=dms_results / "prepared_pdbs" / "{publication}" / "{complex}.pdb",  # TODO prepared_pdbs/ should go into data/ maybe. Or where do I have code to generate them?
-        metadata=ancient(METADATA_FILE)
-    output:
-        dms_results / "prepared_renamed_pdbs" / "{publication}" / "{complex}.pdb"
-    conda:
-        "ag_binding_diffusion3"
-    script:
-        "scripts/rename_chains.py"
-
 # TODO make sure that the chain order is correct (L(H)A(BCDE)) such that we can assign the chains later again
 # TODO make sure that the residue_index is retained!
-# TODO final output: prepared_cleaned_pdbs
+# TODO final output: prepared_af2_pdbs
 rule input_pdb_to_fasta:
     input:
         dms_results / "prepared_renamed_pdbs" / "{publication}" / "{complex}.pdb"
