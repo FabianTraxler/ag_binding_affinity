@@ -6,7 +6,11 @@ from collections import defaultdict, deque
 
 def get_chain_info(metadata, publication, antibody, antigen):
     # Set chain-translation
+
+    if "mason21" in publication:
+        publication = "mason21_optim_therap_antib_by_predic"
     publication_data = metadata[publication]
+
     for complex in publication_data["complexes"]:
         if complex["antigen"]["name"] == antigen and complex["antibody"]["name"] == antibody:
             # Inverted chain infos
@@ -21,8 +25,11 @@ def substitute_chain(metadata, mutation_str, publication, antibody, antigen):
     Replace the chain ID according to metadata
     """
     chain_info = get_chain_info(metadata, publication, antibody, antigen)
-    mutation_codes = [list(s) for s in mutation_str.split(";")]
+    mutation_codes = [list(s) for s in mutation_str.split(";") if len(s) > 0]
     for mc in mutation_codes:
+        if "".join(mc) == "WT":
+            continue
+
         mc[1] = chain_info[mc[1]]
     return ";".join(["".join(l) for l in mutation_codes])
 

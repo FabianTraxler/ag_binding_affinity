@@ -14,35 +14,16 @@ INTERFACE_HULL_SIZE = None
 
 project_root = Path(workflow.basedir).parents[2] # two directories above - absolute paths not working
 out_folder = project_root / "results" / "DMS"
-
-RELAXED_PDB_FOLDER = out_folder / "mutated_relaxed"
+base_structure_folder = out_folder / "prepared_renamed_pdbs"  # alternative: "predpared_af2_pdbs"
+RELAXED_PDB_FOLDER = out_folder / "mutated_fixinsert"  # mutated_relaxed  # TODO to save time for now..
 
 metadata_file = project_root / "data" / "metadata_dms_studies.yaml"
-dms_out_summary_file = project_root / "results" / "DMS" / "dms_infos.csv"
 
 # Generated from Moritz [[id:f1e36ab1-11c4-420d-9d0c-83f1e37f9311][Obtaining antibody binding data]]
-dms_info_file = project_root / "data" / "DMS" / "dms_curated_madan.csv"  # TODO expand to all
-info_df = pd.read_csv(dms_info_file)
-
+DMS_DATA_FILE = project_root / "data" / "DMS" / "dms_curated.csv"
+publications = pd.read_csv(DMS_DATA_FILE)["publication"].drop_duplicates()
 # remove this publication because they have redundant information to mason21_comb_optim_therap_antib_by_predic_combined_H3_3. TODO really? why not augmentation?
-info_df = info_df[~info_df["publication"].isin(["mason21_comb_optim_therap_antib_by_predic_combined_H3_2", "mason21_comb_optim_therap_antib_by_predic_combined_H3_1"])]
-
-
-# filter  data
-#info_df = info_df[info_df["publication"].str[:7] != "mason21"]
-#info_df = info_df[~info_df["publication"].isin(["taft22_deep_mutat_learn_predic_ace2"])]
-#info_df = info_df[info_df["antibody"].isin(["regn10933"])]
-info_df = info_df.reset_index(drop=True)
-
-complexes = info_df.groupby(["publication", "antibody", "antigen"]).groups.keys()
-publications, antibodies, antigens = list(zip(*complexes))
-
-publication2antibodies = defaultdict(list)
-publication2antigens = defaultdict(list)
-
-for publi, antibody, antigen in zip(publications, antibodies, antigens):
-    publication2antibodies[publi].append(antibody)
-    publication2antigens[publi].append(antigen)
+publications = publications[~publications.isin(["mason21_comb_optim_therap_antib_by_predic_combined_H3_2", "mason21_comb_optim_therap_antib_by_predic_combined_H3_1"])]
 
 
 def relaxed_generated_pdbs(wildcards):
@@ -50,7 +31,8 @@ def relaxed_generated_pdbs(wildcards):
     for publication in np.unique(publications):
         df_fn = checkpoints.generate_summary_df.get(publication=publication).output[0]
         df = pd.read_csv(df_fn, index_col=0)
-        all_files.extend([RELAXED_PDB_FOLDER / file_path for file_path in df["filename"]])
+        if len(df) > 0:  # workaround
+            all_files.extend([RELAXED_PDB_FOLDER / file_path for file_path in df["filename"]])
     return all_files
 
 
@@ -71,7 +53,6 @@ checkpoint generate_summary_df:
         # params:
         # metadata_file=metadata_file,
     script: "scripts/generate_summary.py"
-
 
 rule get_initial_complex:
     """
