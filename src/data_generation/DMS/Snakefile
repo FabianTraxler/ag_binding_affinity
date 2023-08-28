@@ -41,9 +41,40 @@ rule all:
         expand(out_folder / "{publication}.csv", publication=publications),
         relaxed_generated_pdbs
 
+rule subset_dms_data:
+    """
+    Reduce the number of data points "per dataset" to a maximum of 20,000 (see params)
+    This is to make the whole preprocessing and trainign manageable
+
+    TODO if possible, implement our training such that we can do *all* datapoints and don't need subsetting
+    NOTE: I could have included this subsetting into the generate_summary_df rule fs
+    """
+    input:
+        ancient(DMS_DATA_FILE)
+    output:
+        out_folder / "dms_subsampled.csv"
+    params:
+        num_max_datapoints=20000
+    run:
+        df = pd.read_csv(input[0])
+        df.index.name = "index"
+        def _subsample_complex(complex_df):
+            """
+            Randomly subsample the complex data such that the distribution is preserved
+            """
+            if len(complex_df) <= params.num_max_datapoints:
+                return complex_df
+            else:
+                return complex_df.sample(params.num_max_datapoints, replace=False)
+
+        filtered = df.groupby(["publication", "antibody", "antigen"]).apply(_subsample_complex)
+
+        filtered.to_csv(output[0], index=False)
+
+
 checkpoint generate_summary_df:
     input:
-        dms_curated=ancient(dms_info_file),
+        dms_curated=rules.subset_dms_data.output[0],
         metadata_file=ancient(metadata_file),
     output:
         out_folder / "{publication}.csv"
