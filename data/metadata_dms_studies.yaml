@@ -510,11 +510,11 @@ taft22_deep_mutat_learn_predic_ace2:
         name: ly555
         full_name: LY-CoV555
       pdb:
-        id: 7KMG  # TODO: maybe *add* 7L3N as alternative. They are quite different and it's hard to tell which one is more realistic
+        id: 7KMG  # alternative: 7L3N (looks similar in the binding interface)
         chains:
           antigen:
             A: C
-            # B: F  # although this binds in the crystal, I don't think this is too relevant in solution...
+            B: F  # TODO although this binds in the crystal, I don't think this is too relevant in solution. TODO: delete here and in dms_infos.csv ([[id:f1e36ab1-11c4-420d-9d0c-83f1e37f9311][Obtaining antibody binding data (E-values and structures)]], check out df['chain'] in the taft22-section. execute all to see)
           antibody:
             H: A
             L: B
@@ -558,7 +558,7 @@ taft22_deep_mutat_learn_predic_ace2:
           antigen:
             A: R
           antibody:
-            H: A  # TODO make sure the direction/order is correct
+            H: A  # Order is correct like this (following "auth" chains is the correct one)
             L: B
 
 b.20_funct_screen_strat_engin_chimer:
