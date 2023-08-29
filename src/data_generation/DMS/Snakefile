@@ -54,8 +54,13 @@ rule subset_dms_data:
     output:
         out_folder / "dms_subsampled.csv"
     params:
-        num_max_datapoints=20000
+        num_max_datapoints=200,  # 20000 takes. 200 is for testing. Let's use 5000 then (over the retreat)
+        seed=42  # TODO run snakemake -R subset_dms_data --touch
     run:
+        import pandas as pd
+        import numpy as np
+        np.random.seed(params.seed)
+
         df = pd.read_csv(input[0])
         df.index.name = "index"
         def _subsample_complex(complex_df):
