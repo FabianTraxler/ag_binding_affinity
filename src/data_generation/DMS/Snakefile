@@ -14,35 +14,16 @@ INTERFACE_HULL_SIZE = None
 
 project_root = Path(workflow.basedir).parents[2] # two directories above - absolute paths not working
 out_folder = project_root / "results" / "DMS"
-
-RELAXED_PDB_FOLDER = out_folder / "mutated_relaxed"
+base_structure_folder = out_folder / "prepared_renamed_pdbs"  # alternative: "predpared_af2_pdbs"
+RELAXED_PDB_FOLDER = out_folder / "mutated_fixinsert"  # mutated_relaxed  # TODO to save time for now..
 
 metadata_file = project_root / "data" / "metadata_dms_studies.yaml"
-dms_out_summary_file = project_root / "results" / "DMS" / "dms_infos.csv"
 
 # Generated from Moritz [[id:f1e36ab1-11c4-420d-9d0c-83f1e37f9311][Obtaining antibody binding data]]
-dms_info_file = project_root / "data" / "DMS" / "dms_curated_madan.csv"  # TODO expand to all
-info_df = pd.read_csv(dms_info_file)
-
+DMS_DATA_FILE = project_root / "data" / "DMS" / "dms_curated.csv"
+publications = pd.read_csv(DMS_DATA_FILE)["publication"].drop_duplicates()
 # remove this publication because they have redundant information to mason21_comb_optim_therap_antib_by_predic_combined_H3_3. TODO really? why not augmentation?
-info_df = info_df[~info_df["publication"].isin(["mason21_comb_optim_therap_antib_by_predic_combined_H3_2", "mason21_comb_optim_therap_antib_by_predic_combined_H3_1"])]
-
-
-# filter  data
-#info_df = info_df[info_df["publication"].str[:7] != "mason21"]
-#info_df = info_df[~info_df["publication"].isin(["taft22_deep_mutat_learn_predic_ace2"])]
-#info_df = info_df[info_df["antibody"].isin(["regn10933"])]
-info_df = info_df.reset_index(drop=True)
-
-complexes = info_df.groupby(["publication", "antibody", "antigen"]).groups.keys()
-publications, antibodies, antigens = list(zip(*complexes))
-
-publication2antibodies = defaultdict(list)
-publication2antigens = defaultdict(list)
-
-for publi, antibody, antigen in zip(publications, antibodies, antigens):
-    publication2antibodies[publi].append(antibody)
-    publication2antigens[publi].append(antigen)
+publications = publications[~publications.isin(["mason21_comb_optim_therap_antib_by_predic_combined_H3_2", "mason21_comb_optim_therap_antib_by_predic_combined_H3_1"])]
 
 
 def relaxed_generated_pdbs(wildcards):
@@ -50,7 +31,8 @@ def relaxed_generated_pdbs(wildcards):
     for publication in np.unique(publications):
         df_fn = checkpoints.generate_summary_df.get(publication=publication).output[0]
         df = pd.read_csv(df_fn, index_col=0)
-        all_files.extend([RELAXED_PDB_FOLDER / file_path for file_path in df["filename"]])
+        if len(df) > 0:  # workaround
+            all_files.extend([RELAXED_PDB_FOLDER / file_path for file_path in df["filename"]])
     return all_files
 
 
@@ -59,9 +41,45 @@ rule all:
         expand(out_folder / "{publication}.csv", publication=publications),
         relaxed_generated_pdbs
 
+rule subset_dms_data:
+    """
+    Reduce the number of data points "per dataset" to a maximum of 20,000 (see params)
+    This is to make the whole preprocessing and trainign manageable
+
+    TODO if possible, implement our training such that we can do *all* datapoints and don't need subsetting
+    NOTE: I could have included this subsetting into the generate_summary_df rule fs
+    """
+    input:
+        ancient(DMS_DATA_FILE)
+    output:
+        out_folder / "dms_subsampled.csv"
+    params:
+        num_max_datapoints=200,  # 20000 takes. 200 is for testing. Let's use 5000 then (over the retreat)
+        seed=42  # TODO run snakemake -R subset_dms_data --touch
+    run:
+        import pandas as pd
+        import numpy as np
+        np.random.seed(params.seed)
+
+        df = pd.read_csv(input[0])
+        df.index.name = "index"
+        def _subsample_complex(complex_df):
+            """
+            Randomly subsample the complex data such that the distribution is preserved
+            """
+            if len(complex_df) <= params.num_max_datapoints:
+                return complex_df
+            else:
+                return complex_df.sample(params.num_max_datapoints, replace=False)
+
+        filtered = df.groupby(["publication", "antibody", "antigen"]).apply(_subsample_complex)
+
+        filtered.to_csv(output[0], index=False)
+
+
 checkpoint generate_summary_df:
     input:
-        dms_curated=ancient(dms_info_file),
+        dms_curated=rules.subset_dms_data.output[0],
         metadata_file=ancient(metadata_file),
     output:
         out_folder / "{publication}.csv"
@@ -72,7 +90,6 @@ checkpoint generate_summary_df:
         # metadata_file=metadata_file,
     script: "scripts/generate_summary.py"
 
-
 rule get_initial_complex:
     """
     Download and mutate PDB as indicated in metadata file
@@ -81,41 +98,56 @@ rule get_initial_complex:
     TODO relaxation should be done in a separate thread
     """
     input:
-        metadata_file=ancient(metadata_file),
+        metadata_file=ancient(metadata_file)
     output:
-        out_folder / "prepared_clean_pdbs/{publication}/{antibody,[^/]+}_{antigen,[^/]+}.pdb"
+        out_folder / "prepared_pdbs" / "{publication}/{antibody,[^/]+}_{antigen,[^/]+}.pdb"
     params:
         project_root=project_root
     conda: "../../../envs/generation_environment.yml"
     threads: 1
     script: "scripts/get_complex.py"
 
-rule reduce2interface_hull:
+rule rename_chains:
     """
-    TODO exploit/modify this function to reduce protein size in another manner (for those proteins that are too large).
-    Specifically, reduce heavy and light chain to only contain the variable part (~110AAs each)
+    Just copies the manually prepared PDBs from prepared_pdbs and renames their chains. We don't clean them, because the mutations still need to be applied.
+
+    Note: we could have alternatively used the metdadata information in the rule `input_pdb_to_fasta`, to order the chains correctly.
     """
     input:
-        out_folder / "prepared_clean_pdbs/{publication}/{antibody}_{antigen}.pdb"
+        pdb=out_folder / "prepared_pdbs" / "{publication}" / "{complex}.pdb",  # TODO prepared_pdbs/ should go into data/ maybe. Or where do I have code to generate them?
+        metadata=ancient(metadata_file)
     output:
-        out_folder / "interface_hull_pdbs/{publication,[^/]+}/{antibody,[^/]+}_{antigen,[^/]+}.pdb"
-    params:
-        metadata_file=metadata_file,
-        interface_size=INTERFACE_SIZE,
-        interface_hull_size=INTERFACE_HULL_SIZE
-    conda: "../../../envs/generation_environment.yml"
-    resources:
-        mem_mb=50000
-    script: "scripts/reduce2interface_hull.py"
+        base_structure_folder / "{publication}" / "{complex}.pdb"
+    conda:
+        "ag_binding_diffusion3"
+    script:
+        "scripts/rename_chains.py"
 
+# rule reduce2interface_hull:
+#     """
+#     TODO exploit/modify this function to reduce protein size in another manner (for those proteins that are too large).
+#     Specifically, reduce heavy and light chain to only contain the variable part (~110AAs each). Note: There are scFvs! (if L chain is missing, all is fine.)
+#     """
+#     input:
+#         base_structure_folder / "{publication}/{antibody}_{antigen}.pdb"
+#     output:
+#         out_folder / "reduced_sized_pdbs/{publication,[^/]+}/{antibody,[^/]+}_{antigen,[^/]+}.pdb"
+#     params:
+#         metadata_file=metadata_file,
+#         interface_size=INTERFACE_SIZE,
+#         interface_hull_size=INTERFACE_HULL_SIZE
+#     conda: "../../../envs/generation_environment.yml"
+#     resources:
+#         mem_mb=50000
+#     script: "scripts/reduce2interface_hull.py"
 
 rule mutate_complex:
     """
     Generate a single mutation
     """
     input:
-        dms_curated=ancient(dms_info_file),
-        pdb=out_folder / "interface_hull_pdbs" / "{publication}/{antibody}_{antigen}.pdb",
+        dms_curated=rules.subset_dms_data.output[0],
+        pdb=base_structure_folder / "{publication}/{antibody}_{antigen}.pdb",
     output:
         mutated_pdb = out_folder / "mutated" / "{publication}" / "{antibody,[^/]+}_{antigen,[^/]+}" / "{mut}.pdb"
         #out_folder / "mutated/{publication}/{antibody}_{antigen}/{mutation_code}.pdb"

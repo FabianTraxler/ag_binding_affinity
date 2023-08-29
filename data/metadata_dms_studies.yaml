@@ -1,5 +1,4 @@
-# TODO some chains might(!) have uppercase-lowercase modifier issues
-phillips21_bindin:  # TODO we should add antibodies light-chains!! and need to fix naming
+phillips21_bindin:  # antibody is defined as scFv. For now, we leave it as such. We could however also split them again, to be coherent with all the other studies/complexes
   dms_target: fv
   fv_type: scfv
   doi: 10.7554/eLife.71393
@@ -14,10 +13,10 @@ phillips21_bindin:  # TODO we should add antibodies light-chains!! and need to f
         file: data/prepared_pdbs/phillips21/cr9114_newcal1999.pdb  # sorry the name is not in accordance with the other names
         chains:
           antigen:
-            - B
-            - C
+            A: B
+            B: C
           antibody:
-            - D
+            H: D
       # pdb:
       #   id: 5CJS
       #   chains:
@@ -33,7 +32,7 @@ phillips21_bindin:  # TODO we should add antibodies light-chains!! and need to f
             - B
           antibody:
             - H
-
+            - L
     - antigen:
         name: h1wiscon05
         full_name: A/Wisconsin/67/2005 (H3N2)
@@ -44,10 +43,10 @@ phillips21_bindin:  # TODO we should add antibodies light-chains!! and need to f
         file: data/prepared_pdbs/phillips21/cr9114_wiscons2005.pdb  # sorry the name is not in accordance with the other names
         chains:
           antigen:
-            - B
-            - C
+            A: B
+            B: C
           antibody:
-            - D
+            H: D
       # pdb: 4FQY
       #   comment: "resolution is bad, but it's an H3-influenza!! maybe combine with another structure?"
       template:
@@ -58,6 +57,7 @@ phillips21_bindin:  # TODO we should add antibodies light-chains!! and need to f
             - B
           antibody:
             - H
+            - L
     - antigen:
         name: h5ohio05
         full_name: B/Ohio/1/2005 (Victoria lineage)H5N1-InfB
@@ -68,10 +68,10 @@ phillips21_bindin:  # TODO we should add antibodies light-chains!! and need to f
         file: data/prepared_pdbs/phillips21/cr9114_ohio2005.pdb
         chains:
           antigen:
-            - B
-            - C
+            A: B
+            B: C
           antibody:
-            - D
+            H: D
       template:
         id: 4FQY  # 4FQI should be more suited, but the quality is worse
         chains:
@@ -80,6 +80,7 @@ phillips21_bindin:  # TODO we should add antibodies light-chains!! and need to f
             - B
           antibody:
             - H
+            - L
     - antigen:
         full_name: A/New Caledonia/20/1999 (H1N1)
         name: h1newcal99
@@ -90,10 +91,10 @@ phillips21_bindin:  # TODO we should add antibodies light-chains!! and need to f
         file: data/prepared_pdbs/phillips21/cr6261_newcal1999.pdb
         chains:
           antigen:
-            - B
-            - C
+            A: B
+            B: C
           antibody:
-            - D
+            H: D
       template:
       # pdb: 3GBN # 3GBN is what phillips21 used. alternatives: 5WKZ/6UYN/5C0S
         id: 3GBN
@@ -103,6 +104,7 @@ phillips21_bindin:  # TODO we should add antibodies light-chains!! and need to f
             - B
           antibody:
             - H
+            - L
     - antigen:
         full_name: A/Hong Kong/1073/1999 (H9N2)
         name: h9hk99
@@ -113,10 +115,10 @@ phillips21_bindin:  # TODO we should add antibodies light-chains!! and need to f
         file: data/prepared_pdbs/phillips21/cr6261_hongkong1999.pdb
         chains:
           antigen:
-            - B
-            - C
+            A: B
+            B: C
           antibody:
-            - D
+            H: D
       template:
       # pdb: 3GBN # 3GBN is what phillips21 used. alternatives: 5WKZ/6UYN/5C0S
         id: 3GBN
@@ -126,6 +128,7 @@ phillips21_bindin:  # TODO we should add antibodies light-chains!! and need to f
             - B
           antibody:
             - H
+            - L
       # pdb: 5WKZ/3GBN/6UYN/5C0S
   use_for: "absolute K_D"
   comment: "'real' binding affinity values (-logK_D). not full DMS, but many combinations. Used AlphaFold (with template) to model structures with mutations. be careful: FluB-binding K_Ds are often very low. minimum K_D=6.0; Can be used to directly train/predict K_D"
@@ -203,34 +206,34 @@ starr21_prosp_covid:
           antibody:
             L: L
             H: H
-    - antigen:
-        name: cov2rbd
-        full_name: SARS_COV2_RBD
-      antibody:
-        name: regn10933
-        full_name: REGN10933
-      pdb:
-        id: 6XDG
-        chains:
-          antigen:
-            A: E
-          antibody:
-            H: B
-            L: D
-    - antigen:
-        name: cov2rbd
-        full_name: SARS_COV2_RBD
-      antibody:
-        name: regn10987
-        full_name: REGN10987
-      pdb:
-        id: 6XDG
-        chains:
-          antigen:
-            A: E
-          antibody:
-            L: A
-            H: C
+    # - antigen:
+    #     name: cov2rbd
+    #     full_name: SARS_COV2_RBD
+    #   antibody:
+    #     name: regn10933
+    #     full_name: REGN10933
+    #   pdb:
+    #     id: 6XDG
+    #     chains:
+    #       antigen:
+    #         A: E
+    #       antibody:
+    #         H: B
+    #         L: D
+    # - antigen:
+    #     name: cov2rbd
+    #     full_name: SARS_COV2_RBD
+    #   antibody:
+    #     name: regn10987
+    #     full_name: REGN10987
+    #   pdb:
+    #     id: 6XDG
+    #     chains:
+    #       antigen:
+    #         A: E
+    #       antibody:
+    #         L: A
+    #         H: C
   comment: "negative selection; Just use 'E' for continuous relative comparison"
   use_for: "continuous relative"  # as noted, LY-CoV016 might be a bit sketchy. but should be good enough for 'conctinuous relative...
   source_code: https://github.com/jbloomlab/SARS-CoV-2-RBD_MAP_clinical_Abs
@@ -313,57 +316,57 @@ wu20_differ_ha_h3_h1:
             H: K
             L: L
       comment: "as always: match and mutate the pdb to match the input sequence"
-    - antigen:
-        name: h1wsn33
-        full_name: A/WSN/1933 (H1N1) 
-        uniprot: https://www.uniprot.org/uniprotkb/P03454/entry
-      antibody:
-        name: cr9114
-        full_name: CR9114
-      pdb:
-        id: 5CJS
-        mutations: TD10I;VD18I;YD63F;ID66V;YD70F;KD72N;SD73L;RD75K;MD76R;KD77M;QD78E;ID79N;ED80L;DD81N;ID83K;ED84V;ED85D;ID86D;ED87G;SD88F;KD89L;QD90D;CD93T;SD113L;ND145D;DD146N;KD153R;RD176V;SD177K;VD179E;PD180S;RD181M;SD183V;PD184Y;GD185Q;HD186I;HD187L;HD188A;HD189I;HD190Y;HD191S;VC19I;LC20F;TC25A;NC35D;GC36R;GC37H;GC38N;YC41L;VC42C;CC43K;SC44L;AC45K;KC46G;LC47I;RC48A;MC49P;VC50L
-        chains:
-          antigen:
-            A: D
-            B: C
-          antibody:
-            L: L
-            H: H
-    - antigen:
-        name: h3/perth09
-        full_name: A/Perth/16/2009 (H3N2)
-        uniprot: https://www.uniprot.org/uniprotkb/C6KNH7/entry
-      antibody:
-        full_name: FI6v3
-        name: fi6v3
-      pdb:
-        id: 3ZTJ
-        mutations: DC2K;LC25I;DC31N;KC50E;NC53D;NC54S;RC57Q;IC62K;DC63N;HC75Q;VC78G;EC82K;TC83K;FC94Y;IC121N;TC122N;GC124S;TC126N;GC135T;NC137S;KC140I;GC142R;PC143S;GC144K;SC145N;GC146S;KC156H;SC157L;GC158N;SC159F;TC160K;VC163A;DC172E;NC173Q;IC182V;SC186G;NC188D;QC189K;EC190D;TC192I;SC193F;VC196A;VC202I;RC207K;IC213V;IC214S;WC222R;GC225N;LC226I;SC227P;VC242I;VC244L;NC248T;MC260I;TC262S;DC275G;TC276K;IC278N;KC299R;KC307R;DE2K;LE25I;DE31N;KE50E;NE53D;NE54S;RE57Q;IE62K;DE63N;HE75Q;VE78G;EE82K;TE83K;FE94Y;IE121N;TE122N;GE124S;TE126N;GE135T;NE137S;KE140I;GE142R;PE143S;GE144K;SE145N;GE146S;KE156H;SE157L;GE158N;SE159F;TE160K;VE163A;DE172E;NE173Q;IE182V;SE186G;NE188D;QE189K;EE190D;TE192I;SE193F;VE196A;VE202I;RE207K;IE213V;IE214S;WE222R;GE225N;LE226I;SE227P;VE242I;VE244L;NE248T;ME260I;TE262S;DE275G;TE276K;IE278N;KE299R;KE307R;LF2I;IF18V;TF32R;VF55L;EF57G;RF123K;RF124K;EF132D;EF150G
-        chains:
-          antigen:
-            A: F
-            B: E # doesn't really touch
-            C: C # maybe touch
-          antibody:
-            H: K
-            L: L
-    - antigen:
-        name: h1wsn33
-        antigen: A/WSN/1933 (H1N1)
-        uniprot: https://www.uniprot.org/uniprotkb/P03454/entry
-      antibody:
-        full_name: FI6v3
-        name: fi6v3
-      pdb:
-        id: 3ZTJ
-        mutations: NF12G;EF15T;FF24Y;RF25H;SF29E;EF30Q;TF32S;QF34Y;LF38Q;AF43N;DF46N;QF47G;NF49T;GF50N;LF52V;RF54S;TF59M;EF61T;KF62Q;HF64T;QF65A;IF66V;EF67G;SF71N;EF72N;VF73L;GF75K;IF77M;QF78E;DF79N;EF81N;YF83K;EF85D;TF87G;KF88F;IF89L;LF91I;SF93T;AF101L;QF105E;HF106R;IF108L;LF110F;TF111H;SF113L;EF114N;MF115V;NF116K;KF117N;FF119Y;TF122V;RF123K;RF124S;RF127K;EF128N;EF131K;MF133I;KF139E;IF140F;AF147E;IF149M;IF152V;HF159Y;DF160P;VF161K;RF163S;DF164E;AF166S;LF167K;NF168L;FF171E
-        chains:
-          antigen:
-            A: F
-          antibody:
-            H: K
-            L: L
+    # - antigen:
+    #     name: h1wsn33
+    #     full_name: A/WSN/1933 (H1N1) 
+    #     uniprot: https://www.uniprot.org/uniprotkb/P03454/entry
+    #   antibody:
+    #     name: cr9114
+    #     full_name: CR9114
+    #   pdb:
+    #     id: 5CJS
+    #     mutations: TD10I;VD18I;YD63F;ID66V;YD70F;KD72N;SD73L;RD75K;MD76R;KD77M;QD78E;ID79N;ED80L;DD81N;ID83K;ED84V;ED85D;ID86D;ED87G;SD88F;KD89L;QD90D;CD93T;SD113L;ND145D;DD146N;KD153R;RD176V;SD177K;VD179E;PD180S;RD181M;SD183V;PD184Y;GD185Q;HD186I;HD187L;HD188A;HD189I;HD190Y;HD191S;VC19I;LC20F;TC25A;NC35D;GC36R;GC37H;GC38N;YC41L;VC42C;CC43K;SC44L;AC45K;KC46G;LC47I;RC48A;MC49P;VC50L
+    #     chains:
+    #       antigen:
+    #         A: D
+    #         B: C
+    #       antibody:
+    #         L: L
+    #         H: H
+    # - antigen:
+    #     name: h3/perth09
+    #     full_name: A/Perth/16/2009 (H3N2)
+    #     uniprot: https://www.uniprot.org/uniprotkb/C6KNH7/entry
+    #   antibody:
+    #     full_name: FI6v3
+    #     name: fi6v3
+    #   pdb:
+    #     id: 3ZTJ
+    #     mutations: DC2K;LC25I;DC31N;KC50E;NC53D;NC54S;RC57Q;IC62K;DC63N;HC75Q;VC78G;EC82K;TC83K;FC94Y;IC121N;TC122N;GC124S;TC126N;GC135T;NC137S;KC140I;GC142R;PC143S;GC144K;SC145N;GC146S;KC156H;SC157L;GC158N;SC159F;TC160K;VC163A;DC172E;NC173Q;IC182V;SC186G;NC188D;QC189K;EC190D;TC192I;SC193F;VC196A;VC202I;RC207K;IC213V;IC214S;WC222R;GC225N;LC226I;SC227P;VC242I;VC244L;NC248T;MC260I;TC262S;DC275G;TC276K;IC278N;KC299R;KC307R;DE2K;LE25I;DE31N;KE50E;NE53D;NE54S;RE57Q;IE62K;DE63N;HE75Q;VE78G;EE82K;TE83K;FE94Y;IE121N;TE122N;GE124S;TE126N;GE135T;NE137S;KE140I;GE142R;PE143S;GE144K;SE145N;GE146S;KE156H;SE157L;GE158N;SE159F;TE160K;VE163A;DE172E;NE173Q;IE182V;SE186G;NE188D;QE189K;EE190D;TE192I;SE193F;VE196A;VE202I;RE207K;IE213V;IE214S;WE222R;GE225N;LE226I;SE227P;VE242I;VE244L;NE248T;ME260I;TE262S;DE275G;TE276K;IE278N;KE299R;KE307R;LF2I;IF18V;TF32R;VF55L;EF57G;RF123K;RF124K;EF132D;EF150G
+    #     chains:
+    #       antigen:
+    #         A: F
+    #         B: E # doesn't really touch
+    #         C: C # maybe touch
+    #       antibody:
+    #         H: K
+    #         L: L
+    # - antigen:
+    #     name: h1wsn33
+    #     antigen: A/WSN/1933 (H1N1)
+    #     uniprot: https://www.uniprot.org/uniprotkb/P03454/entry
+    #   antibody:
+    #     full_name: FI6v3
+    #     name: fi6v3
+    #   pdb:
+    #     id: 3ZTJ
+    #     mutations: NF12G;EF15T;FF24Y;RF25H;SF29E;EF30Q;TF32S;QF34Y;LF38Q;AF43N;DF46N;QF47G;NF49T;GF50N;LF52V;RF54S;TF59M;EF61T;KF62Q;HF64T;QF65A;IF66V;EF67G;SF71N;EF72N;VF73L;GF75K;IF77M;QF78E;DF79N;EF81N;YF83K;EF85D;TF87G;KF88F;IF89L;LF91I;SF93T;AF101L;QF105E;HF106R;IF108L;LF110F;TF111H;SF113L;EF114N;MF115V;NF116K;KF117N;FF119Y;TF122V;RF123K;RF124S;RF127K;EF128N;EF131K;MF133I;KF139E;IF140F;AF147E;IF149M;IF152V;HF159Y;DF160P;VF161K;RF163S;DF164E;AF166S;LF167K;NF168L;FF171E
+    #     chains:
+    #       antigen:
+    #         A: F
+    #       antibody:
+    #         H: K
+    #         L: L
   comment: "not full DMS, but many combinations. They have structures for 3 selected mutations (6NHP, 6NHQ, 6NHR), but without antibody..; heavily disbalanced dataset!... T111 mutation is probably not in the binding site...; there is a kd_table available. later: create mapping for F_ABs and IgGs and train on both in a relative manner"
   use_for: "discrete relative"
   source_code:
@@ -379,31 +382,32 @@ wu20_differ_ha_h3_h1:
     - PRJNA493101
     - PRJNA510700
 
-mason21_optim_therap_antib_by_predic:
-  dms_target: fv
-  fv_type: fv
-  doi: 10.1038/s41551-021-00699-9
-  complexes:
-    - antigen:
-        name: her2
-        full_name: ERBB2
-        uniprot: https://www.uniprot.org/uniprotkb/P04626/entry
-      antibody:
-        full_name: Trastuzumab
-        name: trastuzumab
-      pdb:
-        id: 6OGE  # alternatives: /6BGT/7MN8
-        chains:
-          antibody:
-            L: D
-            H: E
-          antigen:
-            A: A
-  comment: "screen on binding affinity and activation potential. They have a decent number of KD experiments included"
-  source_code: https://github.com/dahjan/DMS_opt
-  data: https://github.com/dahjan/DMS_opt,email,org
-  use_for: "discrete relative"
-  raw_data: can ask derek mason
+
+# mason21_optim_therap_antib_by_predic:
+#   dms_target: fv
+#   fv_type: fv
+#   doi: 10.1038/s41551-021-00699-9
+#   complexes:
+#     - antigen:
+#         name: her2
+#         full_name: ERBB2
+#         uniprot: https://www.uniprot.org/uniprotkb/P04626/entry
+#       antibody:
+#         full_name: Trastuzumab
+#         name: trastuzumab
+#       pdb:
+#         id: 6OGE  # alternatives: /6BGT/7MN8
+#         chains:
+#           antibody:
+#             L: D
+#             H: E
+#           antigen:
+#             A: A
+#   comment: "screen on binding affinity and activation potential. They have a decent number of KD experiments included"
+#   source_code: https://github.com/dahjan/DMS_opt
+#   data: https://github.com/dahjan/DMS_opt,email,org
+#   use_for: "discrete relative"
+#   raw_data: can ask derek mason
 
 
 taft22_deep_mutat_learn_predic_ace2:
@@ -485,20 +489,20 @@ taft22_deep_mutat_learn_predic_ace2:
           antibody:
             L: A
             H: C
-    - antigen:
-        name: cov2rbd
-        full_name: SARS_COV2_RBD
-      antibody:
-        name: regn10933
-        full_name: REGN10933
-      pdb:
-        id: 6XDG
-        chains:
-          antigen:
-            A: E
-          antibody:
-            H: B
-            L: D
+    # - antigen:
+    #     name: cov2rbd
+    #     full_name: SARS_COV2_RBD
+    #   antibody:
+    #     name: regn10933
+    #     full_name: REGN10933
+    #   pdb:
+    #     id: 6XDG
+    #     chains:
+    #       antigen:
+    #         A: E
+    #       antibody:
+    #         H: B
+    #         L: D
     - antigen:
         name: cov2rbd
         full_name: SARS_COV2_RBD
@@ -506,11 +510,11 @@ taft22_deep_mutat_learn_predic_ace2:
         name: ly555
         full_name: LY-CoV555
       pdb:
-        id: 7KMG  # TODO: maybe *add* 7L3N as alternative. They are quite different and it's hard to tell which one is more realistic
+        id: 7KMG  # alternative: 7L3N (looks similar in the binding interface)
         chains:
           antigen:
             A: C
-            B: F
+            B: F  # TODO although this binds in the crystal, I don't think this is too relevant in solution. TODO: delete here and in dms_infos.csv ([[id:f1e36ab1-11c4-420d-9d0c-83f1e37f9311][Obtaining antibody binding data (E-values and structures)]], check out df['chain'] in the taft22-section. execute all to see)
           antibody:
             H: A
             L: B
@@ -554,7 +558,7 @@ taft22_deep_mutat_learn_predic_ace2:
           antigen:
             A: R
           antibody:
-            H: A  # TODO make sure the direction/order is correct
+            H: A  # Order is correct like this (following "auth" chains is the correct one)
             L: B
 
 b.20_funct_screen_strat_engin_chimer:

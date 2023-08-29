@@ -7,7 +7,8 @@ with open(snakemake.input.metadata, "r") as f:
 # extract the chains
 antibody, antigen = snakemake.wildcards.complex.split("_") # TODO correct?
 
-for complex in metadata[snakemake.wildcards.study]["complexes"]:
+# pinpoint the complex in the metadata
+for complex in metadata[snakemake.wildcards.publication]["complexes"]:
     if complex["antigen"]["name"] == antigen and complex["antibody"]["name"] == antibody:
         break
 else:

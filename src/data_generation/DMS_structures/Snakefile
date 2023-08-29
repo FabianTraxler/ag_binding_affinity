@@ -1,73 +1,49 @@
 import glob
+import yaml
 from pathlib import Path
+import itertools
 
+# Now
+# TODO Convert the AF2 resulting PDBs in terms of residue_indices and chain IDs to resemble the input_pdbs
+
+# Future
 # TODO make this a submodule of the other DMS pipeline
-# TODO We should relax. Sidechain packing is too weak
-# TODO for now, we rely on manually generated files. ultimately, we want them to be generated with AF2. In the ideal scenario, they should be pulled automatically, using my metadata file
 # TODO What to do with dms_curated.csv? Generated here: /home/moritz/wiki/roam/20220805103344-obtaining_antibody_binding_data.org
 
-
 project_root = Path(workflow.basedir).parents[2] # two directories above - absolute paths not working
+log_dir = project_root / "logs"
 results_dir = project_root / "results"
 dms_results = results_dir / "DMS"
 
-metadata_file = project_root / "data" / "metadata_dms_studies.yaml"
-
+METADATA_FILE = project_root / "data" / "metadata_dms_studies.yaml"
+METADATA = yaml.safe_load(METADATA_FILE.read_text())
+PUBLICATION_COMPLEXES = [(publication, complex['antibody']['name'] + '_' + complex['antigen']['name']) for publication, publication_data in METADATA.items() for complex in publication_data['complexes']]
 
 rule all:
     input:
         # all
         # [d.replace('input_pdb', 'output_pdb').replace('.pdb', f'_{i}.pdb') for d in glob.glob('input_pdb/*/*.pdb') for i in range(1, 6)]
         # scores
-        dms_results / "scores" / "all.csv"
+        dms_results / "structure_prediction_matching" / "all_scores.csv",
+        dms_results / "structure_prediction_matching" / 'all_scores.png',
         # scores/{publication}/{complex}_{rank}.score
 
         # [d.replace('input_pdb', 'output_pdb') for d in glob.glob('input_pdb/*/*.pdb')]
         # [d.replace('input_pdb', 'input_fasta').replace('.pdb', '.fasta') for d in glob.glob('input_pdb/*/*.pdb')]
 
-rule import_manual_complexes:
-    """
-    Call this to import structures
-
-    Just copies the manually prepared PDBs from prepared_pdbs and renames their chains. We don't clean them, because the mutations still need to be applied.
-    """
-    input:
-        pdb="/msc/home/ftraxl96/projects/ag_binding_affinity/results/DMS/prepared_pdbs/{study}/{complex}.pdb",
-        metadata=ancient(metadata_file)
-    output:
-        dms_results / "prepared_clean_pdbs" / "{study}" / "{complex}.pdb"
-    conda:
-        "ag_binding_diffusion3"
-    script:
-        "scripts/import_manual_complexes.py"
-
-
-rule import_mutations:  # call this manually using snakemake to import mutations into PDB
-    output:
-        wu17_5umn='input_pdb/wu17_in/c05_h3perth09:5UMN_VPGSGW_clean.pdb',
-        madan21_6wwc='input_pdb/madan21_mutat_hiv/vfp1602_fp8v1:6WWC_S48K_clean.pdb',
-        madan21_6wx2='input_pdb/madan21_mutat_hiv/vfp1602_fp8v1:6WX2_F60P_clean.pdb',
-        # wu20_6np='input_pdb/wu20_differ_ha_h3_h1/cr9114_h3hk68/'
-    shell: '''
-        pdb_fetch 5UMN | pdb_tidy | pdb_selchain -A,E,F | pdb_fixinsert | pdb_delhetatm | pdb_seg | pdb_chainbows > {output.wu17_5umn}
-        pdb_fetch 6WWC | pdb_tidy | pdb_selchain -A,B,C | pdb_fixinsert | pdb_delhetatm | pdb_seg | pdb_chainbows > {output.madan21_6wwc}
-        pdb_fetch 6WX2 | pdb_tidy | pdb_selchain -A,B,C | pdb_fixinsert | pdb_delhetatm | pdb_seg | pdb_chainbows > {output.madan21_6wx2}
-    '''
-    # pdb_fetch 6NHP | pdb_tidy | pdb_selchain -TODO | pdb_fixinsert | pdb_delhetatm | pdb_seg | pdb_chainbows > {output.wu20_6nhp}
-    # pdb_fetch 6NHQ | pdb_tidy | pdb_selchain -TODO | pdb_fixinsert | pdb_delhetatm | pdb_seg | pdb_chainbows > {output.wu20_6nhq}
-    # pdb_fetch 6NHR | pdb_tidy | pdb_selchain -TODO | pdb_fixinsert | pdb_delhetatm | pdb_seg | pdb_chainbows > {output.wu20_6nhr}
-
-
+# TODO make sure that the chain order is correct (L(H)A(BCDE)) such that we can assign the chains later again
+# TODO make sure that the residue_index is retained!
+# TODO final output: prepared_af2_pdbs
 rule input_pdb_to_fasta:
     input:
-        'input_pdb/{publication}/{complex}.pdb'
+        dms_results / "prepared_renamed_pdbs" / "{publication}" / "{complex}.pdb"
     output:
-        'input_fasta/{publication}/{complex}.fasta'
+        fasta=dms_results / "prepared_fasta" / "{publication}" / "{complex}.fasta"
     run:
         from Bio import SeqIO
 
-        with open(input[0], 'r') as pdb_file, open(output[0], 'w') as fasta_file:
-            fasta_file.write(f'>{wildcards.publication}_{wildcards.complex}\n')
+        with open(input[0], 'r') as pdb_file, open(output["fasta"], 'w') as fasta_file:
+            fasta_file.write(f'>{wildcards.publication}__{wildcards.complex}\n')
             for i, record in enumerate(SeqIO.parse(pdb_file, 'pdb-atom')):
                 if i > 0:
                     fasta_file.write(':')
@@ -75,115 +51,50 @@ rule input_pdb_to_fasta:
 
 rule get_template:
     """
-    if complex contains :, trim it (to allow for mutations)
+    if complex contains :, trim it (to allow for mutations) TODO improve this comment
+
     """
     input:
-        'metadata_dms_studies.yaml'
+        ancient(METADATA_FILE)
     output:
-        directory('templates/{publication}/{complex}/')
-    run:
-        import yaml, subprocess, random
-        with open(input[0]) as f:
-            if wildcards.publication.startswith('mason21_'):
-                publication = yaml.safe_load(f.read())['mason21_optim_therap_antib_by_predic']
-            else:
-                publication = yaml.safe_load(f.read())[wildcards.publication]
-        target_complex = wildcards.complex.split(':')[0]
-        for complex in publication['complexes']:
-            if complex['antibody']['name'] == target_complex.split('_')[0] and complex['antigen']['name'] == target_complex.split('_')[1]:
-                break
-        else:
-            raise ValueError(f'{target_complex.split("_")} does not exist in metadata for publication {wildcards.publication}')
+        template_dir=directory(dms_results / "structure_templates" / "{publication}" / "{complex}")
+    conda:
+        "ag_binding_diffusion3"
+    script:
+        "scripts/get_template.py"
 
-        key = 'template' if 'template' in complex else 'pdb'
+# complex contains publication name. why?
 
-        pdb_id = complex[key]['id'].lower()
-        chains = ','.join(complex[key]['chains']['antigen'] + complex[key]['chains']['antibody'])
-        # TODO use pdb_fetch {pdb_id} --output {pdb_id}.unprep --add-atoms=none --replace-nonstandard <- if they become an issue
-        tmp_id = random.randint(0, 1e12)
-
-        subprocess.run(f'''mkdir {output[0]} && pdb_fetch {pdb_id} > {tmp_id}.pdb 2> {tmp_id}.error''', shell=True)
-        # for 6cdi, because it's too large, manually download https://files.rcsb.org/pub/pdb/compatible/pdb_bundle/cd/6cdi/6cdi-pdb-bundle.tar.gz, unzip and keep bundle1. Then manually run sort, tidy etc
-        if subprocess.run(f'grep Error {tmp_id}.error', shell=True).returncode == 0:
-            subprocess.run(f'wget https://files.rcsb.org/pub/pdb/compatible/pdb_bundle/cd/{pdb_id}/{pdb_id}-pdb-bundle.tar.gz && tar xzf {pdb_id}-pdb-bundle.tar.gz && mv {pdb_id}-pdb-bundle1.pdb {tmp_id}.pdb', shell=True)
-
-        subprocess.run(f'''pdb_sort {tmp_id}.pdb | \
-            pdb_tidy | \
-            pdb_selchain -{chains} | \
-            pdb_fixinsert | \
-            pdb_delhetatm | \
-            pdb_seg | \
-            pdb_chainbows > {output[0]}/{pdb_id}.pdb''', shell=True)
-        os.remove(f'{tmp_id}.pdb')
-        os.remove(f'{tmp_id}.error')
-
-
+# TODO fix it in the end to retain the correct chains and residue_indices
+AF_OUTPUT_PATH = dms_results / "af_prediction" / "{{publication}}" / "{{complex}}_{rank}.pdb"
 rule predict_structures:
     input:
-        fasta='input_fasta/{publication}/{complex}.fasta',
-        template_dir='templates/{publication}/{complex}/'
+        fasta=rules.input_pdb_to_fasta.output.fasta,
+        template_dir=rules.get_template.output.template_dir
     output:
-        expand('output_pdb/{{publication}}/{{complex}}_{rank}.pdb', rank=list(range(1, 6)))
-    threads: 10  # make use of 1 structure only
+        af_output=expand(AF_OUTPUT_PATH, rank=list(range(1, 6))),
+    params:
+        output_folder=lambda wildcards, input, output: Path(output["af_output"][0]).parent,
+    log:
+        log_dir / "af_prediction" / "{publication}" / "{complex}.log"
+    threads: 10  # make sure that structure prediction does not go in parallel due to memory consumption
+    resources:
+        mem_mb=40000,
+        slurm="cpus-per-task=5 gres=gpu:a100:1 qos=a100 partition=gpu"
+    conda:
+        "colabfold_multimer_patch"  # See readme on how this needs to be generated
     shell:
         '''
-        # --overwrite-existing-results <- insert later
-        colabfold_batch --msa-mode single_sequence --rank multimer --templates --custom-template-path {input.template_dir} {input.fasta} output_pdb/{wildcards.publication}/{wildcards.complex}/
-        cd output_pdb/{wildcards.publication}
-        for rank in `seq 1 5`; do
-            ln -s -f {wildcards.complex}/*_unrelaxed_rank_${{rank}}_model_?.pdb {wildcards.complex}_${{rank}}.pdb
+        # Delete old AF2 results
+        rm {params.output_folder}/{wildcards.publication}__{wildcards.complex}_unrelaxed_rank_00?_alphafold2_multimer_v3_model_?_seed_000.pdb 2>/dev/null || true
+
+        colabfold_batch --overwrite-existing-results --msa-mode single_sequence --rank multimer --templates --custom-template-path {input.template_dir} {input.fasta} {params.output_folder} 2>&1 | tee {log}
+        cd {params.output_folder}
+        # The file name is determined by the FASTA header and other factors
+        for rank in `seq 1 5`; do  # We need this loop because the output files names or "stochastic"
+            ln -s {wildcards.publication}__{wildcards.complex}_unrelaxed_rank_00${{rank}}_alphafold2_multimer_v3_model_?_seed_000.pdb {wildcards.complex}_${{rank}}.pdb
         done
         '''
 
-rule match_scores:
-    input:
-        input='input_pdb/{publication}/{complex}.pdb',
-        output='output_pdb/{publication}/{complex}_{rank}.pdb'
-    output:
-        output='scores/{publication}/{complex}_{rank}.score'
-    run:
-        from Bio.PDB.PDBParser import PDBParser
-        from Bio.PDB.Superimposer import Superimposer
-
-        # Parse the PDB files
-        parser = PDBParser(PERMISSIVE=1)
-        structure1 = parser.get_structure("input", input.input)
-        structure2 = parser.get_structure("output", input.output)
-
-        # Align the structures using the alpha-carbon atoms
-        model1 = structure1[0]
-        model2 = structure2[0]
-        atoms1 = [atom for atom in model1.get_atoms() if atom.name == "CA"]
-        atoms2 = [atom for atom in model2.get_atoms() if atom.name == "CA"]
-
-        # Calculate the RMSD
-        superimposer = Superimposer()
-        superimposer.set_atoms(atoms1, atoms2)
-        superimposer.apply(model2)
-
-        with open(output[0], 'w') as f:
-            f.write(str(superimposer.rms))
-
-rule combine_scores:
-    input:
-        scores=[d.replace('input_pdb', 'scores').replace('.pdb', f'_{i}.score') for d in glob.glob('input_pdb/*/*.pdb') for i in range(1, 6)],
-        models=[d.replace('input_pdb', 'output_pdb').replace('.pdb', f'_{i}.pdb') for d in glob.glob('input_pdb/*/*.pdb') for i in range(1, 6)]
-    output:
-        'scores/all.csv'
-    run:
-        from pathlib import Path
-        import pandas as pd
-        df = []
-        for score_f, model_f in zip(input.scores, input.models):
-            # Get the underlying model
-            path = Path(score_f)
-            df.append(dict(
-                publication=path.parent.name,
-                complex=path.stem.rsplit('_', maxsplit=1)[0],
-                model_i=int(subprocess.run(f'realpath {model_f} | grep -o model_.', shell=True, capture_output=True).stdout.strip().decode('utf-8')[-1]),
-                rank=path.stem.rsplit('_', maxsplit=1)[1],
-                score=float(path.read_text())
-            ))
-        df = pd.DataFrame(df)
-        df.to_csv(output[0])
-
+include: "rules/validation.smk"
+include: "rules/scores.smk"

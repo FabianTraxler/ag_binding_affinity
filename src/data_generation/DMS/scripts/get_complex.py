@@ -62,7 +62,7 @@ def load_large_file(pdb_id: str, download_fodler: str):
 
 def clean_tidy_pdb(pdb_file: str, out_file: str):
     """
-    Apparently, the dms_curated.csv mutations are defined on insert-fixed residue uindices
+    Apparently, the dms_curated.csv mutations are defined on insert-fixed residue indices
 
     TODO could/should use the function in pdb_processing.py
     Clean temporary PDB file and then save its cleaned version as the original PDB file
@@ -186,7 +186,6 @@ if "mason21" in publication:
 
 with open(snakemake.input["metadata_file"], "r") as f:
     metadata = yaml.safe_load(f)
-
 project_root = snakemake.params["project_root"]
 
 # load pose and get mutations

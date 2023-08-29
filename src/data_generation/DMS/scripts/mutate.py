@@ -55,7 +55,7 @@ def convert_mutations(mutation_code: str):
     if len(mutation_code) == 0 or mutation_code == "original" or mutation_code == "WT":
         return []
 
-    mutation_codes = mutation_code.split(";")
+    mutation_codes = mutation_code.split("_")
 
     decoded_mutations = []
     for code in mutation_codes:
