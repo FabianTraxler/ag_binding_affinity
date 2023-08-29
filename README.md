@@ -45,7 +45,23 @@ This is the main training script, although actual training code is mostly provid
 - `antibody_benchmark`: Benchmark subset collected by (Guest et al. 2021). This is a subset of `abag_affinity_dataset`. Previously this was downloaded from the original publication. For simplicity I am now copying it from `abag_ffinity_dataset`.
 - [PDBBind](http://www.pdbbind.org.cn/): Protein-protein complexes with measured binding affinities
 - [SKEMPI_v2](https://life.bsc.es/pid/skempi2): Dataset containing measurements about change in affinity upon mutations.
-- DMS: A collection of ~20 deep mutational scanning (DMS) high-throughput datasets from various publications
+- DMS: A collection of ~20 deep mutational scanning (DMS) high-throughput datasets from various publications. See subsection below.
+
+## DMS
+
+Although the pipelines to generate these data should be deterministic/reproducible, for now I recommend you to rely on the data that I already generated, instead of running the DMS snakemake pipelines yourself.
+
+Please download this folder from my cluster for initial coding/tests. It contains 200 data points per complex: `muwhpc:/msc/home/mschae83/tmp/2023-08-29_DMS200_fixinsert/`
+
+Note 1: These complexes are *not* relaxed. Stay tuned for more complete datasets.
+Note 2: Some datapoints failed, such that the CSV files contain more  (needs to be investigated. Please workaround missing PDB files in a quick/hacky way. Long-term I'll try to provide ).
+Note 3: There is very little you need to program from here to get DMS-training running. Just make sure that the downloaded DMS data folder corresponds to DATASETS.DMS.folder_path
+
+## Downloading other data from my server
+
+You can download `abag_affinity_dataset`, `antibody_benchmark` and `SKEMPI_v2` from my server (muwhpc:/msc/home/mschae83/ag_binding_affinity/results) and you should be all set.
+
+For obtaining DMS-related datasets, refer to the previous subsection.
 
 # Usage
 
@@ -54,11 +70,22 @@ with different datasets and training modalities.
 
 Call `python main.py --help` to show available options.
 
-Example:
+## Examples
 
 `python -m abag_affinity.main`
 
 `python src/abag_affinity/main.py -t bucket_train -m GraphConv -d BoundComplexGraphs -b 5`
+
+From wandb: (note that most of these parameters correspond to the default values!!)
+
+
+/src/abag_affinity/main.py --target_dataset=abag_affinity:absolute --patience=30 --node_type=residue --batch_size=1 --layer_type=GCN --max_epochs=200 --nonlinearity=leaky --loss_function=L1 --num_fc_layers=10 --num_gnn_layers=5 --validation_set=1 --train_strategy=model_train --channel_halving --no-fc_size_halving --max_edge_distance=3 --aggregation_method=mean -wdb --wandb_name gnn_relaxation_validation_relaxed_both --interface_hull_size none --wandb_mode=online --debug --relaxed_pdbs both
+
+src/abag_affinity/main.py --target_dataset=abag_affinity:absolute --patience=30 --node_type=residue --batch_size=1 --layer_type=GCN --gnn_type=identity --pretrained_model IPA --max_epochs=200 --nonlinearity=leaky --loss_function=L1 --num_fc_layers=10 --num_gnn_layers=5 --validation_set=1 --train_strategy=model_train --channel_halving --no-fc_size_halving --max_edge_distance=3 --aggregation_method=mean -wdb --wandb_name ipa_relaxation_validation_relaxed_both --interface_hull_size none --wandb_mode=online --debug --relaxed_pdbs both
+
+src/abag_affinity/main.py --bucket_size_mode geometric_mean -t bucket_train --target_dataset abag_affinity:absolute --transfer_learning_dataset DMS-madan21_mutat_hiv:absolute --transfer_learning_dataset DMS-madan21_mutat_hiv:relative --transfer_learning_dataset DMS-madan21_mutat_hiv:relative --batch_size 10 --learning_rate 0.000005 --num_workers 7 --wandb_mode online --wandb_name madan21_ipa_emb_abagtarget_lr5e-6 --max_epochs 200 -wdb --debug --pretrained_model IPA --gnn_type identity
+
+src/abag_affinity/main.py --bucket_size_mode geometric_mean -t bucket_train --target_dataset DMS-madan21_mutat_hiv:absolute --transfer_learning_dataset DMS-madan21_mutat_hiv:relative --transfer_learning_dataset DMS-madan21_mutat_hiv:relative --batch_size 10 --learning_rate 0.000001 --num_workers 7 --wandb_mode online --wandb_name madan21_noemb_new_folder_-6 --seed 7 --no-embeddings_path --max_epochs 200 -wdb --debug
 
 ## CLI arguments
 
@@ -75,6 +102,30 @@ There is a config.yaml that provides metadata for all the datasets as well as ou
 When you are logged in with W&B, everything should work fine.
 
 If this is the first time, you are using W&B, configure your W&B account and create a project called `abag_binding_affinity`. Then add the `-wdb True` argument to the script to log in to your W&B account.
+
+# Validations
+## `abag_affinity_dataset` split
+
+This dataset is "split" in 5 parts. Part 0 (I think) is the benchmark dataset. There is a split function, which explains this in its comments.
+
+## Sweeps
+Fabian implemented sweeps in his main.py. They can be controlled via CLI args (see his arguparse_tils.py)
+## Validation functions
+
+Find validation functions at the bottom of src/abag_affinity/train/utils.py (e.g. get_benchmark_score, ...). They are being called in main.py after training runs.
+
+I used SKEMPI exclusively for testing in my recent runs (but did not pay much attention to its performance)
+
+## Cross-validation
+Fabian implemented a cross-validation method in training_strategies. Once we observe stable training on DMS data from different study, we can use this function to do our planned cross-validation.
+
+## Notebooks
+
+You might want to check out the notebooks that got modified within the last 2 months (in guided-protein-diffusion). Some validation code+plotting is there as well
+
+## Debugging
+
+You can debugging (via DAP (e.g. implemented in VSCode)) remotely! using the --debug switch
 
 # OLD Installation instructions
 
