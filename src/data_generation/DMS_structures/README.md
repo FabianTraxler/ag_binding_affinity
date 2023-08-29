@@ -1,3 +1,5 @@
+NOTE: This pipeline generates the starting structures using AF2 for generating all the variant structures for DMS experiments. Its use is optional. This pipeline should be integrated into the `DMS` pipeline. See also the Preface
+
 # Preface
 
 Initial complex structure PDB drafts were created manually and assisted by AF2. See also
