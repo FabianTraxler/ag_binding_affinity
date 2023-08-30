@@ -119,8 +119,8 @@ class AffinityDataset(Dataset):
 
         # No need to include IPA in model path because the graph should have the same features regardless
         self.is_relaxed = is_relaxed
-        self.graph_dir = os.path.join(self.config["processed_graph_path"], self.full_dataset_name, node_type, pretrained_model if pretrained_model in ["DeepRefine", "Binding_DDG"] else "", f"embeddings_{load_embeddings}_relaxed_{{is_relaxed}}")
-        self.processed_graph_files = os.path.join(self.graph_dir, "{filestem}.npz")
+        self.graph_dir = os.path.join(self.config["processed_graph_path"], self.full_dataset_name, node_type, pretrained_model if pretrained_model in ["DeepRefine", "Binding_DDG"] else "", f"embeddings_{load_embeddings}_relaxed_{{is_relaxed}}")  # is_relaxed is being evaluated later (using format)
+        self.processed_graph_files = os.path.join(self.graph_dir, "{filestem}.npz")  # filestem is being evaluated later (using format)
         # create path for clean pdbs
         self.interface_dir = os.path.join(self.config["interface_pdbs"], ("relaxed" if self.is_relaxed else ""), self.full_dataset_name)
         logger.debug(f"Saving cleaned pdbs in {self.interface_dir}")
