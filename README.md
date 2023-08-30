@@ -21,10 +21,10 @@ To run training on a SLURM cluster, refer to the `scripts/cluster_affinity** scr
 
 This repository contains 4 main folders
 
-- data: Datasets that are hard to reproduce
-- results: Results from our data-generation/preprocessing as well as from our trainings. Should be reproducible!
-- resources: Data downloaded from external sources. Reproducible.
-- src: The source code
+- `data`: Datasets that are hard to reproduce
+- `results`: Results from our data-generation/preprocessing as well as from our trainings. Should be reproducible!
+- `resources`: Data downloaded from external sources. Reproducible.
+- `src`: The source code
 
 ## src/data_generation
 
@@ -40,6 +40,10 @@ This is the python package where all training/inference source code resides.
 
 This is the main training script, although actual training code is mostly provided in src/abag_affinity/train/utils.py
 
+### src/abag_affinity/train/training_strategies.py
+
+There are multiple training_strategies implemented in this file. `bucket_train` is what is most interesting at the moment. It just combines the selected datasets (from CLI arguments) and trains on this combined dataset in each epoch.
+
 # Datasets
 - `abag_affinity_dataset`: A combination of [AbDb](http://www.abybank.org/abdb/) non-redundant structures and binding affinity values (Kd) from [SAbDab](http://opig.stats.ox.ac.uk/webapps/newsabdab/sabdab/).
 - `antibody_benchmark`: Benchmark subset collected by (Guest et al. 2021). This is a subset of `abag_affinity_dataset`. Previously this was downloaded from the original publication. For simplicity I am now copying it from `abag_ffinity_dataset`.
@@ -47,21 +51,28 @@ This is the main training script, although actual training code is mostly provid
 - [SKEMPI_v2](https://life.bsc.es/pid/skempi2): Dataset containing measurements about change in affinity upon mutations.
 - DMS: A collection of ~20 deep mutational scanning (DMS) high-throughput datasets from various publications. See subsection below.
 
-## DMS
+## Downloading preprocessed datasets from my server
 
-Although the pipelines to generate these data should be deterministic/reproducible, for now I recommend you to rely on the data that I already generated, instead of running the DMS snakemake pipelines yourself.
+Although the pipelines to generate these data should be deterministic/reproducible, for now I recommend you to rely on the data that I already generated, instead of running the pipelines yourself.
 
+You can download `abag_affinity_dataset`, `antibody_benchmark` and `SKEMPI_v2` from my server (muwhpc:/msc/home/mschae83/ag_binding_affinity/results) and you should be all set.
+
+For obtaining DMS-related datasets, refer to the DMS-subsection below!
+
+### DMS
 Please download this folder from my cluster for initial coding/tests. It contains 200 data points per complex: `muwhpc:/msc/home/mschae83/tmp/2023-08-29_DMS200_fixinsert/`
 
 Note 1: These complexes are *not* relaxed. Stay tuned for more complete datasets.
 Note 2: Some datapoints failed, such that the CSV files contain more  (needs to be investigated. Please workaround missing PDB files in a quick/hacky way. Long-term I'll try to provide ).
 Note 3: There is very little you need to program from here to get DMS-training running. Just make sure that the downloaded DMS data folder corresponds to DATASETS.DMS.folder_path
 
-## Downloading other data from my server
+## Relaxation
 
-You can download `abag_affinity_dataset`, `antibody_benchmark` and `SKEMPI_v2` from my server (muwhpc:/msc/home/mschae83/ag_binding_affinity/results) and you should be all set.
+TODO mutated_pdb_path?
 
-For obtaining DMS-related datasets, refer to the previous subsection.
+All datasets have an associated "pdb_path" field (see config.yaml), which points to the folder containing the processed PDB files that go into the model training.
+
+By convention, this path is appended with a `_relaxed` suffix, when training with relaxed data. I.e. the data_generation pipelines, in accordance, place the relaxed versions of the processed PDBs into the respective `*_relaxed` folders.
 
 # Usage
 
