@@ -55,8 +55,8 @@ rule subset_dms_data:
     output:
         out_folder / "dms_subsampled.csv"
     params:
-        num_max_datapoints=200,  # 20000 takes. 200 is for testing. Let's use 5000 then (over the retreat)
-        seed=42  # TODO run snakemake -R subset_dms_data --touch
+        num_max_datapoints=5000,  # 20000 takes 16 words. 200 is for testing. Let's use 5000 then (over the retreat)
+        seed=42
     run:
         import pandas as pd
         import numpy as np

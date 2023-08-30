@@ -36,24 +36,24 @@ def get_complex_metadata(publication:str, antibody: str, antigen: str, metadata:
     raise RuntimeError(f"Complex not found in Metadata: {publication}, {antibody}, {antigen}")
 
 
-def load_large_file(pdb_id: str, download_fodler: str):
-    filename = PDBList().retrieve_pdb_file(pdb_id, pdir=download_fodler, file_format="bundle")
+def load_large_file(pdb_id: str, download_folder: str):
+    filename = PDBList().retrieve_pdb_file(pdb_id, pdir=download_folder, file_format="bundle")
     tar_file = tarfile.open(filename)
-    tar_file.extractall(path=f"./{download_fodler}/{pdb_id}")
+    tar_file.extractall(path=f"{download_folder}/{pdb_id}")
     tar_file.close()
     complete_file = ""
     i = 1
-    filename_part = f"./{download_fodler}/{pdb_id}/{pdb_id}-pdb-bundle{i}.pdb"
+    filename_part = f"{download_folder}/{pdb_id}/{pdb_id}-pdb-bundle{i}.pdb"
     while os.path.exists(filename_part):
         with open(filename_part) as f:
             complete_file += f.read()
 
         i += 1
-        filename_part = f"./{download_fodler}/{pdb_id}/{pdb_id}-pdb-bundle{i}.pdb"
+        filename_part = f"{download_folder}/{pdb_id}/{pdb_id}-pdb-bundle{i}.pdb"
 
-    shutil.rmtree(f"./{download_fodler}")
+    shutil.rmtree(f"{download_folder}")
 
-    filename = f"./{download_fodler}.pdb"
+    filename = tempfile.NamedTemporaryFile(suffix=".pdb", delete=False).name
     with open(filename, "w") as f:
         f.write(complete_file)
 
@@ -88,7 +88,7 @@ def get_pdb(publication:str, antibody: str, antigen: str, metadata: Dict, projec
         with tempfile.TemporaryDirectory() as tmpdirname:
             filename = PDBList().retrieve_pdb_file(complex_metadata["id"], file_format="pdb", pdir=tmpdirname)
             if not os.path.exists(filename): # download did not work in pdb Format
-                filename = load_large_file(complex_metadata["id"].lower(), f"{publication}:{antibody}:{antigen}")
+                filename = load_large_file(complex_metadata["id"].lower(), tmpdirname)  # f"{publication}:{antibody}:{antigen}")
             # remove irrelevant chains
             #filename = clean_tidy_pdb(filename, keep_chains)
             chain_renaming = {v: k for rename_dict in complex_metadata["chains"].values() for k,v in rename_dict.items()}
@@ -199,7 +199,7 @@ if mutation_code != "":
     mutate(pose, decoded_mutation)
 
 # Relax
-relax.apply(pose)
+# relax.apply(pose)  # TODO re-enable!
 
 pose.dump_pdb(out_path + ".tmp")
 clean_tidy_pdb(out_path + ".tmp", out_path)
