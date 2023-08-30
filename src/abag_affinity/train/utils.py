@@ -312,9 +312,8 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
                     #                 index=False)
                 best_model = deepcopy(model)
 
-            # TODO do for both vals
             logger.info(
-                f'Epochs: {i + 1} | Train-Loss: {total_train_loss / len(train_dataloader) : .3f}  | '
+                f'Epochs: {i + 1} | Train-Loss: {total_train_loss / len(train_dataloader) : .3f}  | '
                 f'Val{val_i}-Loss: {val_result["total_val_loss"] / len(val_dataloader) : .3f} | '
                 f'Val{val_i}-r: {val_result["pearson_correlation"]: .4f} | '
                 f'p-value{val_i} r=0: {val_result["pearson_correlation_p"]: .4f} | RMSE: {val_result["rmse"]} | '
@@ -338,7 +337,7 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
 
             wandb_log = {
                 f"val{val_i}_loss": val_result["total_val_loss"] / (len(val_dataset) / args.batch_size),
-                "train_loss": total_train_loss / (len(train_dataset) / args.batch_size),
+                "train_loss": total_train_loss / (len(train_dataset) / args.batch_size),
                 f"val{val_i}_pearson_correlation": val_result["pearson_correlation"],
                 f"{val_dataset.full_dataset_name}{val_i}:{data_type}_val_loss": val_result["total_val_loss"] / (
                         len(val_dataset) / args.batch_size),

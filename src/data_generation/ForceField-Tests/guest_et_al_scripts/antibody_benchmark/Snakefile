@@ -13,7 +13,7 @@ results_folder = join(project_root, "results")
 dataset_resource_folder = join(resource_folder, DATASET_NAME)
 dataset_results_folder = join(results_folder, DATASET_NAME)
 
-pdb_path = os.path.join(dataset_results_folder, "pdbs_bound")
+pdb_path = os.path.join(dataset_results_folder, "pdbs")
 benchmark_df = os.path.join(dataset_results_folder, "benchmark.csv")
 out_folder = join(results_folder, "force_field_tests", "guest_REF15", DATASET_NAME)
 

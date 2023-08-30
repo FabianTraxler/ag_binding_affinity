@@ -19,7 +19,7 @@ resource_folder = os.path.join(project_root, "resources")
 results_folder = os.path.join(project_root, "results")
 
 benchmark_dataset_file = join(results_folder, "antibody_benchmark", "benchmark.csv")
-benchmark_pdb_path = join(results_folder, "antibody_benchmark", "pdbs_bound")
+benchmark_pdb_path = join(results_folder, "antibody_benchmark", "pdbs")
 
 dataset_results_folder = os.path.join(results_folder, DATASET_NAME)
 

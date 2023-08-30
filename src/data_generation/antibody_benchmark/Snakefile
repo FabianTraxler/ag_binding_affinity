@@ -17,14 +17,13 @@ abdb_resource_pdb_folder = os.path.join(resource_folder, "AbDb", "pdbs")
 dataset_results_folder = os.path.join(results_folder, DATASET_NAME)
 
 pdb_relaxed_folder = os.path.join(dataset_results_folder, "pdbs_relaxed")
-pdb_bound_folder = os.path.join(dataset_results_folder, "pdbs_bound")
-pdb_folder = os.path.join(dataset_resource_folder, "pdbs")
+pdb_unrelaxed_folder = os.path.join(dataset_results_folder, "pdbs")
 
 def gater_pdb_ids(wildcards):
     metadata_fn = checkpoints.clean_metadata.get(**wildcards).output[0]
     df = pd.read_csv(metadata_fn)
     # pdb_id = glob_wildcards(f"{pdb_folder}/{{pdb_id}}_r_b.pdb").pdb_id
-    return expand("{pdb_folder}/{pdb_id}.pdb", pdb_folder=[pdb_bound_folder, pdb_relaxed_folder], pdb_id=df["pdb"].str.upper().tolist())
+    return expand("{pdb_folder}/{pdb_id}.pdb", pdb_folder=[pdb_unrelaxed_folder, pdb_relaxed_folder], pdb_id=df["pdb"].str.upper().tolist())
 
 
 rule all:
@@ -71,7 +70,7 @@ rule bind_structures:
         input_pdb=join(abdb_resource_pdb_folder, "{pdb_id}_1.pdb"),
         # csv=rules.clean_metadata.output.csv
     output:
-        join(pdb_bound_folder, "{pdb_id}.pdb")
+        join(pdb_unrelaxed_folder, "{pdb_id}.pdb")
     # resources:
     #     mem_mb=40000,
     #     slurm="cpus-per-task=5 gres=gpu:a100:1 qos=a100 partition=gpu"
@@ -101,7 +100,7 @@ rule bind_structures:
 
 rule relax_structures:
     input:
-        join(pdb_bound_folder, "{pdb_id}.pdb")
+        join(pdb_unrelaxed_folder, "{pdb_id}.pdb")
     output:
         join(pdb_relaxed_folder, "{pdb_id}.pdb")
     conda:

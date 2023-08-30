@@ -32,7 +32,7 @@ if "snakemake" not in globals(): # use fake snakemake object for debugging
         "abdb_pdb_folder": join(project_root, "resources", "AbDb", "pdbs"),
         "redundancy_file": join(resource_folder, "AbDb", "abdb_redundancy_info.txt"),
         "benchmark_dataset_file": join(project_root, "results", "antibody_benchmark", "benchmark.csv"),
-        "benchmark_pdb_path": join(project_root, "results", "antibody_benchmark", "pdbs_bound"),
+        "benchmark_pdb_path": join(project_root, "results", "antibody_benchmark", "pdbs"),
         "n_val_splits": 4,
         "test_size": 50,
         "redundancy_cutoff": 0.8

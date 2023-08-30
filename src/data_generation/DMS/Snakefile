@@ -15,7 +15,8 @@ INTERFACE_HULL_SIZE = None
 project_root = Path(workflow.basedir).parents[2] # two directories above - absolute paths not working
 out_folder = project_root / "results" / "DMS"
 base_structure_folder = out_folder / "prepared_renamed_pdbs"  # alternative: "predpared_af2_pdbs"
-RELAXED_PDB_FOLDER = out_folder / "mutated_fixinsert"  # mutated_relaxed  # TODO to save time for now..
+MUTATED_PDB_FOLDER = out_folder / "mutated"
+RELAXED_PDB_FOLDER = out_folder / "mutated_relaxed"
 
 metadata_file = project_root / "data" / "metadata_dms_studies.yaml"
 
@@ -32,7 +33,7 @@ def relaxed_generated_pdbs(wildcards):
         df_fn = checkpoints.generate_summary_df.get(publication=publication).output[0]
         df = pd.read_csv(df_fn, index_col=0)
         if len(df) > 0:  # workaround
-            all_files.extend([RELAXED_PDB_FOLDER / file_path for file_path in df["filename"]])
+            all_files.extend([MUTATED_PDB_FOLDER / file_path for file_path in df["filename"]])  # TODO generate relaxed later!
     return all_files
 
 
@@ -149,8 +150,7 @@ rule mutate_complex:
         dms_curated=rules.subset_dms_data.output[0],
         pdb=base_structure_folder / "{publication}/{antibody}_{antigen}.pdb",
     output:
-        mutated_pdb = out_folder / "mutated" / "{publication}" / "{antibody,[^/]+}_{antigen,[^/]+}" / "{mut}.pdb"
-        #out_folder / "mutated/{publication}/{antibody}_{antigen}/{mutation_code}.pdb"
+        mutated_pdb = out_folder / "mutated_unfixedinsert" / "{publication}" / "{antibody,[^/]+}_{antigen,[^/]+}" / "{mut}.pdb"
     conda: "../../../envs/generation_environment.yml"
     resources:
         mem_mb=50000
@@ -162,16 +162,16 @@ rule fixinsert:
     We did not yet apply fixinsert, to make the mutations work. Doing it now!
     """
     input:
-        out_folder  / "mutated" /"{publication}" / "{antibody}_{antigen}" / "{mut}.pdb"
+        out_folder / "mutated_unfixedinsert" /"{publication}" / "{antibody}_{antigen}" / "{mut}.pdb"
     output:
-        out_folder  / "mutated_fixinsert" / "{publication}" / "{antibody,[^/]+}_{antigen,[^/]+}" / "{mut}.pdb"
+        MUTATED_PDB_FOLDER / "{publication}" / "{antibody,[^/]+}_{antigen,[^/]+}" / "{mut}.pdb"
     conda: "../../../envs/generation_environment.yml"
     shell: # pdb_tidy is required again because the relaxation again changes some things
         "grep '^ATOM' {input} | pdb_sort | pdb_tidy | pdb_fixinsert > {output}"
 
 rule relax_mutated:
     input:
-        out_folder  / "mutated_fixinsert" /"{publication}" / "{antibody}_{antigen}" / "{mut}.pdb"
+        MUTATED_PDB_FOLDER /"{publication}" / "{antibody}_{antigen}" / "{mut}.pdb"
     output:
         pdb=RELAXED_PDB_FOLDER / "{publication}" / "{antibody}_{antigen}" / "{mut}.pdb",
         pdb_comments=RELAXED_PDB_FOLDER / "{publication}" / "{antibody}_{antigen}" / "{mut}.rosetta_comments"

@@ -22,15 +22,15 @@ DATASETS:
 
   AntibodyBenchmark:
     folder_path: "results/antibody_benchmark"
-    pdb_path: "pdbs_bound"  # TODO rename to "pdbs"
+    pdb_path: "pdbs"
     summary: "benchmark.csv"
     affinity_type: "-log(Kd)"
 
-  DMS:  # TODO relaxed path is not mutated_fixinsert_relaxed but mutated_relaxed -.-
+  DMS:
     folder_path: "results/DMS"
     summary: "" # summary for every subdataset
-    mutated_pdb_path: "mutated_fixinsert"
-    pdb_path: "mutated_fixinsert"
+    mutated_pdb_path: "mutated"
+    pdb_path: "mutated"
     affinity_types:
       phillips21_bindin: "-log(Kd)"
       starr21_prosp_covid: "E"
