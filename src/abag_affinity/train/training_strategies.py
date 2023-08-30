@@ -101,11 +101,10 @@ def pretrain_model(args:Namespace) -> Tuple[AffinityGNN, Dict]:
         logger.debug(results)
         all_results[dataset_name] = results
 
-    # TODO ignore for now
-    # if args.pretrained_model in ["Binding_DDG", "DeepRefine", "IPA", "Diffusion"]:
-    #     train_data, val_datas = load_datasets(config, datasets[-1], args.validation_set, args)
-    #     results, model = finetune_pretrained(model, train_data, val_datas, args)
-    #     all_results["finetuning"] = results
+    if args.pretrained_model in ["Binding_DDG", "DeepRefine", "IPA", "Diffusion"]:
+        train_data, val_datas = load_datasets(config, datasets[-1], args.validation_set, args)
+        results, model = finetune_pretrained(model, train_data, val_datas, args)
+        all_results["finetuning"] = results
 
     return model, all_results
 
@@ -119,7 +118,6 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
     Returns:
         Tuple: Trained model and Dict with results and statistics of training
     """
-    raise NotImplementedError
     config = read_config(args.config_file)
 
     datasets = args.transfer_learning_datasets + [args.target_dataset]
@@ -137,18 +135,21 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
             double_dataset.add(name)
 
     for dataset_type in datasets:
-        train_data, val_data = load_datasets(config, dataset_type, args.validation_set, args)
+        train_data, val_datas = load_datasets(config, dataset_type, args.validation_set, args)
 
         data_name, data_type = dataset_type.split(":")
         if data_type == "absolute" and data_name in double_dataset:
             # set the force_recomputation to False for absolute dataset because relative loader already preprocesses graphs
             train_data.force_recomputation = False
-            val_data.force_recomputation = False
+            for val_data in val_datas:
+                val_data.force_recomputation = False
 
         if len(train_data) > 0:
             train_datasets.append(train_data)
-        if len(val_data) > 0:
-            val_datasets.append(val_data)
+
+        for val_data in val_datas:
+            if len(val_data) > 0:
+                val_datasets.append(val_data)
 
     model = load_model(train_datasets[0].num_features, train_datasets[0].num_edge_features, datasets, args, device)
     logger.debug(f"Training done on GPU = {next(model.parameters()).is_cuda}")
