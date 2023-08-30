@@ -121,7 +121,11 @@ Fabian implemented a cross-validation method in training_strategies. Once we obs
 
 ## Notebooks
 
-You might want to check out the notebooks that got modified within the last 2 months (in guided-protein-diffusion). Some validation code+plotting is there as well
+Most code should be well in the repository now. However, there are also some notebooks (in the directory `guided-protein-diffusion/notebooks`) that might contain more detailed analyses/illustrations:
+
+- **`affinity_model_benchmark_test.ipynb`** (Comparison of multiple affinity models with respect to most validations we have. Use this for adhoc comparison of models!)
+- `test_affinity_model_on_mutations.ipynb` (SKEMPI validation)
+- `wwtf_plots.ipynb` (This includes analysis of Rosetta and is a compilation of other notebooks/analyses that Fabian previously ran)
 
 ## Debugging
 
