@@ -40,7 +40,7 @@ alphabet_letters = set(string.ascii_lowercase)
 logger = logging.getLogger(__name__)
 
 
-def get_pdb_path_and_id(row: pd.Series, dataset_name: str, config: Dict):
+def get_pdb_path_and_id(row: pd.Series, dataset_name: str, config: Dict, relaxed: bool = False) -> Tuple[str, str]:
     data_location = "DATASETS"
     if "-" in dataset_name:
         dataset_name, publication = dataset_name.split("-")
@@ -53,13 +53,13 @@ def get_pdb_path_and_id(row: pd.Series, dataset_name: str, config: Dict):
 
         pdb_file_path = os.path.join(config[data_location]["path"],
                                      config[data_location][dataset_name]["folder_path"],
-                                     config[data_location][dataset_name]["mutated_pdb_path"])
+                                     config[data_location][dataset_name]["mutated_pdb_path"] + ("_relaxed" if relaxed else ""))
 
     else:
         pdb_id = row["pdb"]
         pdb_file_path = os.path.join(config[data_location]["path"],
                                      config[data_location][dataset_name]["folder_path"],
-                                     config[data_location][dataset_name]["pdb_path"])
+                                     config[data_location][dataset_name]["pdb_path"] + ("_relaxed" if relaxed else ""))
     pdb_file_path = os.path.join(pdb_file_path, row["filename"])
 
     return pdb_file_path, pdb_id
@@ -136,7 +136,8 @@ def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, interface_f
                     interface_distance_cutoff: int = 5, interface_hull_size: int = None, max_edge_distance: int = 5,
                     affinity_type: str = "-log(Kd)",
                     load_embeddings: Union[bool, str] = False,
-                    save_path: Optional[str]=None
+                    save_path: Optional[str]=None,
+                    relaxed=False
                 ) -> Dict:
     """ Load and process a data point and generate a graph and meta-information for it
 
@@ -161,7 +162,7 @@ def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, interface_f
         Dict: Graph and meta-information for that data point
     """
 
-    pdb_file_path, pdb_id = get_pdb_path_and_id(row, dataset_name, config)
+    pdb_file_path, pdb_id = get_pdb_path_and_id(row, dataset_name, config, relaxed)
 
     affinity = row[affinity_type]
 

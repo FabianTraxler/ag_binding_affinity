@@ -71,8 +71,8 @@ def parse_args(artifical_args=None) -> Namespace:
                           default="abag_affinity:absolute")
     optional.add_argument("-tld", "--transfer_learning_datasets", type=str,
                           help='Datasets used for transfer-learning in addition to goal_dataset', default=[], nargs='+')
-    optional.add_argument("--relaxed_pdbs", action=BooleanOptionalAction, help="Use the relaxed pdbs for training "
-                                                                               "and validation", default=True)
+    optional.add_argument("--relaxed_pdbs", choices=["True", "False", "both"], help="Use the relaxed pdbs for training "
+                                                                               "and validation", default="True")
     optional.add_argument("--validation_size", type=int, help="Percent of target dataset used to validate model (only DMS)",
                           default=10)
     # -train strategy
@@ -197,7 +197,9 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--debug", action=BooleanOptionalAction, default=False, help="Start debugger on a free port starting from 5678")
 
     args = parser.parse_args(artifical_args)
-    args.config = read_config(args.config_file, args.relaxed_pdbs)
+    args.config = read_config(args.config_file)
+
+    args.relaxed_pdbs = eval(args.relaxed_pdbs.capitalize()) if args.relaxed_pdbs != "both" else "both"
 
     if args.wandb_name == "":
         args.wandb_name = f'{args.train_strategy}' \

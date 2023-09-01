@@ -58,6 +58,7 @@ class AffinityHeteroDataset(AffinityDataset, ABC):
         Returns:
             Dict: PyG Data object
         """
+        raise NotImplementedError
         graph_dict = self.get_graph_dict(df_idx)
         edge_indices, edge_features = self._get_edges(graph_dict)
         node_features = self._get_node_features(graph_dict)

@@ -5,53 +5,32 @@ DATASETS:
     folder_path: "results/SKEMPI_v2"
     summary: "skempi_v2.csv"
     mutated_pdb_path: "mutated"
-    relaxed_mutated_pdb_path: "mutated_relaxed"
     pdb_path: "mutated"
     affinity_type: "-log(Kd)"
 
   abag_affinity:
     folder_path: "results/abag_affinity_dataset"
     pdb_path: "pdbs"
-    relaxed_pdb_path: "pdbs_relaxed"
     summary: "abag_affinity_dataset.csv"
-    affinity_type: "-log(Kd)"
-
-  abag_affinity_of_embeddings:
-    folder_path: "results/abag_affinity_dataset"
-    pdb_path: "pdbs"
-    relaxed_pdb_path: "pdbs"
-    summary: "abag_affinity_dataset.csv"
-    embeddings: "of_embeddings"
-    affinity_type: "-log(Kd)"
-
-  abag_affinity_rf_embeddings:
-    folder_path: "results/abag_affinity_dataset"
-    pdb_path: "pdbs"
-    relaxed_pdb_path: "pdbs"
-    summary: "abag_affinity_dataset.csv"
-    embeddings: "rf_embeddings"
     affinity_type: "-log(Kd)"
 
   PDBBind:
     folder_path: "results/PDBBind"
     pdb_path: "pdbs"
-    relaxed_pdb_path: "pdbs_relaxed"
     summary: "pdbbind.csv"
     affinity_type: "-log(Kd)"
 
   AntibodyBenchmark:
     folder_path: "results/antibody_benchmark"
-    pdb_path: "pdbs_bound"
-    relaxed_pdb_path: "pdbs_relaxed"
+    pdb_path: "pdbs"
     summary: "benchmark.csv"
     affinity_type: "-log(Kd)"
 
   DMS:
     folder_path: "results/DMS"
     summary: "" # summary for every subdataset
-    mutated_pdb_path: "mutated_fixinsert"
-    pdb_path: "mutated_fixinsert"
-    relaxed_mutated_pdb_path: "mutated_relaxed"
+    mutated_pdb_path: "mutated"
+    pdb_path: "mutated"
     affinity_types:
       phillips21_bindin: "-log(Kd)"
       starr21_prosp_covid: "E"

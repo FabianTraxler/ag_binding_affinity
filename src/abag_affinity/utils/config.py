@@ -6,12 +6,11 @@ from typing import Dict, List, Tuple
 import yaml
 
 
-def read_config(file_path: str, use_relaxed: bool = False) -> Dict:
+def read_config(file_path: str) -> Dict:
     """ Read a yaml file, join paths and return content as dict
 
     Args:
         file_path: Path to file
-        use_relaxed: Boolean indicator if relaxed pdb should be used
 
     Returns:
         Dict: Modified content of yaml file
@@ -36,15 +35,6 @@ def read_config(file_path: str, use_relaxed: bool = False) -> Dict:
 
     for model in config["MODELS"].keys():
         config["MODELS"][model]["model_path"] = os.path.join(folder_path, config["MODELS"][model]["model_path"])
-
-    if use_relaxed:
-        for dataset in config["DATASETS"].keys():
-            if "relaxed_pdb_path" in config["DATASETS"][dataset]:
-                config["DATASETS"][dataset]["pdb_path"] = config["DATASETS"][dataset]["relaxed_pdb_path"]
-            elif "relaxed_mutated_pdb_path" in config["DATASETS"][dataset]:
-                config["DATASETS"][dataset]["mutated_pdb_path"] = config["DATASETS"][dataset]["relaxed_mutated_pdb_path"]
-
-        config["interface_pdbs"] = os.path.join(folder_path, config["RESULTS"]["path"], config["RESULTS"]["interface_pdbs"], "relaxed")
 
     return config
 
