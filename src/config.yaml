@@ -29,7 +29,7 @@ DATASETS:
   DMS:
     folder_path: "results/DMS"
     summary: "" # summary for every subdataset
-    mutated_pdb_path: "mutated"
+    mutated_pdb_path: "mutated"  # TODO why do I have both these paths?
     pdb_path: "mutated"
     affinity_types:
       phillips21_bindin: "-log(Kd)"

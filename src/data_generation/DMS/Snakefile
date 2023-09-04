@@ -26,10 +26,26 @@ publications = pd.read_csv(DMS_DATA_FILE)["publication"].drop_duplicates()
 # remove this publication because they have redundant information to mason21_comb_optim_therap_antib_by_predic_combined_H3_3. TODO really? why not augmentation?
 publications = publications[~publications.isin(["mason21_comb_optim_therap_antib_by_predic_combined_H3_2", "mason21_comb_optim_therap_antib_by_predic_combined_H3_1"])]
 
+#  TODO enable one by one
+publications = [
+    "madan21_mutat_hiv",
+    "phillips21_bindin",  # ~500 antigen... <- let's see if it works
+    # "wu20_differ_ha_h3_h1",  # ~500 antigen
+    # "mason21_optim_therap_antib_by_predic_dms_H",
+    # "mason21_optim_therap_antib_by_predic_dms_L",
+    # "taft22_deep_mutat_learn_predic_ace2",
+    # "mason21_comb_optim_therap_antib_by_predic_combined_H3_3",
+    # "mason21_comb_optim_therap_antib_by_predic_combined_L3_3",
+    # "starr21_prosp_covid",
+    # "b.20_funct_screen_strat_engin_chimer",  # 644 antigen
+    # "wu17_in",
+]
+# now: why the rename fails?
+
 
 def relaxed_generated_pdbs(wildcards):
     all_files = []
-    for publication in np.unique(publications):
+    for publication in publications:
         df_fn = checkpoints.generate_summary_df.get(publication=publication).output[0]
         df = pd.read_csv(df_fn, index_col=0)
         if len(df) > 0:  # workaround
