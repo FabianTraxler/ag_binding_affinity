@@ -67,12 +67,14 @@ rule subset_dms_data:
     NOTE: I could have included this subsetting into the generate_summary_df rule fs
     """
     input:
-        ancient(DMS_DATA_FILE)
+        DMS_DATA_FILE
     output:
         out_folder / "dms_subsampled.csv"
     params:
-        num_max_datapoints=5000,  # 20000 takes 16 words. 200 is for testing. Let's use 5000 then (over the retreat)
+        num_max_datapoints=5000,  # 20000 takes 16 days. 200 is for testing. Let's use 5000 then (over the retreat)
         seed=42
+    resources:
+        mem_mb=10000
     run:
         import pandas as pd
         import numpy as np
@@ -90,7 +92,6 @@ rule subset_dms_data:
                 return complex_df.sample(params.num_max_datapoints, replace=False)
 
         filtered = df.groupby(["publication", "antibody", "antigen"]).apply(_subsample_complex)
-
         filtered.to_csv(output[0], index=False)
 
 
@@ -100,7 +101,7 @@ checkpoint generate_summary_df:
         metadata_file=ancient(metadata_file),
     output:
         out_folder / "{publication}.csv"
-    conda: "../../../envs/generation_environment.yml"
+    conda: project_root / "envs" / "generation_environment.yml"
     resources:
         mem_mb=10000
         # params:
@@ -153,7 +154,9 @@ rule fixinsert:
         out_folder / "mutated_unfixedinsert" /"{publication}" / "{antibody}_{antigen}" / "{mut}.pdb"
     output:
         MUTATED_PDB_FOLDER / "{publication}" / "{antibody,[^/]+}_{antigen,[^/]+}" / "{mut}.pdb"
-    conda: "../../../envs/generation_environment.yml"
+    resources:
+        mem_mb=2000  # less should work too
+    conda: project_root / "envs" / "generation_environment.yml"
     shell: # pdb_tidy is required again because the relaxation again changes some things
         "grep '^ATOM' {input} | pdb_sort | pdb_tidy | pdb_fixinsert > {output}"
 
