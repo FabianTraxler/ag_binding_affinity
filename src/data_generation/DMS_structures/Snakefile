@@ -88,7 +88,8 @@ rule predict_structures:
         # Delete old AF2 results
         rm {params.output_folder}/{wildcards.publication}__{wildcards.complex}_unrelaxed_rank_00?_alphafold2_multimer_v3_model_?_seed_000.pdb 2>/dev/null || true
 
-        colabfold_batch --overwrite-existing-results --msa-mode single_sequence --rank multimer --templates --custom-template-path {input.template_dir} {input.fasta} {params.output_folder} 2>&1 | tee {log}
+        # We use `single_sequence` to NOT rely on MSAs (as they don't contribute to predicting mutations)
+        colabfold_batch --overwrite-existing-results --msa-mode single_sequence --templates --custom-template-path {input.template_dir} {input.fasta} {params.output_folder} 2>&1 | tee {log}
         cd {params.output_folder}
         # The file name is determined by the FASTA header and other factors
         for rank in `seq 1 5`; do  # We need this loop because the output files names or "stochastic"
