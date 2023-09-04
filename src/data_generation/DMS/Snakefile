@@ -93,54 +93,26 @@ checkpoint generate_summary_df:
 
 rule get_initial_complex:
     """
-    Download and mutate PDB as indicated in metadata file
+    Download, rename chains and mutate as indicated in metadata file. We don't fix inserts, because the mutations still need to be applied.
 
-    TODO could/should be merged with mutate_complex
+    Also, reduce heavy and light chain to only contain the variable part (~110AAs each). Note: There are scFvs! (if L chain is missing, all is fine.)
+
+    TODO could/should be merged with mutate_complex (because of DRYing mutation code)
     TODO relaxation should be done in a separate thread
     """
     input:
         metadata_file=ancient(metadata_file)
     output:
-        out_folder / "prepared_pdbs" / "{publication}/{antibody,[^/]+}_{antigen,[^/]+}.pdb"
+        base_structure_folder / "{publication}/{antibody,[^/]+}_{antigen,[^/]+}.pdb"
     params:
+        max_l_len=115,
+        max_h_len=125,
         project_root=project_root
-    conda: "../../../envs/generation_environment.yml"
+    conda: "ag_binding_diffusion3"
+    resources:
+        mem_mb=10000
     threads: 1
     script: "scripts/get_complex.py"
-
-rule rename_chains:
-    """
-    Just copies the manually prepared PDBs from prepared_pdbs and renames their chains. We don't clean them, because the mutations still need to be applied.
-
-    Note: we could have alternatively used the metdadata information in the rule `input_pdb_to_fasta`, to order the chains correctly.
-    """
-    input:
-        pdb=out_folder / "prepared_pdbs" / "{publication}" / "{complex}.pdb",  # TODO prepared_pdbs/ should go into data/ maybe. Or where do I have code to generate them?
-        metadata=ancient(metadata_file)
-    output:
-        base_structure_folder / "{publication}" / "{complex}.pdb"
-    conda:
-        "ag_binding_diffusion3"
-    script:
-        "scripts/rename_chains.py"
-
-# rule reduce2interface_hull:
-#     """
-#     TODO exploit/modify this function to reduce protein size in another manner (for those proteins that are too large).
-#     Specifically, reduce heavy and light chain to only contain the variable part (~110AAs each). Note: There are scFvs! (if L chain is missing, all is fine.)
-#     """
-#     input:
-#         base_structure_folder / "{publication}/{antibody}_{antigen}.pdb"
-#     output:
-#         out_folder / "reduced_sized_pdbs/{publication,[^/]+}/{antibody,[^/]+}_{antigen,[^/]+}.pdb"
-#     params:
-#         metadata_file=metadata_file,
-#         interface_size=INTERFACE_SIZE,
-#         interface_hull_size=INTERFACE_HULL_SIZE
-#     conda: "../../../envs/generation_environment.yml"
-#     resources:
-#         mem_mb=50000
-#     script: "scripts/reduce2interface_hull.py"
 
 rule mutate_complex:
     """
@@ -151,9 +123,9 @@ rule mutate_complex:
         pdb=base_structure_folder / "{publication}/{antibody}_{antigen}.pdb",
     output:
         mutated_pdb = out_folder / "mutated_unfixedinsert" / "{publication}" / "{antibody,[^/]+}_{antigen,[^/]+}" / "{mut}.pdb"
-    conda: "../../../envs/generation_environment.yml"
+    conda: project_root / "envs" / "generation_environment.yml"
     resources:
-        mem_mb=50000
+        mem_mb=8000
     threads: 1
     script: "scripts/mutate.py"
 
