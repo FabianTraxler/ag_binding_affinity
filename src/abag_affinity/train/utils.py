@@ -257,9 +257,10 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
     best_rmse = np.inf
 
     best_model = deepcopy(model)
-
+    #TODO I moved the loader outside the loop!
+    train_dataloader, val_dataloaders = get_dataloader(args, train_dataset, val_datasets)
     for i in range(args.max_epochs):
-        train_dataloader, val_dataloaders = get_dataloader(args, train_dataset, val_datasets)
+
 
         model, val_results, total_train_loss = train_epoch(model, train_dataloader, val_dataloaders, criterion, optimizer, device,
                                            args.tqdm_output)

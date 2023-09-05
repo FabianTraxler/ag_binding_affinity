@@ -195,9 +195,19 @@ class AffinityDataset(Dataset):
             str: PDB ID of partner or None if there is no valid partner
         """
         pdb_file = self.data_df.loc[pdb_id, "pdb"]
-        if self.affinity_type == "-log(Kd)":
+        if self.affinity_type == "-log(Kd)" and self.dataset_name != "abag_affinity":
             other_mutations = self.data_df[(self.data_df["pdb"] == pdb_file) & (self.data_df.index != pdb_id)]
             possible_partner = other_mutations.index.tolist()
+        elif self.affinity_type == "-log(Kd)":
+            # Abag affinity does not have mutation data, so we also need to look at other mutations
+            # We get data point with distance > std
+            kd_std = self.data_df["-log(Kd)"].std()
+            pdb_kd = self.data_df.loc[self.data_df.index == pdb_id, "-log(Kd)"].values[0].reshape(-1, 1)
+            kd_values = self.data_df["-log(Kd)"].values.reshape(-1, 1)
+            kd_dists = sp.distance.cdist(pdb_kd, kd_values)[0, :]
+            valid_pairs = (kd_dists - 2*kd_std) >= 0
+            valid_partner = np.where(valid_pairs)[0]
+            possible_partner = self.data_df.index[valid_partner].tolist()
         elif self.affinity_type == "E":
             # get data point that has distance > avg(NLL) from current data point
             pdb_nll = self.data_df.loc[self.data_df.index == pdb_id, "NLL"].values[0]
@@ -216,20 +226,26 @@ class AffinityDataset(Dataset):
             raise ValueError(
                 f"Wrong affinity type given - expected one of (-log(Kd), E) but got {self.affinity_type}")
 
-        if len(possible_partner) > 0:  # random choose one of the available mutations
+        if len(possible_partner) > 0 and False:  # random choose one of the available mutations
             return random.sample(possible_partner, 1)[0]
+        elif len(possible_partner) > 0:
+            # We should return all possible partners for more robust data augmentation!!!
+            return possible_partner
+
         else:  # compare to oneself if there is no other option available
             return None
 
     def len(self) -> int:
         """Returns the length of the dataset"""
         if self.relative_data:
-            return len(self.relative_pairs)
+            length = len(self.relative_pairs)
         else:
-            if self.is_relaxed == "both":
-                return len(self.pdb_ids) * 2
-            else:
-                return len(self.pdb_ids)
+            length = len(self.pdb_ids)
+
+        if self.is_relaxed == "both":
+            return length * 2
+        else:
+            return length
 
     def get(self, idx: int):
         """
@@ -638,11 +654,20 @@ class AffinityDataset(Dataset):
             "input": [],
             "dataset_name": self.full_dataset_name
         }
+        if self.is_relaxed == "both":
+            relaxed = bool(idx // len(self.relative_pairs))
+            idx = idx % len(self.relative_pairs)
+        else:
+            relaxed = bool(self.is_relaxed)
+        #TODO Maybe we also want to allow comparing relaxed with unrelaxed data in the future?
 
         pdb_id, other_pdb_id = self.relative_pairs[idx]
-        data["input"].append(self.load_data_point(pdb_id, relaxed=self.is_relaxed))
+        data["input"].append(self.load_data_point(pdb_id, relaxed=relaxed))
 
-        data["input"].append(self.load_data_point(other_pdb_id, relaxed=self.is_relaxed))
+        if isinstance(other_pdb_id, list):
+            # We choose a differnt pair each time
+            other_pdb_id = random.sample(other_pdb_id, 1)[0]
+        data["input"].append(self.load_data_point(other_pdb_id, relaxed=relaxed))
 
         return data
 
