@@ -70,31 +70,36 @@ def forward_step(model: AffinityGNN, data: Dict, device: torch.device) -> Tuple[
 
 
 def get_label(data: Dict, device: torch.device) -> torch.Tensor:
-    if data["affinity_type"] == "-log(Kd)":
-        if data["relative"]:
-            return (data["input"][0]["graph"].y - data["input"][1]["graph"].y).to(device)
-        else:
-            return data["input"]["graph"].y.to(device)
-    elif data["affinity_type"] == "E":
-        if data["relative"]:
-            label_1 = (data["input"][0]["graph"].y > data["input"][1]["graph"].y).float()
-            label_2 = (data["input"][1]["graph"].y > data["input"][0]["graph"].y).float()
-            label = torch.stack((label_1, label_2)).T
-            return label.to(device)
-        else:
-            return data["input"]["graph"].y.to(device)
+    # We compute all possible labels, so that we can combine different loss functions
+    label = {}
+    if data["relative"]:
+        label["difference"] = (data["input"][0]["graph"].y - data["input"][1]["graph"].y).to(device)
+        label_1 = (data["input"][0]["graph"].y > data["input"][1]["graph"].y).float()
+        label_2 = (data["input"][1]["graph"].y > data["input"][0]["graph"].y).float()
+        label["x_prob"] = torch.stack((label_1, label_2), dim=-1)
+        label["x"] = data["input"][0]["graph"].y.to(device)
+        label["x2"] = data["input"][1]["graph"].y.to(device)
     else:
-        raise ValueError(f"Wrong affinity type given - expected one of (-log(Kd), E) but got {data['affinity_type']}")
+        label["x"] = data["input"]["graph"].y.to(device)
 
+    # TODO Try to return NLL values of data if available!
+    return label
 
 def get_loss(criterion, label: torch.Tensor, output: torch.Tensor) -> torch.Tensor:
-    try:
-        return torch.nn.functional.cross_entropy(output["x_prob"], label)
-    except KeyError:
-        return criterion(output["x"], label)
-    # else:
-    #     raise ValueError(f"Wrong affinity type given - expected one of (-log(Kd), E) but got {output['affinity_type']}")
-
+    if isinstance(criterion, list):
+        # We assume multiple criterions, each require different labels
+        loss = []
+        for loss_name, loss_fn in criterion:
+            # TODO use NLL when available
+            if (loss_name in ["relative_L1", "relative_L2"]) and output["relative"]:
+                # Apply L1/L2 loss to the relative binding affinity
+                loss.append(loss_fn(output["difference"], label["difference"]))
+            elif loss_name == "relative_ce" and output["relative"]:
+                loss.append(loss_fn(output["x_prob"], label["x_prob"]))
+            elif loss_name in ["L1", "L2"]:
+                loss.append(loss_fn(output["x"], label["x"]))
+                # TODO maybe apply an loss also on x2?
+        return sum(loss)
 
 def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloaders: List[DataLoader], criterion,
                 optimizer: torch.optim, device: torch.device = torch.device("cpu"), tqdm_output: bool = True) -> Tuple[AffinityGNN, List, np.ndarray, float]:
@@ -143,7 +148,7 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
 
             loss = get_loss(criterion, label, output)
             total_loss_val += loss.item()
-
+            #TODO Label is here not a dict, Optimally refactor everything so that we do not consider the different affinity types
             if data["relative"] and data["affinity_type"] == "E":
                 label = torch.argmax(label.detach().cpu(), dim=1)
                 all_binary_labels = np.append(all_binary_labels, label.numpy())
@@ -330,7 +335,8 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
 
             wandb.log(wandb_log, commit=True)
 
-        stop_training = True
+        stop_training = True
+
         for param_group in optimizer.param_groups:
             stop_training = stop_training and (
                 param_group['lr'] < args.stop_at_learning_rate)
@@ -359,6 +365,28 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
 
 
 def get_loss_function(args: Namespace, device: torch.device):
+    # Different loss functions are seperated with a +
+    # Optionally, they can contain a weight seperated with a -
+    # E.g. args.loss_function = L2-1+L1-0.1+relative_l1-2+relative_l2-0.1+relative_ce
+    loss_types = [x.split("-") for x in args.loss_function.split("+")]
+    loss_types = [(x[0], x[1])if len(x) == 2 else (x[0],1.) for x in loss_types]
+    criterions = []
+    for criterion, weight in loss_types:
+        if criterion == "L1":
+            loss_fn = lambda x,y: weight * nn.L1Loss().to(device)(x, y)
+        elif criterion == "L2":
+            loss_fn = lambda x, y: weight * nn.MSELoss().to(device)(x, y)
+        elif criterion == "relative_L1":
+            loss_fn = lambda x, y: weight * nn.L1Loss().to(device)(x, y)
+        elif criterion == "relative_L2":
+            loss_fn = lambda x, y: weight * nn.MSELoss().to(device)(x, y)
+        elif criterion == "relative_ce":
+            loss_fn = lambda x, y: weight * torch.nn.functional.cross_entropy(x, y)
+        else:
+            raise ValueError(f"Loss_Function must either in ['L1','L2','relative_L1','relative_L2','relative_ce'] but got {criterion}")
+        criterions.append((criterion,loss_fn))
+
+    return criterions
     if args.loss_function == "L1":
         loss_fn = nn.L1Loss().to(device)
     elif args.loss_function == "L2":
@@ -620,10 +648,22 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
 
     dataset_name, data_type = dataset.split(":")
 
+    # We missuse the data_type to allow setting different losses
+    # The losses used for this dataset come after a # seperated by a comma, when multiple losses are used
+    # Optionally, the losses can contain some weight using -
+    # E.g. data_type = relative#l2-1,l1-0.1,relative_l1-2,relative_2-0.1,relative_ce-1
+    # TODO maybe we do not need dataset specific losses, maybe we do?
+    if "#" in data_type:
+        data_type, loss_types = data_type.split("#")
+        loss_types = [x.split("-") for x in loss_types.split(",")]
+        loss_types = [(x[0],x[1])if len(x)==2 else (x[0],1.) for x in loss_types]
+    else:
+        loss_types = [("l2", 1)]
     if data_type == "relative":
         relative_data = True
     else:
         relative_data = False
+        assert all(["relative" not in x[0] for x in loss_types]), f"You try to use a relative Loss without relative data {loss_types}"
 
     validation_size = args.validation_size if dataset == args.target_dataset else args.transfer_learning_validation_size
     train_ids, val_ids = train_val_split(config, dataset_name, validation_set, validation_size)
@@ -911,7 +951,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
             scheduler.step()
             patience = None
         else:
-            scheduler.step(metrics=epoch_results['val_loss'])
+            scheduler.step(metrics=val_results['val_loss'])
             patience = args.patience - scheduler.num_bad_epochs
 
         if dataset2optimize in dataset_results:
