@@ -33,18 +33,14 @@ class TwinWrapper(torch.nn.Module):
         output = {
             "relative": data["relative"],
             "affinity_type": data["affinity_type"],
-            "x1": out_1["x"].flatten(),
+            "x": out_1["x"].flatten(),
             "x2": out_2["x"].flatten(),
+            "difference": out_1["x"] - out_2["x"]
         }
-
-        if data["affinity_type"] == "-log(Kd)":
-            output["x"] = out_1["x"] - out_2["x"]
-        elif data["affinity_type"] == "E":
-            diff_1 = output["x1"] - output["x2"]
-            diff_2 = output["x2"] - output["x1"]
-            class_preds = torch.stack((diff_1, diff_2)).T
-            output["x_prob"] = torch.nn.functional.softmax(class_preds/rel_temperature)
-            output["x"] = torch.argmax(output["x_prob"], dim=1)
-        else:
-            raise ValueError(f"Wrong affinity type given - expected one of (-log(Kd), E) but got {data['affinity_type']}")
+        # Better always compute both x_prob and x as the difference and do not differ depending on affinity type!
+        diff_1 = output["x"] - output["x2"]
+        diff_2 = output["x2"] - output["x"]
+        class_preds = torch.stack((diff_1, diff_2),dim=-1)
+        output["x_prob"] = torch.nn.functional.softmax(class_preds/rel_temperature, dim=-1)
+        output["stronger_binding"] = torch.argmax(output["x_prob"], dim=-1)
         return output
