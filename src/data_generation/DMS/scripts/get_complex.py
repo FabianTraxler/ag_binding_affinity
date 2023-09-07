@@ -64,13 +64,10 @@ def get_pdb(publication:str, antibody: str, antigen: str, metadata: Dict, projec
     if "id" in complex_metadata:
         # load file from Protein Data Bank and perform mutations
 
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            filename = PDBList().retrieve_pdb_file(complex_metadata["id"], file_format="pdb", pdir=tmpdirname)
-            if not os.path.exists(filename): # download did not work in pdb Format
-                filename = load_large_file(complex_metadata["id"].lower(), tmpdirname)  # f"{publication}:{antibody}:{antigen}")
-            # remove irrelevant chains
-            #filename = clean_tidy_pdb(filename, keep_chains)
-
+        tmpdirname = tempfile.TemporaryDirectory()
+        filename = PDBList().retrieve_pdb_file(complex_metadata["id"], file_format="pdb", pdir=tmpdirname.name)
+        if not os.path.exists(filename): # download did not work in pdb Format
+            filename = load_large_file(complex_metadata["id"].lower(), tmpdirname.name)  # f"{publication}:{antibody}:{antigen}")
     elif "file" in complex_metadata:
         # load pdb from disc and return
         filename = os.path.join(project_root, complex_metadata["file"])
