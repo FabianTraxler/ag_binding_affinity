@@ -39,7 +39,6 @@ if "snakemake" not in globals(): # use fake snakemake object for debugging
     }
 
 
-
 def pdb_chain_mapping(pdb_file: Union[str, Path]) -> pd.DataFrame:
     """
     Return the chain mapping as provided by AbDb

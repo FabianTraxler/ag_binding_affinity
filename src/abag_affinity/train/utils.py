@@ -461,7 +461,7 @@ def get_dataloader(args: Namespace, train_dataset: AffinityDataset, val_datasets
 def train_val_split(config: Dict, dataset_name: str, validation_set: int, validation_size: int = 20) -> Tuple[List, List]:
     """ Split data in a train and a validation subset
 
-    For Dataset_v1 use the predefined split given in the csv, otherwise use random split
+    For the abag_affinity datasets, we use the predefined split given in the csv, otherwise use random split
 
     Args:
         config: Dict with configuration info
