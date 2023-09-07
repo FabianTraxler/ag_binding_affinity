@@ -384,7 +384,6 @@ def get_atom_edge_encodings(distance_matrix: np.ndarray, atom_encodings: np.ndar
     return A
 
 
-
 def order_substitutions(substitutions):
     """
     Order substiutions to avoid chain overlaps (and thereby loss of chain information)
@@ -418,7 +417,20 @@ def order_substitutions(substitutions):
     return result
 
 
-def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_file_path: Union[str, Path], fix_insert=True, rename_chains: Optional[Dict] = None):
+def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_file_path: Union[str, Path], fix_insert=True, rename_chains: Optional[Dict] = None, max_h_len: Optional[int] = None, max_l_len: Optional[int] = None):
+    """
+
+    Args:
+        pdb_id: PDB ID of the structure
+        pdb_file_path: Path to the PDB file
+        cleaned_file_path: Path to the cleaned PDB file
+        fix_insert: Whether to fix insertions
+        rename_chains: Dictionary with chain renaming
+        max_h_len: Maximum length of heavy chain. NOTE: only works if max_l_len is also provided and only applies if PDB contains both L and H
+        max_l_len: Maximum length of light chain
+
+
+    """
     Path(cleaned_file_path).parent.mkdir(exist_ok=True, parents=True)
 
     with tempfile.NamedTemporaryFile(suffix=".tmp", delete=False) as tmp_file:
@@ -483,6 +495,18 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_fil
     atom_name_postfix = filtered_df['atom_name'].apply(get_atom_postfixes)
     filtered_df = filtered_df[atom_name_postfix.isin(all_postfixes)]
 
+    # filter chains by max length
+    if max_h_len is not None and max_l_len is not None and "H" in filtered_df["chain_id"].values and "L" in filtered_df["chain_id"].values:
+        def _filter_chain_len(chain_group):
+            if chain_group["chain_id"].values[0] not in ["H", "L"]:
+                return chain_group
+            max_len = max_h_len if chain_group["chain_id"].values[0] == "H" else max_l_len
+            try:
+                max_res_number = chain_group["residue_number"].drop_duplicates().iloc[max_len]
+                return chain_group[chain_group["residue_number"] < max_res_number]  # max_res_number should not be included (because of 0-indexing)
+            except IndexError:  # chain is shorter than max_len
+                return chain_group
+        filtered_df = filtered_df.groupby("chain_id", as_index=False).apply(_filter_chain_len)
     assert len(filtered_df) > 0, f"No atoms in pdb file after cleaning: {pdb_file_path}"
 
     cleaned_pdb.df['ATOM'] = filtered_df.reset_index(drop=True)

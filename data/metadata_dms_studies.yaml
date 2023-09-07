@@ -382,32 +382,31 @@ wu20_differ_ha_h3_h1:
     - PRJNA493101
     - PRJNA510700
 
-
-# mason21_optim_therap_antib_by_predic:
-#   dms_target: fv
-#   fv_type: fv
-#   doi: 10.1038/s41551-021-00699-9
-#   complexes:
-#     - antigen:
-#         name: her2
-#         full_name: ERBB2
-#         uniprot: https://www.uniprot.org/uniprotkb/P04626/entry
-#       antibody:
-#         full_name: Trastuzumab
-#         name: trastuzumab
-#       pdb:
-#         id: 6OGE  # alternatives: /6BGT/7MN8
-#         chains:
-#           antibody:
-#             L: D
-#             H: E
-#           antigen:
-#             A: A
-#   comment: "screen on binding affinity and activation potential. They have a decent number of KD experiments included"
-#   source_code: https://github.com/dahjan/DMS_opt
-#   data: https://github.com/dahjan/DMS_opt,email,org
-#   use_for: "discrete relative"
-#   raw_data: can ask derek mason
+mason21_optim_therap_antib_by_predic:
+  dms_target: fv
+  fv_type: fv
+  doi: 10.1038/s41551-021-00699-9
+  complexes:
+    - antigen:
+        name: her2
+        full_name: ERBB2
+        uniprot: https://www.uniprot.org/uniprotkb/P04626/entry
+      antibody:
+        full_name: Trastuzumab
+        name: trastuzumab
+      pdb:
+        id: 6OGE  # alternatives: /6BGT/7MN8
+        chains:
+          antibody:
+            L: D
+            H: E
+          antigen:
+            A: A
+  comment: "screen on binding affinity and activation potential. They have a decent number of KD experiments included"
+  source_code: https://github.com/dahjan/DMS_opt
+  data: https://github.com/dahjan/DMS_opt,email,org
+  use_for: "discrete relative"
+  raw_data: can ask derek mason
 
 
 taft22_deep_mutat_learn_predic_ace2:
@@ -514,7 +513,7 @@ taft22_deep_mutat_learn_predic_ace2:
         chains:
           antigen:
             A: C
-            B: F  # TODO although this binds in the crystal, I don't think this is too relevant in solution. TODO: delete here and in dms_infos.csv ([[id:f1e36ab1-11c4-420d-9d0c-83f1e37f9311][Obtaining antibody binding data (E-values and structures)]], check out df['chain'] in the taft22-section. execute all to see)
+            # B: F  # although this binds in the crystal, I don't think this is too relevant in solution.
           antibody:
             H: A
             L: B

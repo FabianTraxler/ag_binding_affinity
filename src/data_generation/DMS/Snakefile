@@ -26,10 +26,25 @@ publications = pd.read_csv(DMS_DATA_FILE)["publication"].drop_duplicates()
 # remove this publication because they have redundant information to mason21_comb_optim_therap_antib_by_predic_combined_H3_3. TODO really? why not augmentation?
 publications = publications[~publications.isin(["mason21_comb_optim_therap_antib_by_predic_combined_H3_2", "mason21_comb_optim_therap_antib_by_predic_combined_H3_1"])]
 
+#  TODO enable one by one
+publications = [
+    "madan21_mutat_hiv",
+    "phillips21_bindin",  # ~500 antigen... <- let's see if it works
+    "wu20_differ_ha_h3_h1",  # ~500 antigen
+    "mason21_optim_therap_antib_by_predic_dms_H",
+    "mason21_optim_therap_antib_by_predic_dms_L",
+    "taft22_deep_mutat_learn_predic_ace2",
+    "mason21_comb_optim_therap_antib_by_predic_combined_H3_3",
+    "mason21_comb_optim_therap_antib_by_predic_combined_L3_3",
+    "starr21_prosp_covid",
+    # "b.20_funct_screen_strat_engin_chimer",  # 644 antigen; remains disabled because they are larger than the others
+    "wu17_in",
+]
+
 
 def relaxed_generated_pdbs(wildcards):
     all_files = []
-    for publication in np.unique(publications):
+    for publication in publications:
         df_fn = checkpoints.generate_summary_df.get(publication=publication).output[0]
         df = pd.read_csv(df_fn, index_col=0)
         if len(df) > 0:  # workaround
@@ -51,12 +66,14 @@ rule subset_dms_data:
     NOTE: I could have included this subsetting into the generate_summary_df rule fs
     """
     input:
-        ancient(DMS_DATA_FILE)
+        DMS_DATA_FILE
     output:
         out_folder / "dms_subsampled.csv"
     params:
-        num_max_datapoints=200,  # 20000 takes. 200 is for testing. Let's use 5000 then (over the retreat)
-        seed=42  # TODO run snakemake -R subset_dms_data --touch
+        num_max_datapoints=5000,  # 20000 takes 16 days. 200 is for testing. Let's use 5000 then (over the retreat)
+        seed=42
+    resources:
+        mem_mb=10000
     run:
         import pandas as pd
         import numpy as np
@@ -74,7 +91,6 @@ rule subset_dms_data:
                 return complex_df.sample(params.num_max_datapoints, replace=False)
 
         filtered = df.groupby(["publication", "antibody", "antigen"]).apply(_subsample_complex)
-
         filtered.to_csv(output[0], index=False)
 
 
@@ -84,7 +100,7 @@ checkpoint generate_summary_df:
         metadata_file=ancient(metadata_file),
     output:
         out_folder / "{publication}.csv"
-    conda: "../../../envs/generation_environment.yml"
+    conda: project_root / "envs" / "generation_environment.yml"
     resources:
         mem_mb=10000
         # params:
@@ -93,54 +109,26 @@ checkpoint generate_summary_df:
 
 rule get_initial_complex:
     """
-    Download and mutate PDB as indicated in metadata file
+    Download, rename chains and mutate as indicated in metadata file. We don't fix inserts, because the mutations still need to be applied.
 
-    TODO could/should be merged with mutate_complex
+    Also, reduce heavy and light chain to only contain the variable part (~110AAs each). Note: There are scFvs! (if L chain is missing, all is fine.)
+
+    TODO could/should be merged with mutate_complex (because of DRYing mutation code)
     TODO relaxation should be done in a separate thread
     """
     input:
         metadata_file=ancient(metadata_file)
     output:
-        out_folder / "prepared_pdbs" / "{publication}/{antibody,[^/]+}_{antigen,[^/]+}.pdb"
+        base_structure_folder / "{publication}/{antibody,[^/]+}_{antigen,[^/]+}.pdb"
     params:
+        max_l_len=115,
+        max_h_len=125,
         project_root=project_root
-    conda: "../../../envs/generation_environment.yml"
+    conda: "ag_binding_diffusion3"
+    resources:
+        mem_mb=10000
     threads: 1
     script: "scripts/get_complex.py"
-
-rule rename_chains:
-    """
-    Just copies the manually prepared PDBs from prepared_pdbs and renames their chains. We don't clean them, because the mutations still need to be applied.
-
-    Note: we could have alternatively used the metdadata information in the rule `input_pdb_to_fasta`, to order the chains correctly.
-    """
-    input:
-        pdb=out_folder / "prepared_pdbs" / "{publication}" / "{complex}.pdb",  # TODO prepared_pdbs/ should go into data/ maybe. Or where do I have code to generate them?
-        metadata=ancient(metadata_file)
-    output:
-        base_structure_folder / "{publication}" / "{complex}.pdb"
-    conda:
-        "ag_binding_diffusion3"
-    script:
-        "scripts/rename_chains.py"
-
-# rule reduce2interface_hull:
-#     """
-#     TODO exploit/modify this function to reduce protein size in another manner (for those proteins that are too large).
-#     Specifically, reduce heavy and light chain to only contain the variable part (~110AAs each). Note: There are scFvs! (if L chain is missing, all is fine.)
-#     """
-#     input:
-#         base_structure_folder / "{publication}/{antibody}_{antigen}.pdb"
-#     output:
-#         out_folder / "reduced_sized_pdbs/{publication,[^/]+}/{antibody,[^/]+}_{antigen,[^/]+}.pdb"
-#     params:
-#         metadata_file=metadata_file,
-#         interface_size=INTERFACE_SIZE,
-#         interface_hull_size=INTERFACE_HULL_SIZE
-#     conda: "../../../envs/generation_environment.yml"
-#     resources:
-#         mem_mb=50000
-#     script: "scripts/reduce2interface_hull.py"
 
 rule mutate_complex:
     """
@@ -151,9 +139,9 @@ rule mutate_complex:
         pdb=base_structure_folder / "{publication}/{antibody}_{antigen}.pdb",
     output:
         mutated_pdb = out_folder / "mutated_unfixedinsert" / "{publication}" / "{antibody,[^/]+}_{antigen,[^/]+}" / "{mut}.pdb"
-    conda: "../../../envs/generation_environment.yml"
+    conda: project_root / "envs" / "generation_environment.yml"
     resources:
-        mem_mb=50000
+        mem_mb=8000
     threads: 1
     script: "scripts/mutate.py"
 
@@ -165,7 +153,9 @@ rule fixinsert:
         out_folder / "mutated_unfixedinsert" /"{publication}" / "{antibody}_{antigen}" / "{mut}.pdb"
     output:
         MUTATED_PDB_FOLDER / "{publication}" / "{antibody,[^/]+}_{antigen,[^/]+}" / "{mut}.pdb"
-    conda: "../../../envs/generation_environment.yml"
+    resources:
+        mem_mb=2000  # less should work too
+    conda: project_root / "envs" / "generation_environment.yml"
     shell: # pdb_tidy is required again because the relaxation again changes some things
         "grep '^ATOM' {input} | pdb_sort | pdb_tidy | pdb_fixinsert > {output}"
 
