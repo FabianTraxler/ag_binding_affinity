@@ -124,8 +124,10 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
 
         # pdb.set_trace()
         output, label = forward_step(model, data, device)
-
-        loss = get_loss(criterion, label, output)
+        if data["loss_criterion"] is not None:
+            loss = get_loss(data["loss_criterion"], label, output)
+        else:
+            loss = get_loss(criterion, label, output)
         total_loss_train += loss.item()
 
         loss.backward()
@@ -137,61 +139,54 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
     for val_dataloader in val_dataloaders:
         total_loss_val = 0
         all_predictions = np.array([])
-        all_continuous_predictions = np.array([])
         all_binary_predictions = np.array([])
         all_labels = np.array([])
-        all_continuous_labels = np.array([])
         all_binary_labels = np.array([])
         all_pdbs = []
         for data in tqdm(val_dataloader, disable=not tqdm_output):
             output, label = forward_step(model, data, device)
 
-            loss = get_loss(criterion, label, output)
-            total_loss_val += loss.item()
-            #TODO Label is here not a dict, Optimally refactor everything so that we do not consider the different affinity types
-            if data["relative"] and data["affinity_type"] == "E":
-                label = torch.argmax(label.detach().cpu(), dim=1)
-                all_binary_labels = np.append(all_binary_labels, label.numpy())
-                all_binary_predictions = np.append(all_binary_predictions, output["x"].flatten().detach().cpu().numpy())
-                pdb_ids_1 = [ filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
-                pdb_ids_2 = [ filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
-                all_pdbs.extend(list(zip(pdb_ids_1, pdb_ids_2)))
-            elif data["relative"] and data["affinity_type"] == "-log(Kd)":
-                label = label.detach().cpu()
-                all_continuous_predictions = np.append(all_continuous_predictions, output["x"].flatten().detach().cpu().numpy())
-                all_continuous_labels = np.append(all_continuous_labels, label.numpy())
-
-                pdb_ids_1 = [ filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
-                pdb_ids_2 = [ filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
-                all_pdbs.extend(list(zip(pdb_ids_1, pdb_ids_2)))
+            if data["loss_criterion"] is not None:
+                loss = get_loss(data["loss_criterion"], label, output)
             else:
-                label = label.detach().cpu()
-                all_continuous_predictions = np.append(all_continuous_predictions, output["x"].flatten().detach().cpu().numpy())
-                all_continuous_labels = np.append(all_continuous_labels, label.numpy())
+                loss = get_loss(criterion, label, output)
 
-                all_pdbs.extend([ filepath.split("/")[-1].split(".")[0] for filepath in data["input"]["filepath"]])
-            all_labels = np.append(all_labels, label.numpy())
+            total_loss_val += loss.item()
+
             all_predictions = np.append(all_predictions, output["x"].flatten().detach().cpu().numpy())
+            all_labels = np.append(all_labels, label["x"].detach().cpu().numpy())
+            if data["relative"]:
+                pdb_ids_1 = [filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
+                pdb_ids_2 = [filepath.split("/")[-1].split(".")[0] for filepath in data["input"][1]["filepath"]]
+                all_pdbs.extend(list(zip(pdb_ids_1, pdb_ids_2)))
+                all_binary_labels = np.append(all_binary_labels,  torch.argmax(label["x_prob"].detach().cpu(), dim=1).numpy())
+                all_binary_predictions = np.append(all_binary_predictions, torch.argmax(output["x_prob"].detach().cpu(), dim=1).numpy())
 
-            # if len(all_predictions) > 2:
-            #     break
+            else:
+                #We need to ensure that binary labels have the length of the validation dataset as we later slice the datasets appart.
+                # TODO maybe we could store them in a dataset specific dict instead?
+                all_binary_labels = np.append(all_binary_labels, np.zeros(label["x"].shape[0]))
+                all_binary_predictions = np.append(all_binary_predictions, np.zeros(label["x"].shape[0]))
+                all_pdbs.extend([filepath.split("/")[-1].split(".")[0] for filepath in data["input"]["filepath"]])
 
-        val_loss = total_loss_val / (len(all_predictions) + len(all_binary_predictions))
+            #all_labels = np.append(all_labels, label.numpy())
+            #all_predictions = np.append(all_predictions, output["x"].flatten().detach().cpu().numpy())
+
+        val_loss = total_loss_val / len(all_predictions)
         if len(all_binary_labels) > 0:
             acc = accuracy_score(all_binary_labels, all_binary_predictions)
         else:
             acc = np.nan
 
-        if len(all_continuous_labels) > 0:
-            pearson_corr = stats.pearsonr(all_continuous_labels, all_continuous_predictions)
-        else:
-            pearson_corr = (np.nan, np.nan)
+        pearson_corr = stats.pearsonr(all_labels, all_predictions)
         results.append({
             "val_loss": val_loss,
             "pearson_correlation": pearson_corr[0],
             "pearson_correlation_p": pearson_corr[1],
             "all_labels": all_labels,
             "all_predictions": all_predictions,
+            "all_binary_labels": all_binary_labels,
+            "all_binary_predictions": all_binary_predictions,
             "all_pdbs": all_pdbs,
             "total_val_loss": total_loss_val,
             "val_accuracy": acc
@@ -236,7 +231,7 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
     use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
 
-    criterion = get_loss_function(args, device)
+    criterion = get_loss_function(args.loss_function)
     optimizer = Adam(model.parameters(), lr=args.learning_rate)
 
     if args.lr_scheduler == "exponential":
@@ -262,7 +257,7 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
     best_rmse = np.inf
 
     best_model = deepcopy(model)
-    #TODO I moved the loader outside the loop!
+
     train_dataloader, val_dataloaders = get_dataloader(args, train_dataset, val_datasets)
     for i in range(args.max_epochs):
 
@@ -381,22 +376,22 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
     return results, best_model
 
 
-def get_loss_function(args: Namespace, device: torch.device):
+def get_loss_function(loss_function: str):
     # Different loss functions are seperated with a +
     # Optionally, they can contain a weight seperated with a -
     # E.g. args.loss_function = L2-1+L1-0.1+relative_l1-2+relative_l2-0.1+relative_ce
-    loss_types = [x.split("-") for x in args.loss_function.split("+")]
-    loss_types = [(x[0], x[1])if len(x) == 2 else (x[0],1.) for x in loss_types]
+    loss_types = [x.split("-") for x in loss_function.split("+")]
+    loss_types = [(x[0], float(x[1])) if len(x) == 2 else (x[0], 1.) for x in loss_types]
     criterions = []
     for criterion, weight in loss_types:
         if criterion == "L1":
-            loss_fn = lambda x,y: weight * nn.L1Loss().to(device)(x, y)
+            loss_fn = lambda x,y: weight * torch.nn.functional.l1_loss(x, y)
         elif criterion == "L2":
-            loss_fn = lambda x, y: weight * nn.MSELoss().to(device)(x, y)
+            loss_fn = lambda x, y: weight * torch.nn.functional.mse_loss(x, y)
         elif criterion == "relative_L1":
-            loss_fn = lambda x, y: weight * nn.L1Loss().to(device)(x, y)
+            loss_fn = lambda x, y: weight * torch.nn.functional.l1_loss(x, y)
         elif criterion == "relative_L2":
-            loss_fn = lambda x, y: weight * nn.MSELoss().to(device)(x, y)
+            loss_fn = lambda x, y: weight * torch.nn.functional.mse_loss(x, y)
         elif criterion == "relative_ce":
             loss_fn = lambda x, y: weight * torch.nn.functional.cross_entropy(x, y)
         else:
@@ -404,17 +399,6 @@ def get_loss_function(args: Namespace, device: torch.device):
         criterions.append((criterion,loss_fn))
 
     return criterions
-    if args.loss_function == "L1":
-        loss_fn = nn.L1Loss().to(device)
-    elif args.loss_function == "L2":
-        loss_fn = nn.MSELoss().to(device)
-    elif args.loss_function == "L1+L2":
-        loss_l1 = nn.L1Loss().to(device)
-        loss_mse = nn.MSELoss().to(device)
-        loss_fn = lambda x, y: loss_l1(x, y) + loss_mse(x, y)
-    else:
-        raise ValueError("Loss_Function must either be 'L1' or 'L2'")
-    return loss_fn
 
 
 def load_model(num_node_features: int, num_edge_features: int, dataset_names: List[str], args: Namespace,
@@ -649,18 +633,16 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
     # The losses used for this dataset come after a # seperated by a comma, when multiple losses are used
     # Optionally, the losses can contain some weight using -
     # E.g. data_type = relative#l2-1,l1-0.1,relative_l1-2,relative_2-0.1,relative_ce-1
-    # TODO maybe we do not need dataset specific losses, maybe we do?
     if "#" in data_type:
         data_type, loss_types = data_type.split("#")
-        loss_types = [x.split("-") for x in loss_types.split(",")]
-        loss_types = [(x[0],x[1])if len(x)==2 else (x[0],1.) for x in loss_types]
+        dataset_specific_loss_criterion = get_loss_function(loss_types)
     else:
-        loss_types = [("l2", 1)]
+        dataset_specific_loss_criterion = None
+
     if data_type == "relative":
         relative_data = True
     else:
         relative_data = False
-        assert all(["relative" not in x[0] for x in loss_types]), f"You try to use a relative Loss without relative data {loss_types}"
 
     validation_size = args.validation_size if dataset == args.target_dataset else args.transfer_learning_validation_size
     train_ids, val_ids = train_val_split(config, dataset_name, validation_set, validation_size)
@@ -685,7 +667,8 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
                                  force_recomputation=args.force_recomputation,
                                  preprocess_data=args.preprocess_graph,
                                  num_threads=args.num_workers,
-                                 load_embeddings=args.embeddings_path
+                                 load_embeddings=args.embeddings_path,
+                                 dataset_specific_loss_criterion=dataset_specific_loss_criterion
                                  )
 
     val_datas = [AffinityDataset(config, relaxed, dataset_name, val_ids,
@@ -839,7 +822,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
     Returns:
         Tuple: Results as dict, trained model
     """
-    raise NotImplementedError
+    # TODO raise NotImplementedError ??
     plot_path = os.path.join(args.config["plot_path"],
                              f"{args.node_type}/bucket_learning/val_set_{args.validation_set}")
     Path(plot_path).mkdir(exist_ok=True, parents=True)
@@ -851,7 +834,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
     use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
 
-    criterion = get_loss_function(args, device)
+    criterion = get_loss_function(args.loss_function)
     optimizer = Adam(model.parameters(), lr=args.learning_rate)
 
     scale_min = 0 if args.scale_values else args.scale_min
@@ -888,29 +871,25 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
 
         i = 0
         for val_dataset in val_datasets:
-            # TODO Here, the creterion is used with different labels (no Dict). Does not work like this)
             preds = epoch_results["all_predictions"][i:i + len(val_dataset)]
             labels = epoch_results["all_labels"][i:i + len(val_dataset)]
-            val_loss = criterion(torch.from_numpy(preds).to(device),
-                                 torch.from_numpy(labels).to(device)).detach().cpu()  # mean_squared_error(labels, preds) / len(labels)
-
-            if val_dataset.affinity_type == "E" and val_dataset.relative_data:
-                pearson_corr = (np.nan, np.nan)
-                rmse = np.nan
-                val_accuracy = accuracy_score(labels, preds)
-            else:  # val_dataset.affinity_type in ["-log(Kd)", "E–"]:
-                pearson_corr = stats.pearsonr(labels, preds)
+            # preds and labels are here always the energy so we can always use the l2 loss
+            val_loss = np.mean((labels - preds)**2)
+            if args.scale_values:
+                all_labels = labels * (args.scale_max - args.scale_min) + args.scale_min
+                all_predictions = preds * (args.scale_max - args.scale_min) + args.scale_min
+            else:
+                all_labels = labels
+                all_predictions = preds
+            rmse = math.sqrt(np.square(np.subtract(all_labels, all_predictions)).mean())
+            pearson_corr = stats.pearsonr(labels, preds)
+            if val_dataset.relative_data:
+                binary_preds = epoch_results["all_binary_predictions"][i:i + len(val_dataset)]
+                binary_labels = epoch_results["all_binary_labels"][i:i + len(val_dataset)]
+                val_accuracy = accuracy_score(binary_labels, binary_preds)
+            else:
                 val_accuracy = np.nan
-                if args.scale_values:
-                    all_labels = labels * (args.scale_max - args.scale_min) + args.scale_min
-                    all_predictions = preds * (args.scale_max - args.scale_min) + args.scale_min
-                else:
-                    all_labels = labels
-                    all_predictions = preds
-                rmse = math.sqrt(np.square(np.subtract(all_labels, all_predictions)).mean())
-            # else:
-            #     raise ValueError(f"Affinity type not supported: Got {val_dataset.affinity_type} but expected one of "
-            #                      f"(E, -log(Kd)")
+
             if val_dataset.relative_data:
                 data_type = "relative"
             else:
@@ -1070,6 +1049,7 @@ def log_gradients(model: AffinityGNN):
 
 def evaluate_model(model: AffinityGNN, dataloader: DataLoader, criterion, args: Namespace, tqdm_output: bool = True,
                    device: torch.device = torch.device("cpu"), plot_path: str = None) -> Tuple[float, float, pd.DataFrame]:
+    # TODO Why do we have different validations at different places (train_epoch, bucket_learning, ...)
     total_loss_val = 0
     all_predictions = np.array([])
     all_labels = np.array([])
@@ -1078,15 +1058,15 @@ def evaluate_model(model: AffinityGNN, dataloader: DataLoader, criterion, args: 
     for data in tqdm(dataloader, disable=not tqdm_output):
         output, label = forward_step(model, data, device)
 
-        loss = get_loss(criterion, label, output)
+        if data["loss_criterion"] is not None:
+            loss = get_loss(data["loss_criterion"], label, output)
+        else:
+            loss = get_loss(criterion, label, output)
         total_loss_val += loss.item()
 
         all_predictions = np.append(all_predictions, output["x"].flatten().detach().cpu().numpy())
-        if data["relative"] and data["affinity_type"] == "E":
-            torch.argmax(label.detach().cpu(), dim=1)
-        else:
-            label = label.detach().cpu()
-        all_labels = np.append(all_labels, label.numpy())
+
+        all_labels = np.append(all_labels, label["x"].detach().cpu().numpy())
         all_pdbs.extend([ filepath.split("/")[-1].split(".")[0] for filepath in data["input"]["filepath"]])
         # if len(all_labels) > 2:
             # break
