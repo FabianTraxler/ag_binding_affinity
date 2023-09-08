@@ -24,12 +24,16 @@ class DatasetAdjustment(nn.Module):
         output_sigmoid: Whether to apply a sigmoid to the output
 
     """
-    def __init__(self, output_sigmoid=False):
+    def __init__(self, output_sigmoid=False, only_bias=False):
+        """
+        As we initialize with weight=1 and bias=0, implementing only_bias is as simple as only unfreezing only_bias in requires_grad_
+        """
         super(DatasetAdjustment, self).__init__()
         self.linear = nn.Linear(1, 1)
         self.linear.weight.data.fill_(1)
         self.linear.bias.data.fill_(0)
         self.output_sigmoid = output_sigmoid
+        self.only_bias = only_bias
 
         self.requires_grad_(False)
 
@@ -41,6 +45,16 @@ class DatasetAdjustment(nn.Module):
                 print(f"WARNING: Vanishing gradients in {num_excessive} of {len(x.flatten())} due to excessively large values from NN.")
             x = torch.sigmoid(x)
         return x
+
+    def requires_grad_(self, requires_grad: bool = True) -> nn.Module:
+        """
+        Overwriting requires_grad_ to enable training of bias only
+        """
+        if self.only_bias:
+            self.linear.bias.requires_grad_(requires_grad)
+            return self
+        else:
+            return super().requires_grad_(requires_grad)
 
 class AffinityGNN(pl.LightningModule):
     def __init__(self, node_feat_dim: int, edge_feat_dim: int,
@@ -165,6 +179,8 @@ class AffinityGNN(pl.LightningModule):
     def unfreeze(self):
         """
         Unfreeze potentially frozen modules
+
+        TODO I should just use requires_grad_ everywhere
         """
 
         # make pretrained model trainable
