@@ -159,7 +159,7 @@ def parse_args(artifical_args=None) -> Namespace:
                           default=None)
     optional.add_argument("--sweep_id", type=str, help="The sweep ID to use for all runs")
     optional.add_argument("--sweep_runs", type=int, help="Number of runs to perform in this sweep instance",
-                          default=30)
+                          default=None)
 
     # general config
     optional.add_argument("-w", "--num_workers", type=int, help="Number of workers to use for data loading", default=0)

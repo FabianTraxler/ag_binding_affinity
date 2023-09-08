@@ -24,5 +24,4 @@
 --stop_at_learning_rate=0.000001
 --learning_rate=0.00001
 --init_sweep
---sweep_runs=72
 --sweep_config=sweep_config.yaml
