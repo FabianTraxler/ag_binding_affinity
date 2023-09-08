@@ -57,6 +57,8 @@ rule all:
         expand(out_folder / "{publication}.csv", publication=publications),
         relaxed_generated_pdbs
 
+include: "rules/standalone_helpers.smk"
+
 rule subset_dms_data:
     """
     Reduce the number of data points "per dataset" to a maximum of 20,000 (see params)
@@ -99,7 +101,7 @@ checkpoint generate_summary_df:
         dms_curated=rules.subset_dms_data.output[0],
         metadata_file=ancient(metadata_file),
     output:
-        out_folder / "{publication}.csv"
+        out_folder / "{publication,[^/]+}.csv"
     conda: project_root / "envs" / "generation_environment.yml"
     resources:
         mem_mb=10000

@@ -70,7 +70,7 @@ It takes quite a while to copy it with rsync (because it does individual file op
 For local testing, refer to `mschae83@s0-l00.hpc.meduniwien.ac.at:~/guided-protein-diffusion/modules/ag_binding_affinity/results/DMS_reduced_2023-09-08.tar.gz`, which contains no more than 20 files per folder and is therefore much much smaller.
 
 Note 1: These complexes are *not* relaxed. Coming soon
-Note 2: Some datapoints failed, such that the CSV files contain more samples than there are PDBs (needs to be investigated. Please workaround missing PDB files in a quick/hacky way. Long-term, I'll try to provide all data).
+Note 2: Some datapoints failed, such that the CSV files contain more samples than there are PDBs. Run `snakemake --use-conda -j1 trimmed_csvs` as a workaround to trim the CSV files to only contain data points with corresponding PDB files. Note: requires manual replacement of the CSV files after trimming.
 Note 3: There is very little you need to program from here to get DMS-training running. Just make sure that the downloaded DMS data folder corresponds to DATASETS.DMS.folder_path
 
 #### Copying the data from CeMM cluster
