@@ -27,6 +27,7 @@ parameters:
       - 3
   dms_output_layer_type:
     values:
-      - "linear"
+      - "regression"
+      - "regression_sigmoid"
       - "bias_only"
       - "identity"
