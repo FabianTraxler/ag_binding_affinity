@@ -175,7 +175,7 @@ class AffinityGNN(pl.LightningModule):
             dataset_index = self.dataset_names.index(dataset_adjustment)
             affinity = self.dataset_layers[dataset_index](affinity)
 
-            if self.dataset_layers[dataset_index].output_sigmoid and not self.scaled_output:
+            if self.dataset_layers[dataset_index].layer_type.endswith("_sigmoid") and not self.scaled_output:
                 raise NotImplementedError("Would need to allow scaling the sigmoidal values back to the original range")
 
         output["x"] = affinity
