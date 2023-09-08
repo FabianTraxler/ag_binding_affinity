@@ -25,4 +25,4 @@
 --learning_rate=0.00001
 --init_sweep
 --sweep_runs=72
---config_file=sweep_config.yaml
+--sweep_config=sweep_config.yaml

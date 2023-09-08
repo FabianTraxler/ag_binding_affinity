@@ -156,7 +156,7 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--init_sweep", action=BooleanOptionalAction,
                           help="Use Weight&Bias sweep to search hyperparameter space", default=False)
     optional.add_argument("--sweep_config", type=str, help="Path to the configuration file of the sweep",
-                          default=(Path(__file__).resolve().parents[2] / "config.yaml").resolve())
+                          default=None)
     optional.add_argument("--sweep_id", type=str, help="The sweep ID to use for all runs")
     optional.add_argument("--sweep_runs", type=int, help="Number of runs to perform in this sweep instance",
                           default=30)

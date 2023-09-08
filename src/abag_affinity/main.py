@@ -14,6 +14,8 @@ import torch
 from torch.utils.data import DataLoader
 import wandb
 import subprocess
+
+import yaml
 from abag_affinity.train.utils import get_benchmark_score, get_skempi_corr
 import pytorch_lightning as pl
 
@@ -171,7 +173,13 @@ def main() -> Dict:
     )  # implies --testing
 
     if args.init_sweep:
-        sweep_configuration = args.config["HYPERPARAMETER_SEARCH"]
+        if args.sweep_config:
+            logging.info(f"Using sweep config from dedicated file {args.sweep_config}")
+            with open(args.sweep_config, "r") as f:
+                sweep_configuration = yaml.safe_load(f)
+        else:
+            logging.info("Using sweep config from config.yaml")
+            sweep_configuration = args.config["HYPERPARAMETER_SEARCH"]
         sweep_id = wandb.sweep(sweep=sweep_configuration, project='abag_binding_affinity')
         args.sweep_id = sweep_id
         logger.info(f"W&B Sweep initialized with ID: {args.sweep_id}")
