@@ -96,6 +96,13 @@ Call `python main.py --help` to show available options.
 
 `python src/abag_affinity/main.py -t bucket_train -m GraphConv -d BoundComplexGraphs -b 5`
 
+datasets can have a dataset specific loss function:
+
+`--target_dataset=DATASET:MODE#LOSS1-LAMBDA1+LOSS2-LAMBDA2 `
+
+We have `MODE=[absolut,relative]`, `LOSS=[L1,L2,relative_L1,relative_L2,relative_ce]`implemented
+
+
 From wandb: (note that most of these parameters correspond to the default values!!)
 
 
@@ -103,9 +110,9 @@ From wandb: (note that most of these parameters correspond to the default values
 
 src/abag_affinity/main.py --target_dataset=abag_affinity:absolute --patience=30 --node_type=residue --batch_size=1 --layer_type=GCN --gnn_type=identity --pretrained_model IPA --max_epochs=200 --nonlinearity=leaky --loss_function=L1 --num_fc_layers=10 --num_gnn_layers=5 --validation_set=1 --train_strategy=model_train --channel_halving --no-fc_size_halving --max_edge_distance=3 --aggregation_method=mean -wdb --wandb_name ipa_relaxation_validation_relaxed_both --interface_hull_size none --wandb_mode=online --debug --relaxed_pdbs both
 
-src/abag_affinity/main.py --bucket_size_mode geometric_mean -t bucket_train --target_dataset abag_affinity:absolute --transfer_learning_dataset DMS-madan21_mutat_hiv:absolute --transfer_learning_dataset DMS-madan21_mutat_hiv:relative --transfer_learning_dataset DMS-madan21_mutat_hiv:relative --batch_size 10 --learning_rate 0.000005 --num_workers 7 --wandb_mode online --wandb_name madan21_ipa_emb_abagtarget_lr5e-6 --max_epochs 200 -wdb --debug --pretrained_model IPA --gnn_type identity
+src/abag_affinity/main.py --bucket_size_mode geometric_mean -t bucket_train --target_dataset abag_affinity:absolute --transfer_learning_dataset DMS-madan21_mutat_hiv:relative#relative_L2+L2 --batch_size 10 --learning_rate 0.000005 --num_workers 7 --wandb_mode online --wandb_name madan21_ipa_emb_abagtarget_lr5e-6 --max_epochs 200 -wdb --debug --pretrained_model IPA --gnn_type identity
 
-src/abag_affinity/main.py --bucket_size_mode geometric_mean -t bucket_train --target_dataset DMS-madan21_mutat_hiv:absolute --transfer_learning_dataset DMS-madan21_mutat_hiv:relative --transfer_learning_dataset DMS-madan21_mutat_hiv:relative --batch_size 10 --learning_rate 0.000001 --num_workers 7 --wandb_mode online --wandb_name madan21_noemb_new_folder_-6 --seed 7 --no-embeddings_path --max_epochs 200 -wdb --debug
+src/abag_affinity/main.py --bucket_size_mode geometric_mean -t bucket_train --target_dataset DMS-madan21_mutat_hiv:absolute --transfer_learning_dataset DMS-madan21_mutat_hiv:relative#relative_L2+L2 --batch_size 10 --learning_rate 0.000001 --num_workers 7 --wandb_mode online --wandb_name madan21_noemb_new_folder_-6 --seed 7 --no-embeddings_path --max_epochs 200 -wdb --debug
 
 ## CLI arguments
 

@@ -128,7 +128,7 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-
+lightning_logs/
 bin/
 lib64/
 pyvenv.cfg
