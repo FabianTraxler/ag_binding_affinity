@@ -25,6 +25,8 @@ class DatasetAdjustment(nn.Module):
     def __init__(self, output_sigmoid=False):
         super(DatasetAdjustment, self).__init__()
         self.linear = nn.Linear(1, 1)
+        self.linear.weight.data.fill_(1)
+        self.linear.bias.data.fill_(0)
         self.output_sigmoid = output_sigmoid
 
     def forward(self, x):
