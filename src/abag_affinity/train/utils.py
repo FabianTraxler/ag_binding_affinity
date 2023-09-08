@@ -241,7 +241,7 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
     best_rmse = np.inf
 
     best_model = deepcopy(model)
-    
+
     train_dataloader, val_dataloaders = get_dataloader(args, train_dataset, val_datasets)
     for i in range(args.max_epochs):
         model, val_results, total_loss_train = train_epoch(model, train_dataloader, val_dataloaders, criterion, optimizer, device,
@@ -251,7 +251,7 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
         if args.lr_scheduler == "exponential":
             scheduler.step()
         else:
-            scheduler.step(metrics=val_results[0]['val_loss'])
+            scheduler.step(metrics=val_results[0]['val_loss']) # TODO we only use the first validation loader for scheduler
             if args.patience is not None:
                 patience = args.patience - scheduler.num_bad_epochs
 
@@ -931,7 +931,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
             scheduler.step()
             patience = None
         else:
-            scheduler.step(metrics=val_results['val_loss'])
+            scheduler.step(metrics=val_result['val_loss'])
             patience = args.patience - scheduler.num_bad_epochs
 
         if dataset2optimize in dataset_results:
