@@ -241,11 +241,11 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
     elif args.lr_scheduler == "plateau":
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, mode='min', factor=args.lr_decay_factor,
-            patience=args.patience, verbose=args.verbose)
+            patience=args.patience or 10, verbose=args.verbose)
     elif args.lr_scheduler == "constant":
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, mode='min', factor=args.lr_decay_factor,
-            patience=args.patience, verbose=args.verbose)
+            patience=args.patience or 10, verbose=args.verbose)
         # Stop as soon as LR is reduced by one step -> constant LR with early stopping
         args.stop_at_learning_rate = args.learning_rate
 

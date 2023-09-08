@@ -63,9 +63,11 @@ For obtaining DMS-related datasets, refer to the DMS-subsection below!
 
 ### DMS
 The DMS data can be found here:
-mschae83@s0-l00.hpc.meduniwien.ac.at:~/guided-protein-diffusion/modules/ag_binding_affinity/data/DMS/
+mschae83@s0-l00.hpc.meduniwien.ac.at:~/guided-protein-diffusion/modules/ag_binding_affinity/results/DMS/
 It takes quite a while to copy it with rsync (because it does individual file operations). I therefore zipped it here:
-`mschae83@s0-l00.hpc.meduniwien.ac.at:~/guided-protein-diffusion/modules/ag_binding_affinity/data/DMS_2023-09-07.tar.gz`
+`mschae83@s0-l00.hpc.meduniwien.ac.at:~/guided-protein-diffusion/modules/ag_binding_affinity/results/DMS_2023-09-07.tar.gz`
+
+For local testing, refer to `mschae83@s0-l00.hpc.meduniwien.ac.at:~/guided-protein-diffusion/modules/ag_binding_affinity/results/DMS_reduced_2023-09-08.tar.gz`, which contains no more than 20 files per folder and is therefore much much smaller.
 
 Note 1: These complexes are *not* relaxed. Coming soon
 Note 2: Some datapoints failed, such that the CSV files contain more samples than there are PDBs (needs to be investigated. Please workaround missing PDB files in a quick/hacky way. Long-term, I'll try to provide all data).
