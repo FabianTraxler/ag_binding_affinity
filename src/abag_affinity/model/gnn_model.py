@@ -25,29 +25,28 @@ class DatasetAdjustment(nn.Module):
         output_sigmoid: Whether to apply a sigmoid to the output
 
     """
-    def __init__(self, layer_type, output_sigmoid=False):
+    def __init__(self, layer_type):
         """
         As we initialize with weight=1 and bias=0, implementing bias_only is as simple as only unfreezing bias_only in requires_grad_
         """
         super(DatasetAdjustment, self).__init__()
         self.layer_type = layer_type
-        if self.layer_type in ["identity", "bias_only", "regression"]:
+        if self.layer_type in ["identity", "bias_only", "regression", "regression_sigmoid"]:
             self.linear = nn.Linear(1, 1)
             self.linear.weight.data.fill_(1)
             self.linear.bias.data.fill_(0)
         else:
             raise NotImplementedError("'mlp' is not implemented at the moment")
-        self.output_sigmoid = output_sigmoid
 
         super().requires_grad_(False)  # Call original version to freeze all parameters
 
     def forward(self, x):
         x = self.linear(x)
-        if self.output_sigmoid:
+        if self.layer_type.endswith("_sigmoid"):
+            x = torch.sigmoid(x)
             num_excessive = (x == 0).sum() + (x == 1).sum()
             if num_excessive > 0:
                 print(f"WARNING: Vanishing gradients in {num_excessive} of {len(x.flatten())} due to excessively large values from NN.")
-            x = torch.sigmoid(x)
         return x
 
     def requires_grad_(self, requires_grad: bool = True) -> nn.Module:
@@ -143,7 +142,7 @@ class AffinityGNN(pl.LightningModule):
                                                   nonlinearity=nonlinearity,  num_fc_layers=num_fc_layers, device=device)
         # Dataset-specific output layers
         self.dataset_names = dataset_names
-        self.dataset_layers = nn.ModuleList([DatasetAdjustment(args.dms_output_layer_type, output_sigmoid=True) for _ in dataset_names])
+        self.dataset_layers = nn.ModuleList([DatasetAdjustment(args.dms_output_layer_type) for _ in dataset_names])
         self.scaled_output = scaled_output
 
         self.float()
