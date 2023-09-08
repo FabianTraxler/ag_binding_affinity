@@ -97,7 +97,7 @@ def get_loss(criterion, label: torch.Tensor, output: torch.Tensor) -> torch.Tens
 
 
 def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloaders: List[DataLoader], criterion,
-                optimizer: torch.optim, device: torch.device = torch.device("cpu"), tqdm_output: bool = True) -> Tuple[AffinityGNN, List, np.ndarray]:
+                optimizer: torch.optim, device: torch.device = torch.device("cpu"), tqdm_output: bool = True) -> Tuple[AffinityGNN, List, np.ndarray, float]:
     """ Train model for one epoch given the train and validation dataloaders
 
     Args:
@@ -232,22 +232,7 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
     device = torch.device("cuda" if use_cuda else "cpu")
 
     criterion = get_loss_function(args, device)
-    optimizer = Adam(model.parameters(), lr=args.learning_rate)
-
-    if args.lr_scheduler == "exponential":
-        scheduler = torch.optim.lr_scheduler.ExponentialLR(
-            optimizer, gamma=args.lr_decay_factor,
-            verbose=args.verbose)
-    elif args.lr_scheduler == "plateau":
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, mode='min', factor=args.lr_decay_factor,
-            patience=args.patience or 10, verbose=args.verbose)
-    elif args.lr_scheduler == "constant":
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, mode='min', factor=args.lr_decay_factor,
-            patience=args.patience or 10, verbose=args.verbose)
-        # Stop as soon as LR is reduced by one step -> constant LR with early stopping
-        args.stop_at_learning_rate = args.learning_rate
+    optimizer, scheduler = get_optimizer(args, model)
 
     scale_min = 0 if args.scale_values else args.scale_min
     scale_max = 1 if args.scale_values else args.scale_max
@@ -259,7 +244,7 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
     best_model = deepcopy(model)
     train_dataloader, val_dataloaders = get_dataloader(args, train_dataset, val_datasets)
     for i in range(args.max_epochs):
-        model, val_results, total_train_loss = train_epoch(model, train_dataloader, val_dataloaders, criterion, optimizer, device,
+        model, val_results, total_loss_train = train_epoch(model, train_dataloader, val_dataloaders, criterion, optimizer, device,
                                            args.tqdm_output)
 
         patience = None
@@ -311,7 +296,7 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
                 best_model = deepcopy(model)
 
             logger.info(
-                f'Epochs: {i + 1} | Train-Loss: {total_train_loss / len(train_dataloader) : .3f}  | '
+                f'Epochs: {i + 1} | Train-Loss: {total_loss_train / len(train_dataloader) : .3f}  | '
                 f'Val{val_i}-Loss: {val_result["total_val_loss"] / len(val_dataloader) : .3f} | '
                 f'Val{val_i}-r: {val_result["pearson_correlation"]: .4f} | '
                 f'p-value{val_i} r=0: {val_result["pearson_correlation_p"]: .4f} | RMSE: {val_result["rmse"]} | '
@@ -335,7 +320,7 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
 
             wandb_log = {
                 f"val{val_i}_loss": val_result["total_val_loss"] / (len(val_dataset) / args.batch_size),
-                "train_loss": total_train_loss / (len(train_dataset) / args.batch_size),
+                "train_loss": total_loss_train / (len(train_dataset) / args.batch_size),
                 f"val{val_i}_pearson_correlation": val_result["pearson_correlation"],
                 f"{val_dataset.full_dataset_name}{val_i}:{data_type}_val_loss": val_result["total_val_loss"] / (
                         len(val_dataset) / args.batch_size),
@@ -345,7 +330,7 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
 
             wandb.log(wandb_log, commit=True)
 
-        stop_training = True
+        stop_training = True
         for param_group in optimizer.param_groups:
             stop_training = stop_training and (
                 param_group['lr'] < args.stop_at_learning_rate)
@@ -386,6 +371,27 @@ def get_loss_function(args: Namespace, device: torch.device):
         raise ValueError("Loss_Function must either be 'L1' or 'L2'")
     return loss_fn
 
+def get_optimizer(args: Namespace, model: torch.nn.Module):
+    optimizer = Adam(model.parameters(), lr=args.learning_rate)
+
+    if args.lr_scheduler == "exponential":
+        scheduler = torch.optim.lr_scheduler.ExponentialLR(
+            optimizer, gamma=args.lr_decay_factor,
+            verbose=args.verbose)
+    elif args.lr_scheduler == "plateau":
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode='min', factor=args.lr_decay_factor,
+            patience=args.patience or 10, verbose=args.verbose)
+    elif args.lr_scheduler == "constant":
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode='min', factor=args.lr_decay_factor,
+            patience=args.patience or 10, verbose=args.verbose)
+        # Stop as soon as LR is reduced by one step -> constant LR with early stopping
+        args.stop_at_learning_rate = args.learning_rate
+    else:
+        raise ValueError(f"LR Scheduler {args.lr_scheduler} not supported.")
+
+    return optimizer, scheduler
 
 def load_model(num_node_features: int, num_edge_features: int, dataset_names: List[str], args: Namespace,
                device: torch.device = torch.device("cpu")) -> AffinityGNN:
@@ -405,7 +411,7 @@ def load_model(num_node_features: int, num_edge_features: int, dataset_names: Li
     else:
         pretrained_model_path = ""
     dataset_name = args.target_dataset.split(':')[0]
-    model = AffinityGNN(num_node_features, num_edge_features,
+    model = AffinityGNN(num_node_features, num_edge_features, args,
                         num_nodes=args.max_num_nodes,
                         pretrained_model=args.pretrained_model, pretrained_model_path=pretrained_model_path,
                         gnn_type=args.gnn_type, num_gat_heads=args.attention_heads,
@@ -417,8 +423,7 @@ def load_model(num_node_features: int, num_edge_features: int, dataset_names: Li
                         num_fc_layers=args.num_fc_layers, fc_size_halving=args.fc_size_halving,
                         device=device,
                         scaled_output=args.scale_values,  # seems to work worse than if the model learns it on its own
-                        dataset_names=np.unique([ds_name.split(":")[0] for ds_name in dataset_names]).tolist(),
-                        args=args)
+                        dataset_names=np.unique([ds_name.split(":")[0] for ds_name in dataset_names]).tolist())
 
 
     return model
@@ -663,8 +668,8 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
                                 num_threads=args.num_workers,
                                 load_embeddings=args.embeddings_path
                                 )
-                 for relaxed in [bool(args.relaxed_pdbs), not args.relaxed_pdbs]
-                 ]
+                 for relaxed in [bool(args.relaxed_pdbs)]
+                 ]  # TODO disabling , not args.relaxed_pdbs for now. Enable once we generated all relaxed data
 
     return train_data, val_datas
 
@@ -809,7 +814,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
     device = torch.device("cuda" if use_cuda else "cpu")
 
     criterion = get_loss_function(args, device)
-    optimizer = Adam(model.parameters(), lr=args.learning_rate)
+    optimizer, scheduler = get_optimizer(args, model)
 
     scale_min = 0 if args.scale_values else args.scale_min
     scale_max = 1 if args.scale_values else args.scale_max
@@ -832,21 +837,24 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
         # create new buckets for each epoch
         train_dataloader, val_dataloader = get_bucket_dataloader(args, train_datasets, val_datasets)
 
-        model, epoch_results = train_epoch(model, train_dataloader, [val_dataloader], criterion, optimizer, device,
+        model, val_results, total_loss_train = train_epoch(model, train_dataloader, [val_dataloader], criterion, optimizer, device,
                                            args.tqdm_output)
+        assert len(val_results) == 1, "If more than one val dataset is desired, need to implement another for loop in some way as in `train_loop`"
+        val_result = val_results[0]
 
         dataset_results = {}
 
         wandb_log = {
-            "val_loss": epoch_results["total_val_loss"] / len(val_dataloader),
-            "train_loss": epoch_results["total_train_loss"] / len(train_dataloader),
-            "pearson_correlation": epoch_results["pearson_correlation"]
+            "val_loss": val_result["total_val_loss"] / len(val_dataloader),
+            "train_loss": total_loss_train / len(train_dataloader),
+            "pearson_correlation": val_result["pearson_correlation"]
         }
 
         i = 0
+
         for val_dataset in val_datasets:
-            preds = epoch_results["all_predictions"][i:i + len(val_dataset)]
-            labels = epoch_results["all_labels"][i:i + len(val_dataset)]
+            preds = val_result["all_predictions"][i:i + len(val_dataset)]
+            labels = val_result["all_labels"][i:i + len(val_dataset)]
             val_loss = criterion(torch.from_numpy(preds).to(device),
                                  torch.from_numpy(labels).to(device)).detach().cpu()  # mean_squared_error(labels, preds) / len(labels)
 
@@ -896,8 +904,15 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
             wandb_log[f"{val_dataset.full_dataset_name}:{data_type}_val_rmse"] = rmse
             i += len(val_dataset)
 
-        results["epoch_loss"].append(epoch_results["val_loss"])
-        results["epoch_corr"].append(epoch_results["pearson_correlation"])
+        results["epoch_loss"].append(val_result["val_loss"])
+        results["epoch_corr"].append(val_result["pearson_correlation"])
+
+        if args.lr_scheduler == "exponential":
+            scheduler.step()
+            patience = None
+        else:
+            scheduler.step(metrics=epoch_results['val_loss'])
+            patience = args.patience - scheduler.num_bad_epochs
 
         if dataset2optimize in dataset_results:
             results["abag_epoch_loss"].append(dataset_results[dataset2optimize]["val_loss"])
@@ -919,7 +934,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
                                  y=dataset_results[dataset_name]["all_predictions"],
                                  path=os.path.join(plot_path, f"{dataset_name}.png"))
 
-            plot_correlation(x=epoch_results["all_labels"], y=epoch_results["all_predictions"],
+            plot_correlation(x=val_result["all_labels"], y=val_result["all_predictions"],
                              path=os.path.join(plot_path, "all_bucket_predictions.png"))
 
             best_data = [[x, y] for (x, y) in zip(dataset_results[dataset2optimize]["all_predictions"], dataset_results[dataset2optimize]["all_labels"])]
@@ -932,8 +947,8 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
             patience -= 1
 
         logger.info(
-            f'Epochs: {epoch + 1} | Total-Train-Loss: {epoch_results["total_train_loss"] / len(train_dataloader) : .3f}'
-            f' | Total-Val-Loss: {epoch_results["total_val_loss"] / len(val_dataloader) : .3f} | Patience: {patience} ')
+            f'Epochs: {epoch + 1} | Total-Train-Loss: {total_loss_train / len(train_dataloader) : .3f}'
+            f' | Total-Val-Loss: {val_result["total_val_loss"] / len(val_dataloader) : .3f} | Patience: {patience} ')
 
         wandb.log(wandb_log, commit=True)
 
@@ -960,9 +975,9 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
     return results, best_model
 
 
-def finetune_pretrained(model: AffinityGNN, train_dataset: Union[AffinityDataset, List[AffinityDataset]], val_dataset: Union[AffinityDataset, List[AffinityDataset]],
-                      args: Namespace, lr_reduction: float = 2e-02) -> Tuple[Dict, AffinityGNN]:
-    """ Utility to finetune the pretrained model using a lowered learning rate
+def finetune_frozen(model: AffinityGNN, train_dataset: Union[AffinityDataset, List[AffinityDataset]], val_dataset: Union[AffinityDataset, List[AffinityDataset]],
+                      args: Namespace, lr_reduction: float = 1e-01) -> Tuple[Dict, AffinityGNN]:
+    """ Utility to finetune the previously frozen model components (e.g. published pretrained model or dataset-specific layers)
 
     Args:
         model: Model with a pretrained encoder
@@ -980,13 +995,7 @@ def finetune_pretrained(model: AffinityGNN, train_dataset: Union[AffinityDataset
     args.stop_at_learning_rate = args.stop_at_learning_rate * lr_reduction
 
     logger.info(f"Fintuning pretrained model with lr={args.learning_rate}")
-
-    # make pretrained model trainable
-    model.pretrained_model.requires_grad = True
-    try:
-        model.pretrained_model.unfreeze()
-    except AttributeError:
-        logging.warning("Pretrained model does not have an unfreeze method")
+    model.unfreeze()
 
     if args.train_strategy == "bucket_train":
         results, model = bucket_learning(model, train_dataset, val_dataset, args)
