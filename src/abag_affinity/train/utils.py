@@ -405,7 +405,7 @@ def load_model(num_node_features: int, num_edge_features: int, dataset_names: Li
     else:
         pretrained_model_path = ""
     dataset_name = args.target_dataset.split(':')[0]
-    model = AffinityGNN(num_node_features, num_edge_features,
+    model = AffinityGNN(num_node_features, num_edge_features, args,
                         num_nodes=args.max_num_nodes,
                         pretrained_model=args.pretrained_model, pretrained_model_path=pretrained_model_path,
                         gnn_type=args.gnn_type, num_gat_heads=args.attention_heads,
@@ -417,8 +417,7 @@ def load_model(num_node_features: int, num_edge_features: int, dataset_names: Li
                         num_fc_layers=args.num_fc_layers, fc_size_halving=args.fc_size_halving,
                         device=device,
                         scaled_output=args.scale_values,  # seems to work worse than if the model learns it on its own
-                        dataset_names=np.unique([ds_name.split(":")[0] for ds_name in dataset_names]).tolist(),
-                        args=args)
+                        dataset_names=np.unique([ds_name.split(":")[0] for ds_name in dataset_names]).tolist())
 
 
     return model

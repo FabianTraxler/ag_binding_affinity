@@ -1,5 +1,6 @@
 """Submodule for Graph Neural Networks trained to predict binding affinity"""
 
+import argparse
 import logging
 import torch
 import torch.nn as nn
@@ -24,18 +25,21 @@ class DatasetAdjustment(nn.Module):
         output_sigmoid: Whether to apply a sigmoid to the output
 
     """
-    def __init__(self, output_sigmoid=False, only_bias=False):
+    def __init__(self, layer_type, output_sigmoid=False):
         """
-        As we initialize with weight=1 and bias=0, implementing only_bias is as simple as only unfreezing only_bias in requires_grad_
+        As we initialize with weight=1 and bias=0, implementing bias_only is as simple as only unfreezing bias_only in requires_grad_
         """
         super(DatasetAdjustment, self).__init__()
-        self.linear = nn.Linear(1, 1)
-        self.linear.weight.data.fill_(1)
-        self.linear.bias.data.fill_(0)
+        self.layer_type = layer_type
+        if self.layer_type in ["identity", "bias_only", "regression"]:
+            self.linear = nn.Linear(1, 1)
+            self.linear.weight.data.fill_(1)
+            self.linear.bias.data.fill_(0)
+        else:
+            raise NotImplementedError("'mlp' is not implemented at the moment")
         self.output_sigmoid = output_sigmoid
-        self.only_bias = only_bias
 
-        self.requires_grad_(False)
+        super().requires_grad_(False)  # Call original version to freeze all parameters
 
     def forward(self, x):
         x = self.linear(x)
@@ -50,14 +54,17 @@ class DatasetAdjustment(nn.Module):
         """
         Overwriting requires_grad_ to enable training of bias only
         """
-        if self.only_bias:
+        if self.layer_type == "bias_only":
             self.linear.bias.requires_grad_(requires_grad)
+            return self
+        elif self.layer_type == "identity":
             return self
         else:
             return super().requires_grad_(requires_grad)
 
 class AffinityGNN(pl.LightningModule):
     def __init__(self, node_feat_dim: int, edge_feat_dim: int,
+                 args: argparse.Namespace,  # provide args so they can be saved by the LightningModule (hparams) and for DatasetAdjustment
                  num_nodes: int = None,
                  pretrained_model: str = "", pretrained_model_path: str = "",
                  gnn_type: str = "5A-proximity",
@@ -69,8 +76,7 @@ class AffinityGNN(pl.LightningModule):
                  num_fc_layers: int = 3, fc_size_halving: bool = True,
                  device: torch.device = torch.device("cpu"),
                  scaled_output: bool = False,
-                 dataset_names: List = None,
-                 args=None):  # provide args so they can be saved by the LightningModule (hparams)
+                 dataset_names: List = None):
         """
         Args:
             node_feat_dim: Dimension of node features
@@ -137,7 +143,7 @@ class AffinityGNN(pl.LightningModule):
                                                   nonlinearity=nonlinearity,  num_fc_layers=num_fc_layers, device=device)
         # Dataset-specific output layers
         self.dataset_names = dataset_names
-        self.dataset_layers = nn.ModuleList([DatasetAdjustment(output_sigmoid=True) for _ in dataset_names])
+        self.dataset_layers = nn.ModuleList([DatasetAdjustment(args.dms_output_layer_type, output_sigmoid=True) for _ in dataset_names])
         self.scaled_output = scaled_output
 
         self.float()
