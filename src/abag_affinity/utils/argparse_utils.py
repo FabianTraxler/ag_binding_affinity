@@ -82,8 +82,11 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--bucket_size_mode", type=str, help="Mode to determine the size of the training buckets",
                           default="geometric_mean", choices=["min", "geometric_mean", "double_geometric_mean"])
     optional.add_argument("-m", "--pretrained_model", type=str,
-                          help='Name of the pretrained model to use for node embeddings',
+                          help='Name of the published/pretrained model to use for node embeddings',
                           choices=["", "DeepRefine", "Binding_DDG", "IPA", "Diffusion"], default="")
+    optional.add_argument("--fine_tune", type=str,
+                          help='Fine-tune model components that have been frozen at the start of training (e.g. published/pretrained models or dataset-specific layers)',
+                          action=BooleanOptionalAction, default=True)
     optional.add_argument("--transfer_learning_validation_size", type=int,
                           help="Percent of transfer learning dataset(s) used to validate model (only DMS)",
                           default=10)

@@ -960,9 +960,9 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
     return results, best_model
 
 
-def finetune_pretrained(model: AffinityGNN, train_dataset: Union[AffinityDataset, List[AffinityDataset]], val_dataset: Union[AffinityDataset, List[AffinityDataset]],
-                      args: Namespace, lr_reduction: float = 2e-02) -> Tuple[Dict, AffinityGNN]:
-    """ Utility to finetune the pretrained model using a lowered learning rate
+def finetune_frozen(model: AffinityGNN, train_dataset: Union[AffinityDataset, List[AffinityDataset]], val_dataset: Union[AffinityDataset, List[AffinityDataset]],
+                      args: Namespace, lr_reduction: float = 1e-01) -> Tuple[Dict, AffinityGNN]:
+    """ Utility to finetune the previously frozen model components (e.g. published pretrained model or dataset-specific layers)
 
     Args:
         model: Model with a pretrained encoder
@@ -980,13 +980,7 @@ def finetune_pretrained(model: AffinityGNN, train_dataset: Union[AffinityDataset
     args.stop_at_learning_rate = args.stop_at_learning_rate * lr_reduction
 
     logger.info(f"Fintuning pretrained model with lr={args.learning_rate}")
-
-    # make pretrained model trainable
-    model.pretrained_model.requires_grad = True
-    try:
-        model.pretrained_model.unfreeze()
-    except AttributeError:
-        logging.warning("Pretrained model does not have an unfreeze method")
+    model.unfreeze()
 
     if args.train_strategy == "bucket_train":
         results, model = bucket_learning(model, train_dataset, val_dataset, args)
