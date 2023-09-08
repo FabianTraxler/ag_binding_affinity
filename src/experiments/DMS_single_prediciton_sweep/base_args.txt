@@ -12,6 +12,7 @@
 --num_gnn_layers=5
 --validation_set=1
 --train_strategy=model_train
+--fine_tune
 --channel_halving
 --no-fc_size_halving
 --max_edge_distance=3

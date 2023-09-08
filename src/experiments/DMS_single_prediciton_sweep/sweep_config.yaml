@@ -10,6 +10,7 @@ parameters:
       - "DMS-phillips21_bindin:absolute"
       - "DMS-taft22_deep_mutat_learn_predic_ace2:absolute"
       - "DMS-starr21_prosp_covid:absolute"
+      - "DMS-wu17_in:absolute"
   loss_function:
     values:
       - "L1"
@@ -24,3 +25,8 @@ parameters:
       - 1
       - 2
       - 3
+  dms_output_layer_type:
+    values:
+      - "linear"
+      - "bias_only"
+      - "identity"
