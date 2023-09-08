@@ -1,0 +1,26 @@
+The base arguments are defined in 'base_args.txt', I used plateau scheduling as the default as it is strictly at least as good as constant. The wandb_user argument needs to be changed as it is currently set to my own wandb account.
+The number of sweep runs is currently set to 72, as this is the number necessary to search over all grid parameters once.
+
+The parameters beings seached over in sweep_config.yaml are:
+
+ target_dataset:
+    - "DMS-madan21_mutat_hiv:absolute"
+    - "DMS-phillips21_bindin:absolute"
+    - "DMS-taft22_deep_mutat_learn_predic_ace2:absolute"
+    - "DMS-starr21_prosp_covid:absolute"
+
+loss_function:
+    - "L1"
+    - "L2"
+    - "L1+L2"
+
+aggregation_method:
+    - "interface_sum"
+    - "mean"
+
+seed:
+    - 1
+    - 2
+    - 3
+
+If any of these are changed, make sure to adjust the sweep_runs parameter if you want to ensure that each parameter combination is tested at least once.

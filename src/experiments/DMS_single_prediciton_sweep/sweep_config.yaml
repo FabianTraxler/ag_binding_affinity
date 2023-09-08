@@ -1,0 +1,196 @@
+DATASETS:
+  path: ""
+
+  SKEMPI.v2:
+    folder_path: "results/SKEMPI_v2"
+    summary: "skempi_v2.csv"
+    mutated_pdb_path: "mutated"
+    pdb_path: "mutated"
+    affinity_type: "-log(Kd)"
+
+  abag_affinity:
+    folder_path: "results/abag_affinity_dataset"
+    pdb_path: "pdbs"
+    summary: "abag_affinity_dataset.csv"
+    affinity_type: "-log(Kd)"
+
+  PDBBind:
+    folder_path: "results/PDBBind"
+    pdb_path: "pdbs"
+    summary: "pdbbind.csv"
+    affinity_type: "-log(Kd)"
+
+  AntibodyBenchmark:
+    folder_path: "results/antibody_benchmark"
+    pdb_path: "pdbs"
+    summary: "benchmark.csv"
+    affinity_type: "-log(Kd)"
+
+  DMS:
+    folder_path: "results/DMS"
+    summary: "" # summary for every subdataset
+    mutated_pdb_path: "mutated"  # TODO why do I have both these paths?
+    pdb_path: "mutated"
+    affinity_types:
+      phillips21_bindin: "-log(Kd)"
+      starr21_prosp_covid: "E"
+      madan21_mutat_hiv: "E"
+      wu17_in: "E"
+      wu20_differ_ha_h3_h1: "E"
+      mason21_comb_optim_therap_antib_by_predic_combined_H3_3: "E"
+      mason21_comb_optim_therap_antib_by_predic_combined_L3_3: "E"
+      mason21_optim_therap_antib_by_predic_dms_H: "E"
+      mason21_optim_therap_antib_by_predic_dms_L: "E"
+      b.20_funct_screen_strat_engin_chimer: "E"
+      taft22_deep_mutat_learn_predic_ace2: "E"
+
+RESOURCES:
+  path: ""
+
+  DMS:
+    folder_path: "data/DMS"
+    info: "dms_curated.csv"
+    pdb_path: ""
+
+  SAbDab:
+    folder_path: "resources/SAbDab"
+    summary: "sabdab_summary.tsv"
+    pdb_path: ""
+
+  AbDb:
+    folder_path: "resources/AbDb"
+    summary: ""
+    pdb_path: "pdbs"
+
+  AntibodyBenchmark:
+    folder_path: "resources/antibody_benchmark"
+    pdb_path: "pdbs"
+    summary: "antibody_benchmark_cases.xlsx"
+
+  PDBBind:
+    folder_path: "resources/PDBBind"
+    pdb_path: "PP"
+    summary: "pp_infos.txt"
+    affinity_type: "-log(Kd)"
+
+  SKEMPI.v2:
+    folder_path: "resources/SKEMPI_v2"
+    summary: "skempi_v2.csv"
+    pdb_path: "PDBs"
+
+
+RESULTS:
+  path: "results"
+  prediction_path: "predictions"
+  model_path: "model"
+  force_field_results: "force_fields"
+  plot_path: "plots"
+  prediction_path: "predictions"
+  model_path: "models"
+  force_field_results: "ff_res"
+  processed_graph_path: "processed_graphs"
+  interface_pdbs: "interface_pdb"
+
+MODELS:
+  Binding_DDG:
+    model_path: "src/abag_affinity/binding_ddg_predictor/data/model.pt"
+  DeepRefine:
+    model_path: "../other_repos/DeepRefine/project/checkpoints/EGR_All_Atom_Models/LitPSR_EGR_AllAtomModel1_Seed42.ckpt"
+  IPA:
+    model_path: "../../resources/openfold_params/finetuning_ptm_2.pt"
+  Diffusion:
+    model_path: "../../resources/openfold_params/finetuning_ptm_2.pt"
+
+HYPERPARAMETER_SEARCH:
+  method: 'grid'
+  name: 'DMS-Evaluation-Sweep'
+  metric:
+    goal: 'minimize'
+    name: 'DMS:single_sweep'
+  parameters:
+    target_dataset:
+      values:
+        - "DMS-madan21_mutat_hiv:absolute"
+        - "DMS-phillips21_bindin:absolute"
+        - "DMS-taft22_deep_mutat_learn_predic_ace2:absolute"
+        - "DMS-starr21_prosp_covid:absolute"
+    train_strategy:
+      values:
+        - "model_train"
+    bucket_size_mode:
+      values:
+        - "min"
+    batch_size:
+      values:
+        - 5
+    learning_rate:
+      values:
+        - 0.00001
+    node_type:
+      values:
+        - "residue"
+    max_num_nodes:
+      values:
+        - None
+    scale_values:
+      values:
+        - True
+    loss_function:
+      values:
+        - "L1"
+        - "L2"
+        - "L1+L2"
+    layer_type:
+      values:
+        - "GCN"
+    gnn_type:
+      values:
+        - "guided"
+    max_edge_distance:
+      values:
+        - 3
+    num_gnn_layers:
+      values:
+        - 5
+    attention_heads:
+      values:
+        - 5
+    channel_halving:
+      values:
+        - True
+    fc_size_halving:
+      values:
+        - False
+    aggregation_method:
+      values:
+        - "interface_sum"
+        - "mean"
+    nonlinearity:
+      values:
+        - "leaky"
+    num_fc_layers:
+      values:
+        - 10
+    relaxed_pdbs:
+      values:
+        - False
+    max_epochs:
+      values:
+        - 3
+    patience:
+      values:
+        - 30
+    lr_scheduler:
+      values:
+        - "plateau"
+    stop_at_learning_rate:
+      values:
+        - 0.000001
+    lr_decay_factor:
+      values:
+        - 0.5
+    seed:
+      values:
+        - 1
+        - 2
+        - 3
