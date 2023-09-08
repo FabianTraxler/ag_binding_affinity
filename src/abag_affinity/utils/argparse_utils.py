@@ -84,7 +84,7 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("-m", "--pretrained_model", type=str,
                           help='Name of the published/pretrained model to use for node embeddings',
                           choices=["", "DeepRefine", "Binding_DDG", "IPA", "Diffusion"], default="")
-    optional.add_argument("--fine_tune", type=str,
+    optional.add_argument("--fine_tune",
                           help='Fine-tune model components that have been frozen at the start of training (e.g. published/pretrained models or dataset-specific layers)',
                           action=BooleanOptionalAction, default=True)
     optional.add_argument("--transfer_learning_validation_size", type=int,
@@ -246,8 +246,6 @@ def read_args_from_file(args: Namespace) -> Namespace:
         if key in args.__dict__ and key not in manually_passed_args:
             args.__dict__[key] = value["value"]
             if key == "transfer_learning_datasets" and isinstance(value["value"], str):
-                if value["value"] == "DMS-taft22_deep_mutat_learn_predic_ace2:relative":
-                    raise ValueError("This dataset leads to timeouts during training and is therefore skipped")
                 if ";" in value["value"]:
                     args.__dict__[key] = value["value"].split(";")
                 else:
