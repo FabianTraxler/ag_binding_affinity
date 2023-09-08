@@ -10,7 +10,7 @@ import random
 from collections import Counter
 
 from ..utils.config import read_config, get_data_paths
-from .utils import get_skempi_corr, load_model, load_datasets, train_loop, finetune_pretrained, bucket_learning, get_benchmark_score, \
+from .utils import get_skempi_corr, load_model, load_datasets, train_loop, finetune_frozen, bucket_learning, get_benchmark_score, \
     get_abag_test_score
 from ..model.gnn_model import AffinityGNN
 
@@ -57,8 +57,8 @@ def model_train(args:Namespace, validation_set: int = None) -> Tuple[AffinityGNN
 
     results, best_model = train_loop(model, train_data, val_datas, args)
 
-    if args.pretrained_model in ["Binding_DDG", "DeepRefine", "IPA", "Diffusion"]:
-        results, best_model = finetune_pretrained(best_model, train_data, val_datas, args)
+    if args.fine_tune:
+        results, best_model = finetune_frozen(best_model, train_data, val_datas, args, lr_reduction=1.0)
     return best_model, results
 
 
@@ -101,9 +101,10 @@ def pretrain_model(args:Namespace) -> Tuple[AffinityGNN, Dict]:
         logger.debug(results)
         all_results[dataset_name] = results
 
-    if args.pretrained_model in ["Binding_DDG", "DeepRefine", "IPA", "Diffusion"]:
+    if args.fine_tune:
+        raise NotImplementedError("We would need to fine-tune on all DMS datasets, e.g. via a for-loop again?")
         train_data, val_datas = load_datasets(config, datasets[-1], args.validation_set, args)
-        results, model = finetune_pretrained(model, train_data, val_datas, args)
+        results, model = finetune_frozen(model, train_data, val_datas, args, lr_reduction=1)
         all_results["finetuning"] = results
 
     return model, all_results
@@ -159,8 +160,8 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
     results, model = bucket_learning(model, train_datasets, val_datasets, args)
     logger.info("Training with {} completed".format(datasets))
 
-    if args.pretrained_model in ["Binding_DDG", "DeepRefine", "IPA", "Diffusion"]:
-        results, model = finetune_pretrained(model, train_datasets, val_datasets, args)
+    if args.fine_tune:
+        results, model = finetune_frozen(model, train_datasets, val_datasets, args, lr_reduction=1)
 
     logger.debug(results)
     return model, results

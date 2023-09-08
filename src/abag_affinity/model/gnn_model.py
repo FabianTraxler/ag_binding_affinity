@@ -1,5 +1,7 @@
 """Submodule for Graph Neural Networks trained to predict binding affinity"""
 
+import argparse
+import logging
 import torch
 import torch.nn as nn
 
@@ -13,7 +15,8 @@ import pytorch_lightning as pl
 
 class DatasetAdjustment(nn.Module):
     """
-    Dataset-specific adjustment layer (linear layer)
+    Dataset-specific adjustment layer (linear layer). Initially frozen by default
+
     Theoretically there is a sigmoidal relationship between the log-affinity and the enrichment value. However, in pooled (DMS) experiments the relationship is much more complex (and potentially linear). 
     As we observed that DMS modeling works better with sigmoid, we include it here
 
@@ -22,23 +25,45 @@ class DatasetAdjustment(nn.Module):
         output_sigmoid: Whether to apply a sigmoid to the output
 
     """
-    def __init__(self, output_sigmoid=False):
+    def __init__(self, layer_type):
+        """
+        As we initialize with weight=1 and bias=0, implementing bias_only is as simple as only unfreezing bias_only in requires_grad_
+        """
         super(DatasetAdjustment, self).__init__()
-        self.linear = nn.Linear(1, 1)
-        self.output_sigmoid = output_sigmoid
+        self.layer_type = layer_type
+        if self.layer_type in ["identity", "bias_only", "regression", "regression_sigmoid"]:
+            self.linear = nn.Linear(1, 1)
+            self.linear.weight.data.fill_(1)
+            self.linear.bias.data.fill_(0)
+        else:
+            raise NotImplementedError("'mlp' is not implemented at the moment")
+
+        super().requires_grad_(False)  # Call original version to freeze all parameters
 
     def forward(self, x):
         x = self.linear(x)
-        if self.output_sigmoid:
+        if self.layer_type.endswith("_sigmoid"):
+            x = torch.sigmoid(x)
             num_excessive = (x == 0).sum() + (x == 1).sum()
             if num_excessive > 0:
                 print(f"WARNING: Vanishing gradients in {num_excessive} of {len(x.flatten())} due to excessively large values from NN.")
-            x = torch.sigmoid(x)
         return x
 
+    def requires_grad_(self, requires_grad: bool = True) -> nn.Module:
+        """
+        Overwriting requires_grad_ to enable training of bias only
+        """
+        if self.layer_type == "bias_only":
+            self.linear.bias.requires_grad_(requires_grad)
+            return self
+        elif self.layer_type == "identity":
+            return self
+        else:
+            return super().requires_grad_(requires_grad)
 
 class AffinityGNN(pl.LightningModule):
     def __init__(self, node_feat_dim: int, edge_feat_dim: int,
+                 args: argparse.Namespace,  # provide args so they can be saved by the LightningModule (hparams) and for DatasetAdjustment
                  num_nodes: int = None,
                  pretrained_model: str = "", pretrained_model_path: str = "",
                  gnn_type: str = "5A-proximity",
@@ -50,8 +75,7 @@ class AffinityGNN(pl.LightningModule):
                  num_fc_layers: int = 3, fc_size_halving: bool = True,
                  device: torch.device = torch.device("cpu"),
                  scaled_output: bool = False,
-                 dataset_names: List = None,
-                 args=None):  # provide args so they can be saved by the LightningModule (hparams)
+                 dataset_names: List = None):
         """
         Args:
             node_feat_dim: Dimension of node features
@@ -118,7 +142,7 @@ class AffinityGNN(pl.LightningModule):
                                                   nonlinearity=nonlinearity,  num_fc_layers=num_fc_layers, device=device)
         # Dataset-specific output layers
         self.dataset_names = dataset_names
-        self.dataset_layers = nn.ModuleList([DatasetAdjustment(output_sigmoid=True) for _ in dataset_names])
+        self.dataset_layers = nn.ModuleList([DatasetAdjustment(args.dms_output_layer_type) for _ in dataset_names])
         self.scaled_output = scaled_output
 
         self.float()
@@ -151,11 +175,30 @@ class AffinityGNN(pl.LightningModule):
             dataset_index = self.dataset_names.index(dataset_adjustment)
             affinity = self.dataset_layers[dataset_index](affinity)
 
-            if self.dataset_layers[dataset_index].output_sigmoid and not self.scaled_output:
+            if self.dataset_layers[dataset_index].layer_type.endswith("_sigmoid") and not self.scaled_output:
                 raise NotImplementedError("Would need to allow scaling the sigmoidal values back to the original range")
 
         output["x"] = affinity
         return output
+
+    def unfreeze(self):
+        """
+        Unfreeze potentially frozen modules
+
+        TODO I should just use requires_grad_ everywhere
+        """
+
+        # make pretrained model trainable
+        self.pretrained_model.requires_grad = True
+        try:
+            self.pretrained_model.unfreeze()
+        except AttributeError:
+            logging.warning("Pretrained model does not have an unfreeze method")
+
+        # unfreeze datasets-specific layers
+        for dataset_layer in self.dataset_layers:
+            # dataset_layer.unfreeze()
+            dataset_layer.requires_grad_(True)
 
     def on_save_checkpoint(self, checkpoint):
         """

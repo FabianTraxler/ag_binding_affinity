@@ -11,6 +11,8 @@ To run this model, use the `diffusion_affinity_combined.yml` environment from th
 
 Data preprocessing code relies on snakemake and comes with their own environments (simply install snakemake anywhere and run `snakemake --use-conda`). Refer to https://snakemake.readthedocs.io/en/stable/executing/cluster.html#cluster-slurm if you want to run snakemake pipelines parallelized with SLURM.
 
+Also, you might want to set the --rerun-triggers CLI argument to mtime by default (using a Snakemake profile). See this comment https://github.com/snakemake/snakemake/issues/1694#issuecomment-1709677941
+
 ## Parent repository & SLURM training
 
 Although the code in this repository works independently from its parent, this repo is actually a submodule of https://github.com/moritzschaefer/guided-protein-diffusion/
@@ -60,12 +62,19 @@ You can download `abag_affinity_dataset`, `antibody_benchmark` and `SKEMPI_v2` f
 For obtaining DMS-related datasets, refer to the DMS-subsection below!
 
 ### DMS
-Please download this folder from my cluster for initial coding/tests. It contains 200 data points per complex: `muwhpc:/msc/home/mschae83/tmp/2023-08-29_DMS200_fixinsert/`
+The DMS data can be found here:
+mschae83@s0-l00.hpc.meduniwien.ac.at:~/guided-protein-diffusion/modules/ag_binding_affinity/results/DMS/
+It takes quite a while to copy it with rsync (because it does individual file operations). I therefore zipped it here:
+`mschae83@s0-l00.hpc.meduniwien.ac.at:~/guided-protein-diffusion/modules/ag_binding_affinity/results/DMS_2023-09-07.tar.gz`
 
-Note 1: These complexes are *not* relaxed. Stay tuned for more complete datasets.
-Note 2: Some datapoints failed, such that the CSV files contain more  (needs to be investigated. Please workaround missing PDB files in a quick/hacky way. Long-term I'll try to provide ).
+For local testing, refer to `mschae83@s0-l00.hpc.meduniwien.ac.at:~/guided-protein-diffusion/modules/ag_binding_affinity/results/DMS_reduced_2023-09-08.tar.gz`, which contains no more than 20 files per folder and is therefore much much smaller.
+
+Note 1: These complexes are *not* relaxed. Coming soon
+Note 2: Some datapoints failed, such that the CSV files contain more samples than there are PDBs. Run `snakemake --use-conda -j1 trimmed_csvs` as a workaround to trim the CSV files to only contain data points with corresponding PDB files. Note: requires manual replacement of the CSV files after trimming.
 Note 3: There is very little you need to program from here to get DMS-training running. Just make sure that the downloaded DMS data folder corresponds to DATASETS.DMS.folder_path
 
+#### Copying the data from CeMM cluster
+I ran `rsync -avzh ag_binding_affinity/results/DMS/ mschae83@s0-l00.hpc.meduniwien.ac.at:~/guided-protein-diffusion/modules/ag_binding_affinity/results/DMS/`, which I can simply rerun to update missing files.
 ## Relaxation
 
 TODO mutated_pdb_path?

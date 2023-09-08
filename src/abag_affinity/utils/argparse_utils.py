@@ -80,10 +80,13 @@ def parse_args(artifical_args=None) -> Namespace:
                           choices=["bucket_train", "pretrain_model", "model_train"],
                           default="model_train")
     optional.add_argument("--bucket_size_mode", type=str, help="Mode to determine the size of the training buckets",
-                          default="min", choices=["min", "geometric_mean", "double_geometric_mean"])
+                          default="geometric_mean", choices=["min", "geometric_mean", "double_geometric_mean"])
     optional.add_argument("-m", "--pretrained_model", type=str,
-                          help='Name of the pretrained model to use for node embeddings',
+                          help='Name of the published/pretrained model to use for node embeddings',
                           choices=["", "DeepRefine", "Binding_DDG", "IPA", "Diffusion"], default="")
+    optional.add_argument("--fine_tune",
+                          help='Fine-tune model components that have been frozen at the start of training (e.g. published/pretrained models or dataset-specific layers)',
+                          action=BooleanOptionalAction, default=True)
     optional.add_argument("--transfer_learning_validation_size", type=int,
                           help="Percent of transfer learning dataset(s) used to validate model (only DMS)",
                           default=10)
@@ -141,6 +144,9 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--fc_size_halving", action=BooleanOptionalAction,
                           help="Indicator if after every FC layer the embedding sizeshould be halved",
                           default=False)
+    optional.add_argument("--dms_output_layer_type", choices=["identity", "bias_only", "regression", "regression_sigmoid", "mlp"],
+                          help="Architecture of the DMS-specific output layers",
+                          default="bias_only")
 
     # weight and bias arguments
     optional.add_argument("-wdb", "--use_wandb", action=BooleanOptionalAction, help="Use Weight&Bias to log training process",
@@ -241,8 +247,6 @@ def read_args_from_file(args: Namespace) -> Namespace:
         if key in args.__dict__ and key not in manually_passed_args:
             args.__dict__[key] = value["value"]
             if key == "transfer_learning_datasets" and isinstance(value["value"], str):
-                if value["value"] == "DMS-taft22_deep_mutat_learn_predic_ace2:relative":
-                    raise ValueError("This dataset leads to timeouts during training and is therefore skipped")
                 if ";" in value["value"]:
                     args.__dict__[key] = value["value"].split(";")
                 else:

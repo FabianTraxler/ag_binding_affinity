@@ -155,7 +155,7 @@ wu17_in:
         mutations: KA50E;NA53D;NA54S;RA57Q;IA62K;DA63N;HA75Q;VA78G;EA82K;TA83K;FA94Y;IA121N;TA122N;GA124S;TA126N;GA135T;NA137S;KA140I;GA142R;PA143S;GA144K;SA145N;GA146S;KA156H;SA157L;GA158N;SA159F;TA160K;VA163A;DA172E;NA173Q;SA186G;NA188D;QA189K;EA190D;TA192I;SA193F;VA196A;VA202I;RA207K;IA213V;IA214S;WA222R;GA225N;LA226I;SA227P;VA242I;VA244L;NA248T;MA260I;TA262S;DA275G;TA276K;IA278N;KA299R;KA307R;GA310K;HA311Q;HA312N
         chains:
           antigen:
-            A: B
+            A: A
           antibody:
             L: L
             H: H
@@ -169,8 +169,8 @@ wu17_in:
       # pdb: 6ML8 (4FP8 / 5UMN)
       pdb:
         id: 6ML8
-        mutations: RA60L;KA64I;NA73S;IA74V;VA78I;SA86L;LA88I;NA90R;RA91E;AA97V;TA99K;SA102P;DA111H;RA138S;RA146T;TA149S;AA151S;PA153S;AA155N;RA156G;KA157E;VA165L;EA169G;AA170K;SA173L;RA179K;VA182A;QA185K;SA199P;EA202G;EA203D;RA209H;DA211E;NA221H;NA223S;RA225K;SA240E;MA243I;TA261N;WA268R;PA277F;TA283N;LA288M;TA293A;IA311V;TA326A;VA340I
-      # comment: "this one is for H3, but should be fine nevertheless? map an H1 structure on it?"
+        mutations: RA60L;KA64I;NA73S;IA74V;VA78I;SA86L;LA88I;NA90R;RA91E;AA97V;TA99K;SA102P;DA111H;RA138S;RA146T;TA149S;AA151S;PA153S;AA155N;RA156G;KA157E;VA165L;EA169G;AA170K;SA173L;RA179K;VA182A;QA185K;SA199P;EA202G;EA203D;RA209H;DA211E;NA221H;NA223S;RA225K;SA240E;MA243I;TA261N;WA268R;PA277F;TA283N;LA288M;TA293A;IA311V;TA326A
+      # comment: "this one is for H3, but should be fine nevertheless? map an H1 structure on it? I deleted ;VA340I because it is not in the PDB anymore"
         chains:
           antigen:
             A: A
@@ -382,32 +382,31 @@ wu20_differ_ha_h3_h1:
     - PRJNA493101
     - PRJNA510700
 
-
-# mason21_optim_therap_antib_by_predic:
-#   dms_target: fv
-#   fv_type: fv
-#   doi: 10.1038/s41551-021-00699-9
-#   complexes:
-#     - antigen:
-#         name: her2
-#         full_name: ERBB2
-#         uniprot: https://www.uniprot.org/uniprotkb/P04626/entry
-#       antibody:
-#         full_name: Trastuzumab
-#         name: trastuzumab
-#       pdb:
-#         id: 6OGE  # alternatives: /6BGT/7MN8
-#         chains:
-#           antibody:
-#             L: D
-#             H: E
-#           antigen:
-#             A: A
-#   comment: "screen on binding affinity and activation potential. They have a decent number of KD experiments included"
-#   source_code: https://github.com/dahjan/DMS_opt
-#   data: https://github.com/dahjan/DMS_opt,email,org
-#   use_for: "discrete relative"
-#   raw_data: can ask derek mason
+mason21_optim_therap_antib_by_predic:
+  dms_target: fv
+  fv_type: fv
+  doi: 10.1038/s41551-021-00699-9
+  complexes:
+    - antigen:
+        name: her2
+        full_name: ERBB2
+        uniprot: https://www.uniprot.org/uniprotkb/P04626/entry
+      antibody:
+        full_name: Trastuzumab
+        name: trastuzumab
+      pdb:
+        id: 6OGE  # alternatives: /6BGT/7MN8
+        chains:
+          antibody:
+            L: D
+            H: E
+          antigen:
+            A: A
+  comment: "screen on binding affinity and activation potential. They have a decent number of KD experiments included"
+  source_code: https://github.com/dahjan/DMS_opt
+  data: https://github.com/dahjan/DMS_opt,email,org
+  use_for: "discrete relative"
+  raw_data: can ask derek mason
 
 
 taft22_deep_mutat_learn_predic_ace2:
@@ -514,7 +513,7 @@ taft22_deep_mutat_learn_predic_ace2:
         chains:
           antigen:
             A: C
-            B: F  # TODO although this binds in the crystal, I don't think this is too relevant in solution. TODO: delete here and in dms_infos.csv ([[id:f1e36ab1-11c4-420d-9d0c-83f1e37f9311][Obtaining antibody binding data (E-values and structures)]], check out df['chain'] in the taft22-section. execute all to see)
+            # B: F  # although this binds in the crystal, I don't think this is too relevant in solution.
           antibody:
             H: A
             L: B
