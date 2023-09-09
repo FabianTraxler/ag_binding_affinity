@@ -1,8 +1,8 @@
 method: 'grid'
-name: 'DMS-Evaluation-Sweep'
+name: 'DMS-Single-Evaluation-Sweep'
 metric:
   goal: 'minimize'
-  name: 'DMS:single_sweep'
+  name: 'val0_rmse'
 parameters:
   target_dataset:
     values:

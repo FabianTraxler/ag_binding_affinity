@@ -184,7 +184,7 @@ def main() -> Dict:
         args.sweep_id = sweep_id
         logger.info(f"W&B Sweep initialized with ID: {args.sweep_id}")
 
-    if args.sweep_id is not None and args.sweep_runs > 0:
+    if args.sweep_id is not None and args.sweep_runs != 0:
         run_sweep(args, logger)
     else:
         logger.info(f"Performing {args.train_strategy}")

@@ -158,7 +158,7 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--sweep_config", type=str, help="Path to the configuration file of the sweep",
                           default=None)
     optional.add_argument("--sweep_id", type=str, help="The sweep ID to use for all runs")
-    optional.add_argument("--sweep_runs", type=int, help="Number of runs to perform in this sweep instance",
+    optional.add_argument("--sweep_runs", type=int, help="Number of runs to perform in this sweep instance. Default: exhaustive search",
                           default=None)
 
     # general config

@@ -172,11 +172,17 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
         else:
             acc = np.nan
 
-        pearson_corr = stats.pearsonr(all_labels, all_predictions)
+        if len(all_continuous_labels) > 0:
+            pearson_corr = stats.pearsonr(all_labels, all_predictions)
+            rmse = math.sqrt(np.square(np.subtract(all_labels, all_predictions)).mean())
+        else:
+            pearson_corr = (np.nan, np.nan)
+            rmse = np.nan
         results.append({
             "val_loss": val_loss,
             "pearson_correlation": pearson_corr[0],
             "pearson_correlation_p": pearson_corr[1],
+            "rmse": rmse,
             "all_labels": all_labels,
             "all_predictions": all_predictions,
             "all_binary_labels": all_binary_labels,
@@ -316,6 +322,7 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
                 f"val{val_i}_loss": val_result["total_val_loss"] / (len(val_dataset) / args.batch_size),
                 "train_loss": total_loss_train / (len(train_dataset) / args.batch_size),
                 f"val{val_i}_pearson_correlation": val_result["pearson_correlation"],
+                f"val{val_i}_rmse": val_result["rmse"],
                 f"{val_dataset.full_dataset_name}{val_i}:{data_type}_val_loss": val_result["total_val_loss"] / (
                         len(val_dataset) / args.batch_size),
                 f"{val_dataset.full_dataset_name}{val_i}:{data_type}_val_corr": val_result["pearson_correlation"],
@@ -857,7 +864,8 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
         wandb_log = {
             "val_loss": val_result["total_val_loss"] / len(val_dataloader),
             "train_loss": total_loss_train / len(train_dataloader),
-            "pearson_correlation": val_result["pearson_correlation"]
+            "pearson_correlation": val_result["pearson_correlation"],
+            "rmse":val_result["rmse"],
         }
 
         i = 0
