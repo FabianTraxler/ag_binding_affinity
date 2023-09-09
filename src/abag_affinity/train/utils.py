@@ -232,7 +232,22 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
     device = torch.device("cuda" if use_cuda else "cpu")
 
     criterion = get_loss_function(args, device)
-    optimizer, scheduler = get_optimizer(args, model)
+    optimizer = Adam(model.parameters(), lr=args.learning_rate)
+
+    if args.lr_scheduler == "exponential":
+        scheduler = torch.optim.lr_scheduler.ExponentialLR(
+            optimizer, gamma=args.lr_decay_factor,
+            verbose=args.verbose)
+    elif args.lr_scheduler == "plateau":
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode='min', factor=args.lr_decay_factor,
+            patience=args.patience or 10, verbose=args.verbose)
+    elif args.lr_scheduler == "constant":
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode='min', factor=args.lr_decay_factor,
+            patience=args.patience or 10, verbose=args.verbose)
+        # Stop as soon as LR is reduced by one step -> constant LR with early stopping
+        args.stop_at_learning_rate = args.learning_rate
 
     scale_min = 0 if args.scale_values else args.scale_min
     scale_max = 1 if args.scale_values else args.scale_max
@@ -371,27 +386,6 @@ def get_loss_function(args: Namespace, device: torch.device):
         raise ValueError("Loss_Function must either be 'L1' or 'L2'")
     return loss_fn
 
-def get_optimizer(args: Namespace, model: torch.nn.Module):
-    optimizer = Adam(model.parameters(), lr=args.learning_rate)
-
-    if args.lr_scheduler == "exponential":
-        scheduler = torch.optim.lr_scheduler.ExponentialLR(
-            optimizer, gamma=args.lr_decay_factor,
-            verbose=args.verbose)
-    elif args.lr_scheduler == "plateau":
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, mode='min', factor=args.lr_decay_factor,
-            patience=args.patience or 10, verbose=args.verbose)
-    elif args.lr_scheduler == "constant":
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, mode='min', factor=args.lr_decay_factor,
-            patience=args.patience or 10, verbose=args.verbose)
-        # Stop as soon as LR is reduced by one step -> constant LR with early stopping
-        args.stop_at_learning_rate = args.learning_rate
-    else:
-        raise ValueError(f"LR Scheduler {args.lr_scheduler} not supported.")
-
-    return optimizer, scheduler
 
 def load_model(num_node_features: int, num_edge_features: int, dataset_names: List[str], args: Namespace,
                device: torch.device = torch.device("cpu")) -> AffinityGNN:
@@ -814,7 +808,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
     device = torch.device("cuda" if use_cuda else "cpu")
 
     criterion = get_loss_function(args, device)
-    optimizer, scheduler = get_optimizer(args, model)
+    optimizer = Adam(model.parameters(), lr=args.learning_rate)
 
     scale_min = 0 if args.scale_values else args.scale_min
     scale_max = 1 if args.scale_values else args.scale_max
@@ -906,13 +900,6 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
 
         results["epoch_loss"].append(val_result["val_loss"])
         results["epoch_corr"].append(val_result["pearson_correlation"])
-
-        if args.lr_scheduler == "exponential":
-            scheduler.step()
-            patience = None
-        else:
-            scheduler.step(metrics=epoch_results['val_loss'])
-            patience = args.patience - scheduler.num_bad_epochs
 
         if dataset2optimize in dataset_results:
             results["abag_epoch_loss"].append(dataset_results[dataset2optimize]["val_loss"])
