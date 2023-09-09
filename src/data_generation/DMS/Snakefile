@@ -50,7 +50,7 @@ def relaxed_generated_pdbs(wildcards):
         df_fn = checkpoints.generate_summary_df.get(publication=publication).output[0]
         df = pd.read_csv(df_fn, index_col=0)
         if len(df) > 0:  # workaround
-            all_files.extend([MUTATED_PDB_FOLDER / file_path for file_path in df["filename"]])  # TODO generate relaxed later!
+            all_files.extend([RELAXED_PDB_FOLDER / file_path for file_path in df["filename"]])  # TODO generate relaxed later!
     return all_files
 
 
