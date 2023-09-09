@@ -136,10 +136,10 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
     results = []
     for val_dataloader in val_dataloaders:
         total_loss_val = 0
-        all_predictions = np.array([])
-        all_binary_predictions = np.array([])
-        all_labels = np.array([])
-        all_binary_labels = np.array([])
+        all_predictions = []
+        all_binary_predictions = []
+        all_labels = []
+        all_binary_labels = []
         all_pdbs = []
         for data in tqdm(val_dataloader, disable=not tqdm_output):
             output, label = forward_step(model, data, device)
@@ -147,37 +147,44 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
             loss = get_loss(data["loss_criterion"], label, output)
             total_loss_val += loss.item()
 
-            all_predictions = np.append(all_predictions, output["x"].flatten().detach().cpu().numpy())
-            all_labels = np.append(all_labels, label["x"].detach().cpu().numpy())
+            all_predictions.append(output["x"].flatten().detach().cpu().numpy())
+            all_labels.append(label["x"].detach().cpu().numpy())
             if data["relative"]:
                 pdb_ids_1 = [filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
                 pdb_ids_2 = [filepath.split("/")[-1].split(".")[0] for filepath in data["input"][1]["filepath"]]
                 all_pdbs.extend(list(zip(pdb_ids_1, pdb_ids_2)))
-                all_binary_labels = np.append(all_binary_labels,  torch.argmax(label["x_prob"].detach().cpu(), dim=1).numpy())
-                all_binary_predictions = np.append(all_binary_predictions, torch.argmax(output["x_prob"].detach().cpu(), dim=1).numpy())
+                all_binary_labels.append( torch.argmax(label["x_prob"].detach().cpu(), dim=1).numpy())
+                all_binary_predictions.append(torch.argmax(output["x_prob"].detach().cpu(), dim=1).numpy())
 
             else:
                 #We need to ensure that binary labels have the length of the validation dataset as we later slice the datasets appart.
                 # TODO maybe we could store them in a dataset specific dict instead?
-                all_binary_labels = np.append(all_binary_labels, np.zeros(label["x"].shape[0]))
-                all_binary_predictions = np.append(all_binary_predictions, np.zeros(label["x"].shape[0]))
+                all_binary_labels.append(np.zeros(label["x"].shape[0]))
+                all_binary_predictions.append(np.zeros(label["x"].shape[0]))
                 all_pdbs.extend([filepath.split("/")[-1].split(".")[0] for filepath in data["input"]["filepath"]])
 
             #all_labels = np.append(all_labels, label.numpy())
             #all_predictions = np.append(all_predictions, output["x"].flatten().detach().cpu().numpy())
 
         val_loss = total_loss_val / len(all_predictions)
+
+        # if len(all_predictions) > 2:
+        #     break
+        all_predictions = np.append([], all_predictions)
+        all_labels = np.append([], all_labels)
+        all_pdbs = np.append([], all_pdbs)
+        all_binary_predictions = np.append([], all_binary_predictions)
+        all_binary_labels = np.append([], all_binary_labels)
+        val_loss = total_loss_val / (len(all_predictions) + len(all_binary_predictions))
+
         if len(all_binary_labels) > 0:
             acc = accuracy_score(all_binary_labels, all_binary_predictions)
         else:
             acc = np.nan
 
-        if len(all_continuous_labels) > 0:
-            pearson_corr = stats.pearsonr(all_labels, all_predictions)
-            rmse = math.sqrt(np.square(np.subtract(all_labels, all_predictions)).mean())
-        else:
-            pearson_corr = (np.nan, np.nan)
-            rmse = np.nan
+        pearson_corr = stats.pearsonr(all_labels, all_predictions)
+        rmse = math.sqrt(np.square(np.subtract(all_labels, all_predictions)).mean())
+
         results.append({
             "val_loss": val_loss,
             "pearson_correlation": pearson_corr[0],
