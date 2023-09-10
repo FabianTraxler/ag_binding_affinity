@@ -505,17 +505,9 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int, valida
             summary_df = summary_df[(~summary_df["E"].isna()) &(~summary_df["NLL"].isna())]
         else:
             summary_df = summary_df[~summary_df["-log(Kd)"].isna()]
-        # remove IDs that have no file
-        data_path = os.path.join(config["DATASETS"]["path"],
-                                 config["DATASETS"][dataset_name]["folder_path"],
-                                 config["DATASETS"][dataset_name]["mutated_pdb_path"],
-                                 publication_code)
-        all_files = glob.glob(data_path + "/*/*") + glob.glob(data_path + "/*")
-        available_files = set(
-            file_path.split("/")[-3] + ":" + file_path.split("/")[-2].split("_")[0] + ":" + file_path.split("/")[-2].split("_")[-1] + "-" + file_path.split("/")[-1].split(".")[0].lower().replace("_", ";") for file_path in
-            all_files if file_path.split(".")[-1] == "pdb")
-        summary_df = summary_df[summary_df.index.isin(available_files)]
-        all_data_points = summary_df.index.values
+        # filter datapoints with missing PDB files
+        data_path = Path(config["DATASETS"]["path"]) / config["DATASETS"][dataset_name]["folder_path"] / config["DATASETS"][dataset_name]["mutated_pdb_path"]
+        summary_df = summary_df[summary_df.filename.apply(lambda fn: (data_path / fn).exists())]
 
         affinity_type = config["DATASETS"][dataset_name]["affinity_types"][publication_code]
         if affinity_type == "E":
@@ -611,6 +603,7 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int, valida
             data_path = os.path.join(config["DATASETS"]["path"],
                                      config["DATASETS"][dataset_name]["folder_path"],
                                      config["DATASETS"][dataset_name]["mutated_pdb_path"])
+            # TODO use `filename` in summary_df (see above! DRY?)
             all_files = glob.glob(data_path + "/*/*") + glob.glob(data_path + "/*")
             available_files = set(
                 file_path.split("/")[-2].lower() + "-" + file_path.split("/")[-1].split(".")[0].lower() for file_path in
