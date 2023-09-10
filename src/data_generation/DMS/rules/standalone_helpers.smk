@@ -1,4 +1,8 @@
 rule trimmed_csvs:
+    """
+    Given the code in train_val_split, this should not be necessary
+
+    """
     input:
         expand(out_folder / "trimmed_csvs" / "{publication}.csv", publication=publications)
 

@@ -189,7 +189,6 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
             "val_loss": val_loss,
             "pearson_correlation": pearson_corr[0],
             "pearson_correlation_p": pearson_corr[1],
-            "rmse": rmse,
             "all_labels": all_labels,
             "all_predictions": all_predictions,
             "all_binary_labels": all_binary_labels,
@@ -502,18 +501,18 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int, valida
         summary_path = os.path.join(summary_path, publication_code + ".csv")
         summary_df = pd.read_csv(summary_path, index_col=0)
 
-        if config["DATASETS"][dataset_name]["affinity_types"][publication_code] == "E":
+        if config["DATASETS"][dataset_name]["affinity_types"][publication_code] == "E":  # should be unnecessary
             summary_df = summary_df[(~summary_df["E"].isna()) &(~summary_df["NLL"].isna())]
         else:
             summary_df = summary_df[~summary_df["-log(Kd)"].isna()]
-        # remove ids that have no file
+        # remove IDs that have no file
         data_path = os.path.join(config["DATASETS"]["path"],
                                  config["DATASETS"][dataset_name]["folder_path"],
                                  config["DATASETS"][dataset_name]["mutated_pdb_path"],
                                  publication_code)
         all_files = glob.glob(data_path + "/*/*") + glob.glob(data_path + "/*")
         available_files = set(
-            file_path.split("/")[-3] + ":" + file_path.split("/")[-2].split("_")[0] + ":" + file_path.split("/")[-2].split("_")[-1] + "-" + file_path.split("/")[-1].split(".")[0].lower() for file_path in
+            file_path.split("/")[-3] + ":" + file_path.split("/")[-2].split("_")[0] + ":" + file_path.split("/")[-2].split("_")[-1] + "-" + file_path.split("/")[-1].split(".")[0].lower().replace("_", ";") for file_path in
             all_files if file_path.split(".")[-1] == "pdb")
         summary_df = summary_df[summary_df.index.isin(available_files)]
         all_data_points = summary_df.index.values
@@ -525,6 +524,7 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int, valida
             e_values = summary_df["E"].values.reshape(-1,1).astype(np.float32)
             nll_values = summary_df["NLL"].values
 
+            # TODO refactor this block (just always split, as it includes the else-case)
             if len(e_values) > 50000:
                 n_splits = int(len(e_values) / 50000) + 1
                 has_valid_partner = set()
@@ -872,7 +872,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
             "val_loss": val_result["total_val_loss"] / len(val_dataloader),
             "train_loss": total_loss_train / len(train_dataloader),
             "pearson_correlation": val_result["pearson_correlation"],
-            "rmse":val_result["rmse"],
+            "rmse":val_result["rmse"],  # TODO not sure if it is set
         }
 
         i = 0

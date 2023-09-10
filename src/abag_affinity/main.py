@@ -86,8 +86,6 @@ def run_sweep(args: Namespace, logger):
                     "pretrained_model"] in enforced_node_type:
                     continue  # ignore since it is manually overwritten below
                 if param == "transfer_learning_datasets" and isinstance(param_value, str):
-                    if param_value == "DMS-taft22_deep_mutat_learn_predic_ace2:relative":
-                        raise ValueError("This dataset leads to timeouts during training and is therefore skipped")
                     if ";" in param_value:
                         args.__dict__[param] = param_value.split(";")
                     else:
