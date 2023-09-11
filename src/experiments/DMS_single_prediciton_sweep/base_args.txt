@@ -4,7 +4,7 @@
 --batch_size=1
 --layer_type=GCN
 --max_epochs=200
---num_workers=5
+--num_workers=10
 --nonlinearity=leaky
 --scale_values
 --loss_function=L1
