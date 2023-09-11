@@ -70,33 +70,40 @@ def forward_step(model: AffinityGNN, data: Dict, device: torch.device) -> Tuple[
 
 
 def get_label(data: Dict, device: torch.device) -> torch.Tensor:
-    if data["affinity_type"] == "-log(Kd)":
-        if data["relative"]:
-            return (data["input"][0]["graph"].y - data["input"][1]["graph"].y).to(device)
-        else:
-            return data["input"]["graph"].y.to(device)
-    elif data["affinity_type"] == "E":
-        if data["relative"]:
-            label_1 = (data["input"][0]["graph"].y > data["input"][1]["graph"].y).float()
-            label_2 = (data["input"][1]["graph"].y > data["input"][0]["graph"].y).float()
-            label = torch.stack((label_1, label_2)).T
-            return label.to(device)
-        else:
-            return data["input"]["graph"].y.to(device)
+    # We compute all possible labels, so that we can combine different loss functions
+    label = {}
+    if data["relative"]:
+        label_1 = (data["input"][0]["graph"].y > data["input"][1]["graph"].y).float()
+        label_2 = (data["input"][1]["graph"].y > data["input"][0]["graph"].y).float()
+        label["x_prob"] = torch.stack((label_1, label_2), dim=-1)
+        label["x"] = data["input"][0]["graph"].y.to(device)
+        label["x2"] = data["input"][1]["graph"].y.to(device)
+        label["difference"] = label["x"] - label["x2"]
     else:
-        raise ValueError(f"Wrong affinity type given - expected one of (-log(Kd), E) but got {data['affinity_type']}")
+        label["x"] = data["input"]["graph"].y.to(device)
 
+    # TODO Try to return NLL values of data if available!
+    return label
 
 def get_loss(criterion, label: torch.Tensor, output: torch.Tensor) -> torch.Tensor:
-    try:
-        return torch.nn.functional.cross_entropy(output["x_prob"], label)
-    except KeyError:
-        return criterion(output["x"], label)
-    # else:
-    #     raise ValueError(f"Wrong affinity type given - expected one of (-log(Kd), E) but got {output['affinity_type']}")
+    assert isinstance(criterion, list), "Criterion must be a list"
+    # We assume multiple criterions, each require different labels
+    loss = []
+    for loss_name, loss_fn in criterion:
+        # TODO use NLL when available
+        if (loss_name in ["relative_L1", "relative_L2"]) and output["relative"]:
+            # Apply L1/L2 loss to the relative binding affinity
+            loss.append(loss_fn(output["difference"], label["difference"]))
+        elif loss_name == "relative_ce" and output["relative"]:
+            loss.append(loss_fn(output["x_prob"], label["x_prob"]))
+        elif loss_name in ["L1", "L2"]:
+            loss.append(loss_fn(output["x"], label["x"]))
+            if output["relative"]:
+                loss.append(loss_fn(output["x2"], label["x2"]))
 
+    return sum(loss)
 
-def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloaders: List[DataLoader], criterion,
+def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloaders: List[DataLoader],
                 optimizer: torch.optim, device: torch.device = torch.device("cpu"), tqdm_output: bool = True) -> Tuple[AffinityGNN, List, np.ndarray, float]:
     """ Train model for one epoch given the train and validation dataloaders
 
@@ -104,7 +111,6 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
         model: torch module used to train
         train_dataloader: Dataloader with training examples
         val_dataloaders: Dataloaders with validation examples
-        criterion: Function used to calculate loss
         optimizer: Optimizer object used to perform update step of model parameter
         device: Device to use for training
 
@@ -119,8 +125,7 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
 
         # pdb.set_trace()
         output, label = forward_step(model, data, device)
-
-        loss = get_loss(criterion, label, output)
+        loss = get_loss(data["loss_criterion"], label, output)
         total_loss_train += loss.item()
 
         loss.backward()
@@ -132,61 +137,50 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
     for val_dataloader in val_dataloaders:
         total_loss_val = 0
         all_predictions = np.array([])
-        all_continuous_predictions = np.array([])
         all_binary_predictions = np.array([])
         all_labels = np.array([])
-        all_continuous_labels = np.array([])
         all_binary_labels = np.array([])
         all_pdbs = []
         for data in tqdm(val_dataloader, disable=not tqdm_output):
             output, label = forward_step(model, data, device)
 
-            loss = get_loss(criterion, label, output)
+            loss = get_loss(data["loss_criterion"], label, output)
             total_loss_val += loss.item()
 
-            if data["relative"] and data["affinity_type"] == "E":
-                label = torch.argmax(label.detach().cpu(), dim=1)
-                all_binary_labels = np.append(all_binary_labels, label.numpy())
-                all_binary_predictions = np.append(all_binary_predictions, output["x"].flatten().detach().cpu().numpy())
-                pdb_ids_1 = [ filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
-                pdb_ids_2 = [ filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
-                all_pdbs.extend(list(zip(pdb_ids_1, pdb_ids_2)))
-            elif data["relative"] and data["affinity_type"] == "-log(Kd)":
-                label = label.detach().cpu()
-                all_continuous_predictions = np.append(all_continuous_predictions, output["x"].flatten().detach().cpu().numpy())
-                all_continuous_labels = np.append(all_continuous_labels, label.numpy())
-
-                pdb_ids_1 = [ filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
-                pdb_ids_2 = [ filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
-                all_pdbs.extend(list(zip(pdb_ids_1, pdb_ids_2)))
-            else:
-                label = label.detach().cpu()
-                all_continuous_predictions = np.append(all_continuous_predictions, output["x"].flatten().detach().cpu().numpy())
-                all_continuous_labels = np.append(all_continuous_labels, label.numpy())
-
-                all_pdbs.extend([ filepath.split("/")[-1].split(".")[0] for filepath in data["input"]["filepath"]])
-            all_labels = np.append(all_labels, label.numpy())
             all_predictions = np.append(all_predictions, output["x"].flatten().detach().cpu().numpy())
+            all_labels = np.append(all_labels, label["x"].detach().cpu().numpy())
+            if data["relative"]:
+                pdb_ids_1 = [filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
+                pdb_ids_2 = [filepath.split("/")[-1].split(".")[0] for filepath in data["input"][1]["filepath"]]
+                all_pdbs.extend(list(zip(pdb_ids_1, pdb_ids_2)))
+                all_binary_labels = np.append(all_binary_labels,  torch.argmax(label["x_prob"].detach().cpu(), dim=1).numpy())
+                all_binary_predictions = np.append(all_binary_predictions, torch.argmax(output["x_prob"].detach().cpu(), dim=1).numpy())
 
-            # if len(all_predictions) > 2:
-            #     break
+            else:
+                #We need to ensure that binary labels have the length of the validation dataset as we later slice the datasets appart.
+                # TODO maybe we could store them in a dataset specific dict instead?
+                all_binary_labels = np.append(all_binary_labels, np.zeros(label["x"].shape[0]))
+                all_binary_predictions = np.append(all_binary_predictions, np.zeros(label["x"].shape[0]))
+                all_pdbs.extend([filepath.split("/")[-1].split(".")[0] for filepath in data["input"]["filepath"]])
 
-        val_loss = total_loss_val / (len(all_predictions) + len(all_binary_predictions))
+            #all_labels = np.append(all_labels, label.numpy())
+            #all_predictions = np.append(all_predictions, output["x"].flatten().detach().cpu().numpy())
+
+        val_loss = total_loss_val / len(all_predictions)
         if len(all_binary_labels) > 0:
             acc = accuracy_score(all_binary_labels, all_binary_predictions)
         else:
             acc = np.nan
 
-        if len(all_continuous_labels) > 0:
-            pearson_corr = stats.pearsonr(all_continuous_labels, all_continuous_predictions)
-        else:
-            pearson_corr = (np.nan, np.nan)
+        pearson_corr = stats.pearsonr(all_labels, all_predictions)
         results.append({
             "val_loss": val_loss,
             "pearson_correlation": pearson_corr[0],
             "pearson_correlation_p": pearson_corr[1],
             "all_labels": all_labels,
             "all_predictions": all_predictions,
+            "all_binary_labels": all_binary_labels,
+            "all_binary_predictions": all_binary_predictions,
             "all_pdbs": all_pdbs,
             "total_val_loss": total_loss_val,
             "val_accuracy": acc
@@ -231,7 +225,6 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
     use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
 
-    criterion = get_loss_function(args, device)
     optimizer, scheduler = get_optimizer(args, model)
 
     scale_min = 0 if args.scale_values else args.scale_min
@@ -242,16 +235,17 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
     best_rmse = np.inf
 
     best_model = deepcopy(model)
+
     train_dataloader, val_dataloaders = get_dataloader(args, train_dataset, val_datasets)
     for i in range(args.max_epochs):
-        model, val_results, total_loss_train = train_epoch(model, train_dataloader, val_dataloaders, criterion, optimizer, device,
+        model, val_results, total_loss_train = train_epoch(model, train_dataloader, val_dataloaders, optimizer, device,
                                            args.tqdm_output)
 
         patience = None
         if args.lr_scheduler == "exponential":
             scheduler.step()
         else:
-            scheduler.step(metrics=val_results[0]['val_loss'])
+            scheduler.step(metrics=val_results[0]['val_loss']) # TODO we only use the first validation loader for scheduler
             if args.patience is not None:
                 patience = args.patience - scheduler.num_bad_epochs
 
@@ -330,7 +324,8 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
 
             wandb.log(wandb_log, commit=True)
 
-        stop_training = True
+        stop_training = True
+
         for param_group in optimizer.param_groups:
             stop_training = stop_training and (
                 param_group['lr'] < args.stop_at_learning_rate)
@@ -358,18 +353,28 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
     return results, best_model
 
 
-def get_loss_function(args: Namespace, device: torch.device):
-    if args.loss_function == "L1":
-        loss_fn = nn.L1Loss().to(device)
-    elif args.loss_function == "L2":
-        loss_fn = nn.MSELoss().to(device)
-    elif args.loss_function == "L1+L2":
-        loss_l1 = nn.L1Loss().to(device)
-        loss_mse = nn.MSELoss().to(device)
-        loss_fn = lambda x, y: loss_l1(x, y) + loss_mse(x, y)
-    else:
-        raise ValueError("Loss_Function must either be 'L1' or 'L2'")
-    return loss_fn
+def get_loss_function(loss_function: str):
+    # Different loss functions are seperated with a +
+    # Optionally, they can contain a weight seperated with a -
+    # E.g. args.loss_function = L2-1+L1-0.1+relative_l1-2+relative_l2-0.1+relative_ce
+    loss_types = [x.split("-") for x in loss_function.split("+")]
+    loss_types = [(x[0], float(x[1])) if len(x) == 2 else (x[0], 1.) for x in loss_types]
+    criterions = []
+    for criterion, weight in loss_types:
+        if criterion == "L1":
+            loss_fn = lambda x,y: weight * torch.nn.functional.l1_loss(x, y)
+        elif criterion == "L2":
+            loss_fn = lambda x, y: weight * torch.nn.functional.mse_loss(x, y)
+        elif criterion == "relative_L1":
+            loss_fn = lambda x, y: weight * torch.nn.functional.l1_loss(x, y)
+        elif criterion == "relative_L2":
+            loss_fn = lambda x, y: weight * torch.nn.functional.mse_loss(x, y)
+        elif criterion == "relative_ce":
+            loss_fn = lambda x, y: weight * torch.nn.functional.cross_entropy(x, y)
+        else:
+            raise ValueError(f"Loss_Function must either in ['L1','L2','relative_L1','relative_L2','relative_ce'] but got {criterion}")
+        criterions.append((criterion,loss_fn))
+    return criterions
 
 def get_optimizer(args: Namespace, model: torch.nn.Module):
     optimizer = Adam(model.parameters(), lr=args.learning_rate)
@@ -617,10 +622,15 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
     Returns:
         Tuple: Train and validation dataset
     """
+    assert ("#" in dataset), "We need to specify a loss function with the dataset"
+    dataset_name, loss_types = dataset.split("#")
 
-    dataset_name, data_type = dataset.split(":")
-
-    if data_type == "relative":
+    # We missuse the data_type to allow setting different losses
+    # The losses used for this dataset come after a # seperated by a comma, when multiple losses are used
+    # Optionally, the losses can contain some weight using -
+    # E.g. data_type = relative#l2-1,l1-0.1,relative_l1-2,relative_2-0.1,relative_ce-1
+    dataset_specific_loss_criterion = get_loss_function(loss_types)
+    if "relative" in loss_types:
         relative_data = True
     else:
         relative_data = False
@@ -648,7 +658,8 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
                                  force_recomputation=args.force_recomputation,
                                  preprocess_data=args.preprocess_graph,
                                  num_threads=args.num_workers,
-                                 load_embeddings=args.embeddings_path
+                                 load_embeddings=args.embeddings_path,
+                                 dataset_specific_loss_criterion=dataset_specific_loss_criterion
                                  )
 
     val_datas = [AffinityDataset(config, relaxed, dataset_name, val_ids,
@@ -813,7 +824,6 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
     use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
 
-    criterion = get_loss_function(args, device)
     optimizer, scheduler = get_optimizer(args, model)
 
     scale_min = 0 if args.scale_values else args.scale_min
@@ -837,7 +847,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
         # create new buckets for each epoch
         train_dataloader, val_dataloader = get_bucket_dataloader(args, train_datasets, val_datasets)
 
-        model, val_results, total_loss_train = train_epoch(model, train_dataloader, [val_dataloader], criterion, optimizer, device,
+        model, val_results, total_loss_train = train_epoch(model, train_dataloader, [val_dataloader], optimizer, device,
                                            args.tqdm_output)
         assert len(val_results) == 1, "If more than one val dataset is desired, need to implement another for loop in some way as in `train_loop`"
         val_result = val_results[0]
@@ -855,26 +865,23 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
         for val_dataset in val_datasets:
             preds = val_result["all_predictions"][i:i + len(val_dataset)]
             labels = val_result["all_labels"][i:i + len(val_dataset)]
-            val_loss = criterion(torch.from_numpy(preds).to(device),
-                                 torch.from_numpy(labels).to(device)).detach().cpu()  # mean_squared_error(labels, preds) / len(labels)
-
-            if val_dataset.affinity_type == "E" and val_dataset.relative_data:
-                pearson_corr = (np.nan, np.nan)
-                rmse = np.nan
-                val_accuracy = accuracy_score(labels, preds)
-            else:  # val_dataset.affinity_type in ["-log(Kd)", "E–"]:
-                pearson_corr = stats.pearsonr(labels, preds)
+            # preds and labels are here always the energy so we can always use the l2 loss
+            val_loss = np.mean((labels - preds)**2)
+            if args.scale_values:
+                all_labels = labels * (args.scale_max - args.scale_min) + args.scale_min
+                all_predictions = preds * (args.scale_max - args.scale_min) + args.scale_min
+            else:
+                all_labels = labels
+                all_predictions = preds
+            rmse = math.sqrt(np.square(np.subtract(all_labels, all_predictions)).mean())
+            pearson_corr = stats.pearsonr(labels, preds)
+            if val_dataset.relative_data:
+                binary_preds = val_result["all_binary_predictions"][i:i + len(val_dataset)]
+                binary_labels = val_result["all_binary_labels"][i:i + len(val_dataset)]
+                val_accuracy = accuracy_score(binary_labels, binary_preds)
+            else:
                 val_accuracy = np.nan
-                if args.scale_values:
-                    all_labels = labels * (args.scale_max - args.scale_min) + args.scale_min
-                    all_predictions = preds * (args.scale_max - args.scale_min) + args.scale_min
-                else:
-                    all_labels = labels
-                    all_predictions = preds
-                rmse = math.sqrt(np.square(np.subtract(all_labels, all_predictions)).mean())
-            # else:
-            #     raise ValueError(f"Affinity type not supported: Got {val_dataset.affinity_type} but expected one of "
-            #                      f"(E, -log(Kd)")
+
             if val_dataset.relative_data:
                 data_type = "relative"
             else:
@@ -911,7 +918,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
             scheduler.step()
             patience = None
         else:
-            scheduler.step(metrics=epoch_results['val_loss'])
+            scheduler.step(metrics=val_result['val_loss'])
             patience = args.patience - scheduler.num_bad_epochs
 
         if dataset2optimize in dataset_results:
@@ -1033,8 +1040,9 @@ def log_gradients(model: AffinityGNN):
     return gnn_gradients, fc_gradients
 
 
-def evaluate_model(model: AffinityGNN, dataloader: DataLoader, criterion, args: Namespace, tqdm_output: bool = True,
+def evaluate_model(model: AffinityGNN, dataloader: DataLoader, args: Namespace, tqdm_output: bool = True,
                    device: torch.device = torch.device("cpu"), plot_path: str = None) -> Tuple[float, float, pd.DataFrame]:
+    # TODO Why do we have different validations at different places (train_epoch, bucket_learning, ...)
     total_loss_val = 0
     all_predictions = np.array([])
     all_labels = np.array([])
@@ -1043,15 +1051,12 @@ def evaluate_model(model: AffinityGNN, dataloader: DataLoader, criterion, args: 
     for data in tqdm(dataloader, disable=not tqdm_output):
         output, label = forward_step(model, data, device)
 
-        loss = get_loss(criterion, label, output)
+        loss = get_loss(data["loss_criterion"], label, output)
         total_loss_val += loss.item()
 
         all_predictions = np.append(all_predictions, output["x"].flatten().detach().cpu().numpy())
-        if data["relative"] and data["affinity_type"] == "E":
-            torch.argmax(label.detach().cpu(), dim=1)
-        else:
-            label = label.detach().cpu()
-        all_labels = np.append(all_labels, label.numpy())
+
+        all_labels = np.append(all_labels, label["x"].detach().cpu().numpy())
         all_pdbs.extend([ filepath.split("/")[-1].split(".")[0] for filepath in data["input"]["filepath"]])
         # if len(all_labels) > 2:
             # break
@@ -1084,7 +1089,6 @@ def evaluate_model(model: AffinityGNN, dataloader: DataLoader, criterion, args: 
 
 def get_benchmark_score(model: AffinityGNN, args: Namespace, tqdm_output: bool = True, plot_path: str = None) -> Tuple[float, float, pd.DataFrame]:
 
-    criterion = nn.MSELoss()
     dataset = AffinityDataset(args.config, args.relaxed_pdbs, "AntibodyBenchmark",
                               node_type=args.node_type,
                               max_nodes=args.max_num_nodes,
@@ -1100,7 +1104,8 @@ def get_benchmark_score(model: AffinityGNN, args: Namespace, tqdm_output: bool =
                               force_recomputation=args.force_recomputation,
                               preprocess_data=args.preprocess_graph,
                               num_threads=args.num_workers,
-                              load_embeddings=args.embeddings_path
+                              load_embeddings=args.embeddings_path,
+                              dataset_specific_loss_criterion=get_loss_function("L2")
                               )
 
     dataloader = DL_torch(dataset, num_workers=args.num_workers, batch_size=1,
@@ -1109,14 +1114,13 @@ def get_benchmark_score(model: AffinityGNN, args: Namespace, tqdm_output: bool =
     use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
 
-    return evaluate_model(model, dataloader, criterion, args=args, tqdm_output=tqdm_output, device=device,
+    return evaluate_model(model, dataloader, args=args, tqdm_output=tqdm_output, device=device,
                           plot_path=plot_path)
 
 
 def get_abag_test_score(model: AffinityGNN, args: Namespace, tqdm_output: bool = True, plot_path: str = None,
                         validation_set: int = None) -> Tuple[float, float, pd.DataFrame]:
 
-    criterion = nn.MSELoss()
 
     summary_path, _ = get_data_paths(args.config, "abag_affinity")
     summary_df = pd.read_csv(summary_path, index_col=0)
@@ -1142,7 +1146,8 @@ def get_abag_test_score(model: AffinityGNN, args: Namespace, tqdm_output: bool =
                               force_recomputation=args.force_recomputation,
                               preprocess_data=args.preprocess_graph,
                               num_threads=args.num_workers,
-                              load_embeddings=args.embeddings_path
+                              load_embeddings=args.embeddings_path,
+                              dataset_specific_loss_criterion=get_loss_function("L2")
                               )
 
     dataloader = DL_torch(dataset, num_workers=args.num_workers, batch_size=1,
@@ -1151,14 +1156,13 @@ def get_abag_test_score(model: AffinityGNN, args: Namespace, tqdm_output: bool =
     use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
 
-    return evaluate_model(model, dataloader, criterion, args=args, tqdm_output=tqdm_output, device=device, plot_path=plot_path)
+    return evaluate_model(model, dataloader, args=args, tqdm_output=tqdm_output, device=device, plot_path=plot_path)
 
 
 def get_skempi_corr(model: AffinityGNN, args: Namespace, tqdm_output: bool = True, plot_path: str = None) -> Tuple[float, float, float, pd.DataFrame]:
     """
     Take the available Skempi mutations for validation
     """
-    criterion = nn.MSELoss()
 
     dataset = AffinityDataset(args.config, args.relaxed_pdbs, "SKEMPI.v2",
                             node_type=args.node_type,
@@ -1175,7 +1179,9 @@ def get_skempi_corr(model: AffinityGNN, args: Namespace, tqdm_output: bool = Tru
                             force_recomputation=args.force_recomputation,
                             preprocess_data=args.preprocess_graph,
                             num_threads=args.num_workers,
-                            load_embeddings=args.embeddings_path
+                            load_embeddings=args.embeddings_path,
+                            dataset_specific_loss_criterion=get_loss_function("L2")
+
                             )
 
     dataloader = DL_torch(dataset, num_workers=args.num_workers, batch_size=1,
@@ -1183,7 +1189,7 @@ def get_skempi_corr(model: AffinityGNN, args: Namespace, tqdm_output: bool = Tru
 
     use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
-    pearson_corr, val_loss, res_df = evaluate_model(model, dataloader, criterion, args=args, tqdm_output=tqdm_output, device=device,
+    pearson_corr, val_loss, res_df = evaluate_model(model, dataloader, args=args, tqdm_output=tqdm_output, device=device,
                         plot_path=plot_path)
 
     # take everything after dash (-)

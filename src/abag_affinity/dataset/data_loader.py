@@ -49,7 +49,8 @@ class AffinityDataset(Dataset):
                  relative_data: bool = False,
                  save_graphs: bool = False, force_recomputation: bool = False,
                  preprocess_data: bool = False, num_threads: int = 1,
-                 load_embeddings: Union[bool, str] = False
+                 load_embeddings: Union[bool, str] = False,
+                dataset_specific_loss_criterion: Optional[List] = None,
                  ):
         """ Initialization of class variables,
         generation of necessary directories,
@@ -74,6 +75,7 @@ class AffinityDataset(Dataset):
             force_recomputation: Boolean indicator if graphs are newly computed even if they are found on disc
             preprocess_data: Boolean indicator if data should be processed after class initialization
             num_threads: Number of threads to use for preprocessing
+            dataset_specific_loss_criterion: A set of Loss function used for this dataset
         """
         super(AffinityDataset, self).__init__()
         self.dataset_name = dataset_name
@@ -91,7 +93,7 @@ class AffinityDataset(Dataset):
         self.scale_min = scale_min
         self.scale_max = scale_max
         self.load_embeddings = load_embeddings
-
+        self.dataset_specific_loss_criterion = dataset_specific_loss_criterion
         if "-" in dataset_name: # part of DMS dataset
             dataset_name, publication_code = dataset_name.split("-")
             self.affinity_type = self.config["DATASETS"][dataset_name]["affinity_types"][publication_code]
@@ -628,7 +630,8 @@ class AffinityDataset(Dataset):
             "relative": False,
             "affinity_type": self.affinity_type,
             "input": graph_data,
-            "dataset_name": self.full_dataset_name
+            "dataset_name": self.full_dataset_name,
+            "loss_criterion": self.dataset_specific_loss_criterion,
         }
         # pdb.set_trace()
         return data
@@ -648,7 +651,8 @@ class AffinityDataset(Dataset):
             "relative": True,
             "affinity_type": self.affinity_type,
             "input": [],
-            "dataset_name": self.full_dataset_name
+            "dataset_name": self.full_dataset_name,
+            "loss_criterion": self.dataset_specific_loss_criterion,
         }
         if self.is_relaxed == "both":
             relaxed = bool(idx // len(self.relative_pairs))
@@ -702,10 +706,13 @@ class AffinityDataset(Dataset):
         dataset_name = input_dicts[0]["dataset_name"]
         assert all([dataset_name == input_dict["dataset_name"] for input_dict in input_dicts])
 
+        # This is a list of loss functions or None
+        loss_criterion = input_dicts[0]["loss_criterion"]
         data_batch = {
             "relative": relative_data,
             "affinity_type": affinity_type,
-            "dataset_name": dataset_name
+            "dataset_name": dataset_name,
+            "loss_criterion": loss_criterion,
         }
         if relative_data:  # relative data
             input_graphs = []
