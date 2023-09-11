@@ -543,7 +543,10 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int, valida
         if affinity_type == "E":
             summary_df = summary_df[~summary_df.index.duplicated(keep='first')]
 
-            e_values = summary_df["E"].values.reshape(-1,1).astype(np.float32)
+            # Normalize between 0 and 1 on a per-complex basis. This way value ranges of E and NLL fit, when computing possible pairs
+            e_values = summary_df.groupby(summary_df.index.map(lambda i: i.split("-")[0]))["E"].apply(lambda x: (x - x.min()) / (x.max() - x.min()))
+            e_values = e_values.values.reshape(-1,1).astype(np.float32)
+
             nll_values = summary_df["NLL"].values
             # Scale the NLLs to (0-1). The max NLL value in DMS_curated.csv is 4, so 0-1-scaling should be fine
             if np.max(nll_values) > np.min(nll_values):  # test that all values are not the same
