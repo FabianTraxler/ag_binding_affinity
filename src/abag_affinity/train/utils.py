@@ -17,6 +17,7 @@ from torch.optim import Adam
 from torch.utils.data import ConcatDataset
 from torch.utils.data import DataLoader as DL_torch
 from torch.utils.data import Subset
+import yaml
 from torch_geometric.data import DataLoader
 from tqdm import tqdm
 from scipy.stats.mstats import gmean
@@ -60,7 +61,7 @@ def forward_step(model: AffinityGNN, data: Dict, device: torch.device) -> Tuple[
         if "deeprefine_graph" in data["input"]:
             data["input"]["deeprefine_graph"] = data["input"]["deeprefine_graph"].to(device)
 
-        output = model(data["input"], dataset_adjustment=data["dataset_name"] if data["affinity_type"] == "E" else None)
+        output = model(data["input"], dataset_adjustment=data["dataset_adjustment"])
         output["relative"] = data["relative"]
         output["affinity_type"] = data["affinity_type"]
 
@@ -411,6 +412,35 @@ def get_optimizer(args: Namespace, model: torch.nn.Module):
 
     return optimizer, scheduler
 
+def complexes_from_dms_datasets(dataset_names: List, args) -> List:
+    """
+    Expand DMS dataset names to include the complexes
+    """
+    def complexes_from_dms_dataset(dataset_name, metadata):
+        """
+        Return complex names corresponding to dataset_name
+
+        Args:
+            dataset_name: Name of the dataset
+
+        """
+
+        if dataset_name.startswith("DMS-"):
+            dataset_name = dataset_name.split("-")[1]
+
+            return [":".join([dataset_name, complex["antibody"]["name"], complex["antigen"]["name"]])
+                    for complex in metadata[dataset_name]["complexes"]]
+        else:
+            return [dataset_name]
+
+    with open(args.config["DATASETS"]["DMS"]["metadata"], "r") as f:
+        metadata = yaml.safe_load(f)
+
+    unique_sets = np.unique([ds_name.split(":")[0] for ds_name in dataset_names]).tolist()
+    with_complex_datasets = np.concatenate([complexes_from_dms_dataset(dataset_name, metadata) for dataset_name in unique_sets])
+    return with_complex_datasets.tolist()
+
+
 def load_model(num_node_features: int, num_edge_features: int, dataset_names: List[str], args: Namespace,
                device: torch.device = torch.device("cpu")) -> AffinityGNN:
     """ Load a specific model type and initialize it randomly
@@ -428,7 +458,7 @@ def load_model(num_node_features: int, num_edge_features: int, dataset_names: Li
         pretrained_model_path = args.config["MODELS"][args.pretrained_model]["model_path"]
     else:
         pretrained_model_path = ""
-    dataset_name = args.target_dataset.split(':')[0]
+
     model = AffinityGNN(num_node_features, num_edge_features, args,
                         num_nodes=args.max_num_nodes,
                         pretrained_model=args.pretrained_model, pretrained_model_path=pretrained_model_path,
@@ -441,8 +471,8 @@ def load_model(num_node_features: int, num_edge_features: int, dataset_names: Li
                         num_fc_layers=args.num_fc_layers, fc_size_halving=args.fc_size_halving,
                         device=device,
                         scaled_output=args.scale_values,  # seems to work worse than if the model learns it on its own
-                        dataset_names=np.unique([ds_name.split(":")[0] for ds_name in dataset_names]).tolist())
-
+                        dataset_names=complexes_from_dms_datasets(dataset_names, args))
+    
 
     return model
 
@@ -871,7 +901,6 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
             "val_loss": val_result["total_val_loss"] / len(val_dataloader),
             "train_loss": total_loss_train / len(train_dataloader),
             "pearson_correlation": val_result["pearson_correlation"],
-            "rmse":val_result["rmse"],  # TODO not sure if it is set
         }
 
         i = 0
@@ -928,12 +957,13 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
         results["epoch_loss"].append(val_result["val_loss"])
         results["epoch_corr"].append(val_result["pearson_correlation"])
 
+        patience = None
         if args.lr_scheduler == "exponential":
             scheduler.step()
-            patience = None
         else:
             scheduler.step(metrics=val_result['val_loss'])
-            patience = args.patience - scheduler.num_bad_epochs
+            if args.patience:
+                patience = args.patience - scheduler.num_bad_epochs
 
         if dataset2optimize in dataset_results:
             results["abag_epoch_loss"].append(dataset_results[dataset2optimize]["val_loss"])

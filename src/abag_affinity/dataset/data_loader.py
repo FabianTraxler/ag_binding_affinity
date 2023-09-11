@@ -632,6 +632,7 @@ class AffinityDataset(Dataset):
             "input": graph_data,
             "dataset_name": self.full_dataset_name,
             "loss_criterion": self.dataset_specific_loss_criterion,
+            "dataset_adjustment": pdb_id.split("-")[0] if self.affinity_type == "E" else None  # contains the complex name
         }
         # pdb.set_trace()
         return data
@@ -653,6 +654,7 @@ class AffinityDataset(Dataset):
             "input": [],
             "dataset_name": self.full_dataset_name,
             "loss_criterion": self.dataset_specific_loss_criterion,
+            "dataset_adjustment": [],
         }
         if self.is_relaxed == "both":
             relaxed = bool(idx // len(self.relative_pairs))
@@ -662,9 +664,11 @@ class AffinityDataset(Dataset):
 
         pdb_id, other_pdb_ids = self.relative_pairs[idx]
         data["input"].append(self.load_data_point(pdb_id, relaxed=relaxed))
+        data["dataset_adjustment"].append(pdb_id.split("-")[0] if self.affinity_type == "E" else None)  # datasetname with complex
 
         other_pdb_id = random.sample(other_pdb_ids, 1)[0]
         data["input"].append(self.load_data_point(other_pdb_id, relaxed=relaxed))
+        data["dataset_adjustment"].append(other_pdb_id.split("-")[0] if self.affinity_type == "E" else None)  # datasetname with complex
 
         return data
 
@@ -708,11 +712,15 @@ class AffinityDataset(Dataset):
 
         # This is a list of loss functions or None
         loss_criterion = input_dicts[0]["loss_criterion"]
+        dataset_adjustment = input_dicts[0]["dataset_adjustment"]
+        assert all([dataset_adjustment == input_dict["dataset_adjustment"] for input_dict in input_dicts]), "only one dataset-type allowed per batch (because of implementation in gnn_model)"  # NOTE this will breake with batch_size > 1
+
         data_batch = {
             "relative": relative_data,
             "affinity_type": affinity_type,
             "dataset_name": dataset_name,
             "loss_criterion": loss_criterion,
+            "dataset_adjustment": dataset_adjustment,
         }
         if relative_data:  # relative data
             input_graphs = []
@@ -726,14 +734,13 @@ class AffinityDataset(Dataset):
 
                 input_graphs.append(batched_dict)
 
-            data_batch["input"] = input_graphs
-
         else:
-            data_batch["input"] = {"graph": Batch.from_data_list([input_dict["input"]["graph"] for input_dict in input_dicts]),
+            input_graphs = {"graph": Batch.from_data_list([input_dict["input"]["graph"] for input_dict in input_dicts]),
                             "filepath": [input_dict["input"]["filepath"] for input_dict in input_dicts]}
 
             if "deeprefine_graph" in input_dicts[0]["input"]:
                 data_batch["input"]["deeprefine_graph"] = dgl.batch(
                     [input_dict["input"]["deeprefine_graph"] for input_dict in input_dicts])
 
+        data_batch["input"] = input_graphs
         return data_batch

@@ -1,5 +1,5 @@
 method: 'grid'
-name: 'DMS-Per-Publication-Evaluation-Sweep'
+name: 'DMS-Per-Publication-Evaluation-Sweep_complex-layers'
 metric:
   goal: 'minimize'
   name: 'val0_rmse'
