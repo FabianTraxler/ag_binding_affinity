@@ -67,8 +67,8 @@ def parse_args(artifical_args=None) -> Namespace:
     optional = parser.add_argument_group('optional arguments')
     # train config arguments
     # -datasets
-    optional.add_argument("--target_dataset", type=str, help='The datasize used for final and patience',
-                          default="abag_affinity:absolute")
+    optional.add_argument("--target_dataset", type=str, help='The datasize used for final and patience, Loss function is added after #',
+                          default="abag_affinity#L1")
     optional.add_argument("-tld", "--transfer_learning_datasets", type=str,
                           help='Datasets used for transfer-learning in addition to goal_dataset', default=[], nargs='+')
     optional.add_argument("--relaxed_pdbs", choices=["True", "False", "both"], help="Use the relaxed pdbs for training "
@@ -121,9 +121,6 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--max_edge_distance", type=int, help="Maximal distance of proximity edges", default=3)
 
     # model config arguments
-    optional.add_argument("--loss_function", type=str, default="L1",
-                          help="Type of Loss Function: A combination of 'L1','L2','relative_L1','relative_L2','relative_ce', seperated by '+'. Additionally, we allow for weighting factor, e.g.: 'L1-1+L2-0.5'")
-
     optional.add_argument("--layer_type", type=str, help="Type of GNN Layer", default="GCN",
                           choices=["GAT", "GCN"] )
     optional.add_argument("--gnn_type", type=str, help="Type of GNN Layer", default="guided",

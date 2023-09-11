@@ -42,5 +42,4 @@ class TwinWrapper(torch.nn.Module):
         diff_2 = output["x2"] - output["x"]
         class_preds = torch.stack((diff_1, diff_2),dim=-1)
         output["x_prob"] = torch.nn.functional.softmax(class_preds/rel_temperature, dim=-1)
-        output["stronger_binding"] = torch.argmax(output["x_prob"], dim=-1)
         return output
