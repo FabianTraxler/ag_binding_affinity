@@ -130,7 +130,7 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
     val_datasets = []
 
     double_dataset = set() # check if dataset occours in multiple datalaoders (eg. relative and absolute)
-    dataset_counter = Counter([dataset_name.split(":")[0] for dataset_name in datasets])
+    dataset_counter = Counter([dataset_name.split("#")[0] for dataset_name in datasets])
     for name, count in dataset_counter.items():
         if count > 1:
             double_dataset.add(name)
@@ -138,8 +138,8 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
     for dataset_type in datasets:
         train_data, val_datas = load_datasets(config, dataset_type, args.validation_set, args)
 
-        data_name, data_type = dataset_type.split(":")
-        if data_type == "absolute" and data_name in double_dataset:
+        data_name, loss_type = dataset_type.split("#")
+        if not train_data.relative_data and data_name in double_dataset:
             # set the force_recomputation to False for absolute dataset because relative loader already preprocesses graphs
             train_data.force_recomputation = False
             for val_data in val_datas:

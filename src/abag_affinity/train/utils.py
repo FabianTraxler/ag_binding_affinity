@@ -642,7 +642,7 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
         train_ids = train_ids[:20]
         val_ids = val_ids[:5]
 
-    logger.debug(f"Get dataLoader for {dataset_name}:{data_type}")
+    logger.debug(f"Get dataLoader for {dataset_name}#{loss_types}")
     train_data = AffinityDataset(config, args.relaxed_pdbs, dataset_name, train_ids,
                                  node_type=args.node_type,
                                  max_nodes=args.max_num_nodes,
