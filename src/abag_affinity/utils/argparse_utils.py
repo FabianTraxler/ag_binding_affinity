@@ -1,6 +1,7 @@
 import json
 import sys
-from argparse import Namespace, ArgumentParser, Action
+from argparse import Namespace, ArgumentParser, Action, ArgumentTypeError
+import re
 from pathlib import Path
 
 from .config import read_config
@@ -66,11 +67,21 @@ def parse_args(artifical_args=None) -> Namespace:
     required = parser.add_argument_group('required arguments')
     optional = parser.add_argument_group('optional arguments')
     # train config arguments
-    # -datasets
-    optional.add_argument("--target_dataset", type=str, help='The datasize used for final and patience, Loss function is added after #',
-                          default="abag_affinity#L1")
-    optional.add_argument("-tld", "--transfer_learning_datasets", type=str,
-                          help='Datasets used for transfer-learning in addition to goal_dataset', default=[], nargs='+')
+    # datasets
+    def validate_dataset_string(value):
+        """
+        NOTE: we could also add all possible dataset names
+        """
+        pattern = r'^[A-Za-z0-9-_.]+#(L1|L2|relative_L1|relative_L2|relative_ce)(-[0-9.]+)?(\+(L1|L2|relative_L1|relative_L2|relative_ce)(-[0-9.]+)?)*$'
+        if not re.match(pattern, value):
+            raise ArgumentTypeError(f"Invalid value: {value}. Expected format: DATASET#LOSS1-LAMBDA1+LOSS2-LAMBDA2")
+        return value
+
+    parser.add_argument("--target_dataset", type=validate_dataset_string, help='The datasize used for final and patience, Loss function is added after #',
+                        default="abag_affinity#L1")
+    parser.add_argument("-tld", "--transfer_learning_datasets", type=validate_dataset_string,
+                        help='Datasets used for transfer-learning in addition to goal_dataset', default=[], nargs='+')
+
     optional.add_argument("--relaxed_pdbs", choices=["True", "False", "both"], help="Use the relaxed pdbs for training "
                                                                                "and validation", default="True")
     optional.add_argument("--validation_size", type=int, help="Percent of target dataset used to validate model (only DMS)",

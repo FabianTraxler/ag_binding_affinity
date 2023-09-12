@@ -17,7 +17,7 @@ class DatasetAdjustment(nn.Module):
     """
     Dataset-specific adjustment layer (linear layer). Initially frozen by default
 
-    Theoretically there is a sigmoidal relationship between the log-affinity and the enrichment value. However, in pooled (DMS) experiments the relationship is much more complex (and potentially linear). 
+    Theoretically there is a sigmoidal relationship between the log-affinity and the enrichment value. However, in pooled (DMS) experiments the relationship is much more complex (and potentially linear).
     As we observed that DMS modeling works better with sigmoid, we include it here
 
     TODO: Can be experimented with to see whether it improves learning from distinct datasets (e.g. by adding an additional layer)

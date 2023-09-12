@@ -7,7 +7,6 @@
 --num_workers=10
 --nonlinearity=leaky
 --scale_values
---loss_function=L1
 --num_fc_layers=10
 --num_gnn_layers=5
 --validation_set=1
@@ -25,4 +24,4 @@
 --learning_rate=0.00001
 --init_sweep
 --relaxed_pdbs=False
---sweep_config=src/experiments/DMS_single_prediciton_sweep/sweep_config.yaml
+--sweep_config=src/experiments/DMS_single_prediciton_sweep/sweep_config_with_relative.yaml
