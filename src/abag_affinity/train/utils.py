@@ -29,7 +29,7 @@ from ..model import AffinityGNN, TwinWrapper
 from ..train.wandb_config import configure
 from ..utils.config import get_data_paths
 from ..utils.visualize import plot_correlation
-
+from functools import partial
 logger = logging.getLogger(__name__)  # setup module logger
 
 
@@ -85,22 +85,35 @@ def get_label(data: Dict, device: torch.device) -> Dict:
     # TODO Try to return NLL values of data if available!
     return label
 
-def get_loss(criterion: List, label: Dict, output: Dict) -> torch.Tensor:
-    # We assume multiple criterions, each require different labels
-    loss = []
-    for loss_name, loss_fn in criterion:
-        # TODO use NLL when available
-        if (loss_name in ["relative_L1", "relative_L2"]) and output["relative"]:
-            # Apply L1/L2 loss to the relative binding affinity
-            loss.append(loss_fn(output["difference"], label["difference"]))
-        elif loss_name == "relative_ce" and output["relative"]:
-            loss.append(loss_fn(output["x_prob"], label["x_prob"]))
-        elif loss_name in ["L1", "L2"]:
-            loss.append(loss_fn(output["x"], label["x"]))
+def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
+    # Different loss functions are seperated with a +
+    # Optionally, they can contain a weight seperated with a -
+    # E.g. args.loss_function = L2-1+L1-0.1+relative_l1-2+relative_l2-0.1+relative_ce
+    loss_types = [x.split("-") for x in loss_functions.split("+")]
+    loss_types = [(x[0], float(x[1])) if len(x) == 2 else (x[0], 1.) for x in loss_types]
+    losses = []
+    for criterion, weight in loss_types:
+        if criterion == "L1":
+            loss = weight * torch.nn.functional.l1_loss(output["x"], label["x"])
             if output["relative"]:
-                loss.append(loss_fn(output["x2"], label["x2"]))
+                loss += weight * torch.nn.functional.l1_loss(output["x2"], label["x2"])
+        elif criterion == "L2":
+            loss = weight * torch.nn.functional.mse_loss(output["x"], label["x"])
+            if output["relative"]:
+                loss += weight * torch.nn.functional.mse_loss(output["x2"], label["x2"])
+        elif criterion == "relative_L1" and output["relative"]:
+            loss = weight * torch.nn.functional.l1_loss(output["difference"], label["difference"])
+        elif criterion == "relative_L2" and output["relative"]:
+            loss = weight * torch.nn.functional.mse_loss(output["difference"], label["difference"])
+        elif criterion == "relative_ce" and output["relative"]:
+            loss = weight * torch.nn.functional.cross_entropy(output["x_prob"], label["x_prob"])
+        else:
+            raise ValueError(
+                f"Loss_Function must either in ['L1','L2','relative_L1','relative_L2','relative_ce'] but got {criterion}")
+        losses.append(loss)
+    assert len(losses) > 0, f"No valid lossfunction was given with:{loss_functions} and relative data {output['relative']}"
+    return sum(losses)
 
-    return sum(loss)
 
 def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloaders: List[DataLoader],
                 optimizer: torch.optim, device: torch.device = torch.device("cpu"), tqdm_output: bool = True) -> Tuple[AffinityGNN, List, np.ndarray, float]:
@@ -360,29 +373,6 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
 
     return results, best_model
 
-
-def get_loss_function(loss_function: str):
-    # Different loss functions are seperated with a +
-    # Optionally, they can contain a weight seperated with a -
-    # E.g. args.loss_function = L2-1+L1-0.1+relative_l1-2+relative_l2-0.1+relative_ce
-    loss_types = [x.split("-") for x in loss_function.split("+")]
-    loss_types = [(x[0], float(x[1])) if len(x) == 2 else (x[0], 1.) for x in loss_types]
-    criterions = []
-    for criterion, weight in loss_types:
-        if criterion == "L1":
-            loss_fn = lambda x,y: weight * torch.nn.functional.l1_loss(x, y)
-        elif criterion == "L2":
-            loss_fn = lambda x, y: weight * torch.nn.functional.mse_loss(x, y)
-        elif criterion == "relative_L1":
-            loss_fn = lambda x, y: weight * torch.nn.functional.l1_loss(x, y)
-        elif criterion == "relative_L2":
-            loss_fn = lambda x, y: weight * torch.nn.functional.mse_loss(x, y)
-        elif criterion == "relative_ce":
-            loss_fn = lambda x, y: weight * torch.nn.functional.cross_entropy(x, y)
-        else:
-            raise ValueError(f"Loss_Function must either in ['L1','L2','relative_L1','relative_L2','relative_ce'] but got {criterion}")
-        criterions.append((criterion,loss_fn))
-    return criterions
 
 def get_optimizer(args: Namespace, model: torch.nn.Module):
     optimizer = Adam(model.parameters(), lr=args.learning_rate)
@@ -667,7 +657,7 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
     # The losses used for this dataset come after a # seperated by a comma, when multiple losses are used
     # Optionally, the losses can contain some weight using -
     # E.g. data_type = relative#l2-1,l1-0.1,relative_l1-2,relative_2-0.1,relative_ce-1
-    loss_criterion = get_loss_function(loss_types)
+
     if "relative" in loss_types:
         relative_data = True
     else:
@@ -682,7 +672,7 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
         val_ids = val_ids[:5]
 
     logger.debug(f"Get dataLoader for {dataset_name}#{loss_types}")
-    train_data = AffinityDataset(config, args.relaxed_pdbs, dataset_name, loss_criterion,
+    train_data = AffinityDataset(config, args.relaxed_pdbs, dataset_name, loss_types,
                                  train_ids,
                                  node_type=args.node_type,
                                  max_nodes=args.max_num_nodes,
@@ -701,7 +691,7 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
                                  load_embeddings=args.embeddings_path,
                                  )
 
-    val_datas = [AffinityDataset(config, relaxed, dataset_name, loss_criterion,  # TODO @marco val should be done with the same loss as training, right?
+    val_datas = [AffinityDataset(config, relaxed, dataset_name, loss_types,  # TODO @marco val should be done with the same loss as training, right?
                                  val_ids,
                                  node_type=args.node_type,
                                  max_nodes=args.max_num_nodes,
@@ -1086,7 +1076,8 @@ def evaluate_model(model: AffinityGNN, dataloader: DataLoader, args: Namespace, 
     for data in tqdm(dataloader, disable=not tqdm_output):
         output, label = forward_step(model, data, device)
 
-        loss = get_loss(data["loss_criterion"], label, output)
+        loss = get_loss(data["loss_criterion"], label, output)
+
         total_loss_val += loss.item()
 
         all_predictions = np.append(all_predictions, output["x"].flatten().detach().cpu().numpy())
@@ -1124,7 +1115,7 @@ def evaluate_model(model: AffinityGNN, dataloader: DataLoader, args: Namespace, 
 
 def get_benchmark_score(model: AffinityGNN, args: Namespace, tqdm_output: bool = True, plot_path: str = None) -> Tuple[float, float, pd.DataFrame]:
 
-    dataset = AffinityDataset(args.config, args.relaxed_pdbs, "AntibodyBenchmark", get_loss_function("L2"),
+    dataset = AffinityDataset(args.config, args.relaxed_pdbs, "AntibodyBenchmark", "L2",
                               node_type=args.node_type,
                               max_nodes=args.max_num_nodes,
                               interface_distance_cutoff=args.interface_distance_cutoff,
@@ -1165,7 +1156,7 @@ def get_abag_test_score(model: AffinityGNN, args: Namespace, tqdm_output: bool =
 
     test_pdbs_ids = summary_df.index.tolist()
 
-    dataset = AffinityDataset(args.config, args.relaxed_pdbs, "abag_affinity", get_loss_function("L2"), test_pdbs_ids,
+    dataset = AffinityDataset(args.config, args.relaxed_pdbs, "abag_affinity", "L2", test_pdbs_ids,
                               node_type=args.node_type,
                               max_nodes=args.max_num_nodes,
                               interface_distance_cutoff=args.interface_distance_cutoff,
@@ -1197,7 +1188,7 @@ def get_skempi_corr(model: AffinityGNN, args: Namespace, tqdm_output: bool = Tru
     Take the available Skempi mutations for validation
     """
 
-    dataset = AffinityDataset(args.config, args.relaxed_pdbs, "SKEMPI.v2", get_loss_function("L2"),
+    dataset = AffinityDataset(args.config, args.relaxed_pdbs, "SKEMPI.v2", "L2",
                               node_type=args.node_type,
                               max_nodes=args.max_num_nodes,
                               interface_distance_cutoff=args.interface_distance_cutoff,
