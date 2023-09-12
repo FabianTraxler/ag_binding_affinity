@@ -427,7 +427,7 @@ def complexes_from_dms_datasets(dataset_names: List, args) -> List:
         else:
             return [dataset_name]
 
-    with open(args.config["DATASETS"]["DMS"]["metadata"], "r") as f:
+    with open(os.path.join(args.config["DATASETS"]["path"], args.config["DATASETS"]["DMS"]["metadata"]), "r") as f:
         metadata = yaml.safe_load(f)
 
     unique_sets = np.unique([ds_name.split("#")[0] for ds_name in dataset_names]).tolist()
