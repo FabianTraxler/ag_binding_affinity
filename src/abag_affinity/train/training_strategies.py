@@ -2,6 +2,7 @@
 import logging
 import os
 from pathlib import Path
+import pandas as pd
 import torch
 from argparse import Namespace
 import numpy as np
@@ -167,6 +168,51 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
     return model, results
 
 
+def train_transferlearnings_validate_target(args: Namespace):
+    """
+    Train on the transfer learning datasets, validate on the target dataset, making sure that the target dataset is excluded from the training
+
+    This function is dedicated to the DMS cross-validation and slightly abuses the CLI argument names
+    """
+    config = read_config(args.config_file)
+
+    # make sure that the loss functions are not in the way
+    logging.warning(f"loss in target_dataset ({args.target_dataset}) is ignored.")
+
+    training_set_names = [dataset for dataset in args.transfer_learning_datasets if dataset.split("#")[0] != args.target_dataset.split("#")[0]]
+
+    use_cuda = args.cuda and torch.cuda.is_available()
+    device = torch.device("cuda" if use_cuda else "cpu")
+
+    train_datasets = []
+    val_datasets = []
+
+    for dataset_type in training_set_names:
+        train_data, val_datas = load_datasets(config, dataset_type, args.validation_set, args, 0.0)  # For simplicity, we only load training data. (makes the DMS cross-validation sweep simpler)
+
+        if len(train_data) > 0:
+            train_datasets.append(train_data)
+
+    # Load the main validation dataset
+    for val_data in load_datasets(config, args.target_dataset, args.validation_set, args, 1.0)[1]:
+        if len(val_data) > 0:
+            val_datasets.append(val_data)
+
+    model = load_model(train_datasets[0].num_features, train_datasets[0].num_edge_features, training_set_names + [args.target_dataset], args, device)
+    logger.debug(f"Training done on GPU = {next(model.parameters()).is_cuda}")
+
+    logger.info("Training with {}".format(", ".join([dataset.dataset_name for dataset in train_datasets])))
+    logger.info("Evaluating on {}".format(", ".join([dataset.dataset_name for dataset in val_datasets])))
+    results, model = bucket_learning(model, train_datasets, val_datasets, args)
+    logger.info("Training with {} completed".format(training_set_names))
+
+    if args.fine_tune:
+        results, model = finetune_frozen(model, train_datasets, val_datasets, args, lr_reduction=0.2)
+
+    logger.debug(results)
+    return model, results
+
+
 def cross_validation(args:Namespace) -> Tuple[None, Dict]:
     """ Perform a Cross Validation based on predefined splits of the data
 
@@ -176,7 +222,7 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
     Returns:
         Tuple: None and the results and statistics of training
     """
-    import pandas as pd
+
 
     experiment_name = "CV_experiment_transfer_learning"
 
