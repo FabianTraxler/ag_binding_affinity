@@ -259,8 +259,8 @@ def scale_affinity(affinity: float, min: float = 0, max: float = 16) -> float:
         float: scaled affinity
     """
 
-    if not min < affinity < max:
-        logging.warning(f"Affinity value out of scaling range {min} - {max}: {affinity}")
+    #if not min < affinity < max: #TODO for abdb we have a few samples
+    #    logging.warning(f"Affinity value out of scaling range {min} - {max}: {affinity}")
     affinity = np.clip(affinity, min, max)
     assert min <= affinity <= max, f"Affinity value out of scaling range: {affinity}"
 

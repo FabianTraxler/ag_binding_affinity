@@ -39,6 +39,11 @@ class TwinWrapper(torch.nn.Module):
         # Better always compute both x_prob and x as the difference and do not differ depending on affinity type!
         diff_1 = output["x"] - output["x2"]
         diff_2 = output["x2"] - output["x"]
-        class_preds = torch.stack((diff_1, diff_2),dim=-1)
+        class_preds = torch.stack((diff_1, diff_2), dim=-1)
+        # Computing the Probability based on Gaussian cdf:
+        # We interpret rel_temperature as the standard deviation
+        prob_1_ge_2 = torch.special.ndtr(diff_1 / 2**0.5 / rel_temperature)
+        output["x_prob_cdf"] = torch.stack((prob_1_ge_2, 1-prob_1_ge_2), dim=-1)
         output["x_prob"] = torch.nn.functional.softmax(class_preds/rel_temperature, dim=-1)
+        output["x_logit"] = torch.nn.functional.log_softmax(class_preds / rel_temperature, dim=-1)
         return output
