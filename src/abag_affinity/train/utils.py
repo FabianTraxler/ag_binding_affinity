@@ -108,7 +108,7 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
         elif criterion == "relative_ce" and output["relative"]:
             loss = weight * torch.nn.functional.nll_loss(output["x_logit"], label["x_stronger"])
         elif criterion == "relative_cdf" and output["relative"]:
-            loss = weight * torch.nn.functional.nll_loss(output["x_prob_cdf"].log(), label["x_stronger"])
+            loss = weight * torch.nn.functional.nll_loss((output["x_prob_cdf"]+1e-10).log(), label["x_stronger"])
         else:
             raise ValueError(
                 f"Loss_Function must either in ['L1','L2','relative_L1','relative_L2','relative_ce'] but got {criterion}")
