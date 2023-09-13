@@ -224,6 +224,9 @@ class AffinityDataset(Dataset):
             valid_pairs = (e_dists - nll_avg) >= 0
             valid_partners = np.where(valid_pairs)[0]
             possible_partners = self.data_df.index[valid_partners].tolist()
+
+            # filter further for partners from the same complex
+            possible_partners = [partner for partner in possible_partners if pdb_id.split("-")[0] == partner.split("-")[0]]
         else:
             raise ValueError(
                 f"Wrong affinity type given - expected one of (-log(Kd), E) but got {self.affinity_type}")
