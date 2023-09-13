@@ -1,10 +1,10 @@
 --gnn_type=guided
 --patience=30
 --node_type=residue
---batch_size=1
+--batch_size=64
 --layer_type=GCN
 --max_epochs=200
---num_workers=10
+--num_workers=20
 --nonlinearity=leaky
 --scale_values
 --num_fc_layers=10
@@ -22,6 +22,6 @@
 --lr_decay_factor=0.5
 --stop_at_learning_rate=0.000001
 --learning_rate=0.00001
---init_sweep
 --relaxed_pdbs=False
+--init_sweep
 --sweep_config=src/experiments/DMS_single_prediciton_sweep/sweep_config_with_relative.yaml
