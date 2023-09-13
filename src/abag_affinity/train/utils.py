@@ -253,6 +253,7 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
     best_loss = np.inf
     best_pearson_corr = -np.inf
     best_rmse = np.inf
+    patience = args.patience
 
     best_model = deepcopy(model)
 
@@ -261,7 +262,6 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
         model, val_results, total_loss_train = train_epoch(model, train_dataloader, val_dataloaders, optimizer, device,
                                            args.tqdm_output)
 
-        patience = None
         if args.lr_scheduler == "exponential":
             scheduler.step()
         else:
@@ -288,6 +288,7 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
             results[f"epoch_rmse_val{val_i}"].append(val_result["rmse"])
 
             if val_result["val_loss"] < best_loss: # or val_result["pearson_correlation"] > best_pearson_corr:
+                patience = args.patience
                 best_loss = val_result["val_loss"]
                 best_pearson_corr = val_result["pearson_correlation"]
                 best_rmse = val_result["rmse"]
@@ -308,6 +309,8 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
                     # result_df.to_csv(os.path.join(prediction_path, f"{train_dataset.full_dataset_name}.csv"),
                     #                 index=False)
                 best_model = deepcopy(model)
+            elif args.lr_scheduler == 'exponential' and patience is not None:
+                patience -= 1
 
             logger.info(
                 f'Epochs: {i + 1} | Train-Loss: {total_loss_train / len(train_dataloader) : .3f}  | '
@@ -350,6 +353,10 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
         for param_group in optimizer.param_groups:
             stop_training = stop_training and (
                 param_group['lr'] < args.stop_at_learning_rate)
+
+        if args.lr_scheduler == 'exponential' and patience is not None and patience < 0:
+            stop_training = True
+
         if stop_training:
             if use_wandb:
                 run.summary[f"{val_datasets[0].full_dataset_name}_val_corr"] = best_pearson_corr
@@ -417,7 +424,7 @@ def complexes_from_dms_datasets(dataset_names: List, args) -> List:
         else:
             return [dataset_name]
 
-    with open(args.config["DATASETS"]["DMS"]["metadata"], "r") as f:
+    with open(os.path.join(args.config["DATASETS"]["path"], args.config["DATASETS"]["DMS"]["metadata"]), "r") as f:
         metadata = yaml.safe_load(f)
 
     unique_sets = np.unique([ds_name.split("#")[0] for ds_name in dataset_names]).tolist()
@@ -940,12 +947,11 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
         results["epoch_loss"].append(val_result["val_loss"])
         results["epoch_corr"].append(val_result["pearson_correlation"])
 
-        patience = None
         if args.lr_scheduler == "exponential":
             scheduler.step()
         else:
             scheduler.step(metrics=val_result['val_loss'])
-            if args.patience:
+            if args.patience is not None:
                 patience = args.patience - scheduler.num_bad_epochs
 
         if dataset2optimize in dataset_results:
@@ -975,7 +981,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
                                                           title="Label vs. Predictions")})
 
             best_model = deepcopy(model)
-        elif patience is not None:
+        elif args.lr_scheduler == 'exponential' and patience is not None:
             patience -= 1
 
         logger.info(
@@ -984,7 +990,16 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
 
         wandb.log(wandb_log, commit=True)
 
-        if patience is not None and patience < 0:
+        stop_training = True
+
+        for param_group in optimizer.param_groups:
+            stop_training = stop_training and (
+                param_group['lr'] < args.stop_at_learning_rate)
+
+        if args.lr_scheduler == 'exponential' and patience is not None and patience < 0:
+            stop_training = True
+
+        if stop_training:
             if use_wandb:
                 run.summary[f"{dataset2optimize}_val_loss"] = best_loss
                 run.summary[f"{dataset2optimize}_val_corr"] = best_pearson_corr
