@@ -339,7 +339,7 @@ class AffinityDataset(Dataset):
         if self.interface_hull_size is None or self.interface_hull_size == "" or self.interface_hull_size == "None":
             graph_filepath = os.path.join(self.graph_dir.format(is_relaxed=relaxed), idx + ".pickle")
         else:
-            graph_filepath = os.path.join(self.graph_dir.format(is_relaxed=relaxed), f"interface_hull_{self.interface_hull_size}",
+            graph_filepath = os.path.join(self.graph_dir.format(is_relaxed=relaxed), f"interface_hull_{self.interface_hull_size}",
                                           idx + ".pickle")
 
         with open(graph_filepath, 'wb') as f:
@@ -632,7 +632,6 @@ class AffinityDataset(Dataset):
             "input": graph_data,
             "dataset_name": self.full_dataset_name,
             "loss_criterion": self.loss_criterion,
-
             "dataset_adjustment": pdb_id.split("-")[0] if self.affinity_type == "E" else None  # contains the complex name
         }
         # pdb.set_trace()
@@ -715,23 +714,18 @@ class AffinityDataset(Dataset):
         # This is a list of loss functions
         loss_criterion = input_dicts[0]["loss_criterion"]
 
-
-        dataset_adjustment = input_dicts[0]["dataset_adjustment"]
-        assert all([dataset_adjustment == input_dict["dataset_adjustment"] for input_dict in input_dicts]), "only one dataset-type allowed per batch (because of implementation in gnn_model)"  # NOTE this will breake with batch_size > 1
-
         data_batch = {
             "relative": relative_data,
             "affinity_type": affinity_type,
             "dataset_name": dataset_name,
             "loss_criterion": loss_criterion,
-
-            "dataset_adjustment": dataset_adjustment,
         }
         if relative_data:  # relative data
             input_graphs = []
             for i in range(2):
                 batched_dict = {"graph": Batch.from_data_list([input_dict["input"][i]["graph"] for input_dict in input_dicts]),
-                                "filepath": [input_dict["input"][i]["filepath"] for input_dict in input_dicts]}
+                                "filepath": [input_dict["input"][i]["filepath"] for input_dict in input_dicts],
+                                "dataset_adjustment": [input_dict["dataset_adjustment"][i] for input_dict in input_dicts]}
 
                 if "deeprefine_graph" in input_dicts[0]["input"][i]:
                     batched_dict["deeprefine_graph"] = dgl.batch(
@@ -741,7 +735,9 @@ class AffinityDataset(Dataset):
 
         else:
             input_graphs = {"graph": Batch.from_data_list([input_dict["input"]["graph"] for input_dict in input_dicts]),
-                            "filepath": [input_dict["input"]["filepath"] for input_dict in input_dicts]}
+                            "filepath": [input_dict["input"]["filepath"] for input_dict in input_dicts],
+                            "dataset_adjustment": [input_dict["dataset_adjustment"] for input_dict in input_dicts]
+                            }
 
             if "deeprefine_graph" in input_dicts[0]["input"]:
                 data_batch["input"]["deeprefine_graph"] = dgl.batch(

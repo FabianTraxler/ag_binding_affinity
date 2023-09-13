@@ -25,14 +25,14 @@ class DatasetAdjustment(nn.Module):
         output_sigmoid: Whether to apply a sigmoid to the output
 
     """
-    def __init__(self, layer_type):
+    def __init__(self, layer_type, out_n):
         """
         As we initialize with weight=1 and bias=0, implementing bias_only is as simple as only unfreezing bias_only in requires_grad_
         """
         super(DatasetAdjustment, self).__init__()
         self.layer_type = layer_type
         if self.layer_type in ["identity", "bias_only", "regression", "regression_sigmoid"]:
-            self.linear = nn.Linear(1, 1)
+            self.linear = nn.Linear(1, out_n)
             self.linear.weight.data.fill_(1)
             self.linear.bias.data.fill_(0)
         else:
@@ -40,14 +40,25 @@ class DatasetAdjustment(nn.Module):
 
         super().requires_grad_(False)  # Call original version to freeze all parameters
 
-    def forward(self, x):
-        x = self.linear(x)
+    def forward(self, x: torch.Tensor, layer_selector: torch.Tensor):
+        """
+        Args:
+            x: torch.Tensor of shape (batch_size, 1)
+            layer_selector: torch.Tensor of shape (batch_size) with values between 0 and n_out. If -1, return x
+        """
+        x_all = self.linear(x)
+        # Select the correct output node (dataset-specificity)
+        x_selected = x_all[torch.arange(x_all.size(0)), layer_selector]
         if self.layer_type.endswith("_sigmoid"):
-            x = torch.sigmoid(x)
-            num_excessive = (x == 0).sum() + (x == 1).sum()
+            x_selected = torch.sigmoid(x_selected)
+            num_excessive = (x_selected == 0).sum() + (x_selected == 1).sum()
             if num_excessive > 0:
-                print(f"WARNING: Vanishing gradients in {num_excessive} of {len(x.flatten())} due to excessively large values from NN.")
-        return x
+                print(f"WARNING: Vanishing gradients in {num_excessive} of {len(x_selected.flatten())} due to excessively large values from NN.")
+
+        # "-1"-selector is interpreted as returning x
+        x_selected = torch.where(layer_selector == -1, x.squeeze(-1), x_selected).unsqueeze(-1)
+
+        return x_selected
 
     def requires_grad_(self, requires_grad: bool = True) -> nn.Module:
         """
@@ -142,14 +153,14 @@ class AffinityGNN(pl.LightningModule):
                                                   nonlinearity=nonlinearity,  num_fc_layers=num_fc_layers, device=device)
         # Dataset-specific output layers
         self.dataset_names = dataset_names
-        self.dataset_layers = nn.ModuleList([DatasetAdjustment(args.dms_output_layer_type) for _ in dataset_names])
+        self.dataset_specific_layer = DatasetAdjustment(args.dms_output_layer_type, len(dataset_names))
         self.scaled_output = scaled_output
 
         self.float()
 
         self.to(device)
 
-    def forward(self, data: Dict, dataset_adjustment: Optional[str]=None) -> Dict:
+    def forward(self, data: Dict) -> Dict:
         """
 
         Args:
@@ -170,13 +181,12 @@ class AffinityGNN(pl.LightningModule):
         affinity = self.regression_head(graph)
 
         # dataset-specific scaling (could be done before or after scale_output)
-        output["dataset_adjusted"] = bool(dataset_adjustment)
-        if dataset_adjustment:
-            dataset_index = self.dataset_names.index(dataset_adjustment)
-            affinity = self.dataset_layers[dataset_index](affinity)
+        dataset_indices = torch.Tensor([self.dataset_names.index(dataset) if dataset is not None else -1
+                                        for dataset in data["dataset_adjustment"]]).long().to(affinity.device)
+        affinity = self.dataset_specific_layer(affinity, dataset_indices)
 
-            if self.dataset_layers[dataset_index].layer_type.endswith("_sigmoid") and not self.scaled_output:
-                raise NotImplementedError("Would need to allow scaling the sigmoidal values back to the original range")
+        if self.dataset_specific_layer.layer_type.endswith("_sigmoid") and not self.scaled_output and any(data["dataset_adjustment"]):
+            raise NotImplementedError("Would need to allow scaling the sigmoidal values back to the original range")
 
         output["x"] = affinity
         return output
@@ -196,7 +206,7 @@ class AffinityGNN(pl.LightningModule):
             logging.warning("Pretrained model does not have an unfreeze method")
 
         # unfreeze datasets-specific layers
-        for dataset_layer in self.dataset_layers:
+        for dataset_layer in self.dataset_specific_layer:
             # dataset_layer.unfreeze()
             dataset_layer.requires_grad_(True)
 

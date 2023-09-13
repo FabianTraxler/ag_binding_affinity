@@ -29,7 +29,6 @@ from ..model import AffinityGNN, TwinWrapper
 from ..train.wandb_config import configure
 from ..utils.config import get_data_paths
 from ..utils.visualize import plot_correlation
-from functools import partial
 logger = logging.getLogger(__name__)  # setup module logger
 
 
@@ -60,7 +59,7 @@ def forward_step(model: AffinityGNN, data: Dict, device: torch.device) -> Tuple[
         if "deeprefine_graph" in data["input"]:
             data["input"]["deeprefine_graph"] = data["input"]["deeprefine_graph"].to(device)
 
-        output = model(data["input"], dataset_adjustment=data["dataset_adjustment"])
+        output = model(data["input"])
         output["relative"] = data["relative"]
         output["affinity_type"] = data["affinity_type"]
 
