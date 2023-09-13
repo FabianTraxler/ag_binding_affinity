@@ -29,7 +29,6 @@ from ..model import AffinityGNN, TwinWrapper
 from ..train.wandb_config import configure
 from ..utils.config import get_data_paths
 from ..utils.visualize import plot_correlation
-from functools import partial
 logger = logging.getLogger(__name__)  # setup module logger
 
 
@@ -60,7 +59,7 @@ def forward_step(model: AffinityGNN, data: Dict, device: torch.device) -> Tuple[
         if "deeprefine_graph" in data["input"]:
             data["input"]["deeprefine_graph"] = data["input"]["deeprefine_graph"].to(device)
 
-        output = model(data["input"], dataset_adjustment=data["dataset_adjustment"])
+        output = model(data["input"])
         output["relative"] = data["relative"]
         output["affinity_type"] = data["affinity_type"]
 
@@ -182,11 +181,11 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
 
         # if len(all_predictions) > 2:
         #     break
-        all_predictions = np.append([], all_predictions)
-        all_labels = np.append([], all_labels)
-        all_pdbs = np.append([], all_pdbs)
-        all_binary_predictions = np.append([], all_binary_predictions)
-        all_binary_labels = np.append([], all_binary_labels)
+        all_predictions = np.concatenate(all_predictions) if len(all_predictions) > 0 else np.array([])
+        all_labels = np.concatenate(all_labels) if len(all_labels) > 0 else np.array([])
+        all_pdbs = np.concatenate(all_pdbs) if len(all_pdbs) > 0 else np.array([])
+        all_binary_predictions = np.concatenate(all_binary_predictions) if len(all_binary_predictions) > 0 else np.array([])
+        all_binary_labels = np.concatenate(all_binary_labels) if len(all_binary_labels) > 0 else np.array([])
         val_loss = total_loss_val / (len(all_predictions) + len(all_binary_predictions))
 
         if len(all_binary_labels) > 0:
