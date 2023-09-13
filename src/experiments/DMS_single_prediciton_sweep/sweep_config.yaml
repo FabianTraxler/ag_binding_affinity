@@ -1,0 +1,33 @@
+method: 'grid'
+name: 'DMS-Per-Publication-Evaluation-Sweep'
+metric:
+  goal: 'minimize'
+  name: 'val0_rmse'
+parameters:
+  target_dataset:
+    values:
+      - "DMS-madan21_mutat_hiv:absolute"
+      - "DMS-phillips21_bindin:absolute"
+      - "DMS-taft22_deep_mutat_learn_predic_ace2:absolute"
+      - "DMS-starr21_prosp_covid:absolute"
+      - "DMS-wu17_in:absolute"
+  loss_function:
+    values:
+      - "L1"
+      - "L2"
+      - "L1+L2"
+  aggregation_method:
+    values:
+      - "interface_sum"
+      - "mean"
+  seed:
+    values:
+      - 1
+      - 2
+      - 3
+  dms_output_layer_type:
+    values:
+      - "regression"
+      - "regression_sigmoid"
+      - "bias_only"
+      - "identity"

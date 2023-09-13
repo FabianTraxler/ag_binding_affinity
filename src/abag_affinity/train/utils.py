@@ -136,10 +136,10 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
     results = []
     for val_dataloader in val_dataloaders:
         total_loss_val = 0
-        all_predictions = np.array([])
-        all_binary_predictions = np.array([])
-        all_labels = np.array([])
-        all_binary_labels = np.array([])
+        all_predictions = []
+        all_binary_predictions = []
+        all_labels = []
+        all_binary_labels = []
         all_pdbs = []
         for data in tqdm(val_dataloader, disable=not tqdm_output):
             output, label = forward_step(model, data, device)
@@ -147,32 +147,44 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
             loss = get_loss(data["loss_criterion"], label, output)
             total_loss_val += loss.item()
 
-            all_predictions = np.append(all_predictions, output["x"].flatten().detach().cpu().numpy())
-            all_labels = np.append(all_labels, label["x"].detach().cpu().numpy())
+            all_predictions.append(output["x"].flatten().detach().cpu().numpy())
+            all_labels.append(label["x"].detach().cpu().numpy())
             if data["relative"]:
                 pdb_ids_1 = [filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
                 pdb_ids_2 = [filepath.split("/")[-1].split(".")[0] for filepath in data["input"][1]["filepath"]]
                 all_pdbs.extend(list(zip(pdb_ids_1, pdb_ids_2)))
-                all_binary_labels = np.append(all_binary_labels,  torch.argmax(label["x_prob"].detach().cpu(), dim=1).numpy())
-                all_binary_predictions = np.append(all_binary_predictions, torch.argmax(output["x_prob"].detach().cpu(), dim=1).numpy())
+                all_binary_labels.append( torch.argmax(label["x_prob"].detach().cpu(), dim=1).numpy())
+                all_binary_predictions.append(torch.argmax(output["x_prob"].detach().cpu(), dim=1).numpy())
 
             else:
                 #We need to ensure that binary labels have the length of the validation dataset as we later slice the datasets appart.
                 # TODO maybe we could store them in a dataset specific dict instead?
-                all_binary_labels = np.append(all_binary_labels, np.zeros(label["x"].shape[0]))
-                all_binary_predictions = np.append(all_binary_predictions, np.zeros(label["x"].shape[0]))
+                all_binary_labels.append(np.zeros(label["x"].shape[0]))
+                all_binary_predictions.append(np.zeros(label["x"].shape[0]))
                 all_pdbs.extend([filepath.split("/")[-1].split(".")[0] for filepath in data["input"]["filepath"]])
 
             #all_labels = np.append(all_labels, label.numpy())
             #all_predictions = np.append(all_predictions, output["x"].flatten().detach().cpu().numpy())
 
         val_loss = total_loss_val / len(all_predictions)
+
+        # if len(all_predictions) > 2:
+        #     break
+        all_predictions = np.append([], all_predictions)
+        all_labels = np.append([], all_labels)
+        all_pdbs = np.append([], all_pdbs)
+        all_binary_predictions = np.append([], all_binary_predictions)
+        all_binary_labels = np.append([], all_binary_labels)
+        val_loss = total_loss_val / (len(all_predictions) + len(all_binary_predictions))
+
         if len(all_binary_labels) > 0:
             acc = accuracy_score(all_binary_labels, all_binary_predictions)
         else:
             acc = np.nan
 
         pearson_corr = stats.pearsonr(all_labels, all_predictions)
+        rmse = math.sqrt(np.square(np.subtract(all_labels, all_predictions)).mean())
+
         results.append({
             "val_loss": val_loss,
             "pearson_correlation": pearson_corr[0],
@@ -316,6 +328,7 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
                 f"val{val_i}_loss": val_result["total_val_loss"] / (len(val_dataset) / args.batch_size),
                 "train_loss": total_loss_train / (len(train_dataset) / args.batch_size),
                 f"val{val_i}_pearson_correlation": val_result["pearson_correlation"],
+                f"val{val_i}_rmse": val_result["rmse"],
                 f"{val_dataset.full_dataset_name}{val_i}:{data_type}_val_loss": val_result["total_val_loss"] / (
                         len(val_dataset) / args.batch_size),
                 f"{val_dataset.full_dataset_name}{val_i}:{data_type}_val_corr": val_result["pearson_correlation"],
@@ -488,21 +501,13 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int, valida
         summary_path = os.path.join(summary_path, publication_code + ".csv")
         summary_df = pd.read_csv(summary_path, index_col=0)
 
-        if config["DATASETS"][dataset_name]["affinity_types"][publication_code] == "E":
+        if config["DATASETS"][dataset_name]["affinity_types"][publication_code] == "E":  # should be unnecessary
             summary_df = summary_df[(~summary_df["E"].isna()) &(~summary_df["NLL"].isna())]
         else:
             summary_df = summary_df[~summary_df["-log(Kd)"].isna()]
-        # remove ids that have no file
-        data_path = os.path.join(config["DATASETS"]["path"],
-                                 config["DATASETS"][dataset_name]["folder_path"],
-                                 config["DATASETS"][dataset_name]["mutated_pdb_path"],
-                                 publication_code)
-        all_files = glob.glob(data_path + "/*/*") + glob.glob(data_path + "/*")
-        available_files = set(
-            file_path.split("/")[-3] + ":" + file_path.split("/")[-2].split("_")[0] + ":" + file_path.split("/")[-2].split("_")[-1] + "-" + file_path.split("/")[-1].split(".")[0].lower() for file_path in
-            all_files if file_path.split(".")[-1] == "pdb")
-        summary_df = summary_df[summary_df.index.isin(available_files)]
-        all_data_points = summary_df.index.values
+        # filter datapoints with missing PDB files
+        data_path = Path(config["DATASETS"]["path"]) / config["DATASETS"][dataset_name]["folder_path"] / config["DATASETS"][dataset_name]["mutated_pdb_path"]
+        summary_df = summary_df[summary_df.filename.apply(lambda fn: (data_path / fn).exists())]
 
         affinity_type = config["DATASETS"][dataset_name]["affinity_types"][publication_code]
         if affinity_type == "E":
@@ -510,7 +515,14 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int, valida
 
             e_values = summary_df["E"].values.reshape(-1,1).astype(np.float32)
             nll_values = summary_df["NLL"].values
+            # Scale the NLLs to (0-1). The max NLL value in DMS_curated.csv is 4, so 0-1-scaling should be fine
+            if np.max(nll_values) > np.min(nll_values):  # test that all values are not the same
+                nll_values = (nll_values - np.min(nll_values)) / (np.max(nll_values) - np.min(nll_values))
+                assert (nll_values < 0.7).sum() > (nll_values > 0.7).sum(), "Many NLL values are 'large'"
+            else:
+                nll_values = np.full_like(nll_values, 0.5)
 
+            # TODO refactor this block (just always split, as it includes the else-case)
             if len(e_values) > 50000:
                 n_splits = int(len(e_values) / 50000) + 1
                 has_valid_partner = set()
@@ -591,6 +603,7 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int, valida
             data_path = os.path.join(config["DATASETS"]["path"],
                                      config["DATASETS"][dataset_name]["folder_path"],
                                      config["DATASETS"][dataset_name]["mutated_pdb_path"])
+            # TODO use `filename` in summary_df (see above! DRY?)
             all_files = glob.glob(data_path + "/*/*") + glob.glob(data_path + "/*")
             available_files = set(
                 file_path.split("/")[-2].lower() + "-" + file_path.split("/")[-1].split(".")[0].lower() for file_path in
@@ -857,7 +870,8 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
         wandb_log = {
             "val_loss": val_result["total_val_loss"] / len(val_dataloader),
             "train_loss": total_loss_train / len(train_dataloader),
-            "pearson_correlation": val_result["pearson_correlation"]
+            "pearson_correlation": val_result["pearson_correlation"],
+            "rmse":val_result["rmse"],  # TODO not sure if it is set
         }
 
         i = 0

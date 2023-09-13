@@ -156,10 +156,10 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--init_sweep", action=BooleanOptionalAction,
                           help="Use Weight&Bias sweep to search hyperparameter space", default=False)
     optional.add_argument("--sweep_config", type=str, help="Path to the configuration file of the sweep",
-                          default=(Path(__file__).resolve().parents[2] / "config.yaml").resolve())
+                          default=None)
     optional.add_argument("--sweep_id", type=str, help="The sweep ID to use for all runs")
-    optional.add_argument("--sweep_runs", type=int, help="Number of runs to perform in this sweep instance",
-                          default=30)
+    optional.add_argument("--sweep_runs", type=int, help="Number of runs to perform in this sweep instance. Default: exhaustive search",
+                          default=None)
 
     # general config
     optional.add_argument("-w", "--num_workers", type=int, help="Number of workers to use for data loading", default=0)
@@ -196,7 +196,7 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--args_file", type=str,
                           help="Specify the path to a file with additional arguments",
                           default=None)
-    optional.add_argument("--embeddings_path", action=BooleanOptionalAction, default=True, help="Whether to use embeddings.")  # TODO no option to provide path at the moment
+    optional.add_argument("--embeddings_path", action=BooleanOptionalAction, default=False, help="Whether to use embeddings.")  # TODO no option to provide path at the moment
     optional.add_argument("--seed", type=int, default=42, help="Seed for random number generator")
     optional.add_argument("--debug", action=BooleanOptionalAction, default=False, help="Start debugger on a free port starting from 5678")
 

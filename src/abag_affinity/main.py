@@ -14,6 +14,8 @@ import torch
 from torch.utils.data import DataLoader
 import wandb
 import subprocess
+
+import yaml
 from abag_affinity.train.utils import get_benchmark_score, get_skempi_corr
 import pytorch_lightning as pl
 
@@ -84,8 +86,6 @@ def run_sweep(args: Namespace, logger):
                     "pretrained_model"] in enforced_node_type:
                     continue  # ignore since it is manually overwritten below
                 if param == "transfer_learning_datasets" and isinstance(param_value, str):
-                    if param_value == "DMS-taft22_deep_mutat_learn_predic_ace2:relative":
-                        raise ValueError("This dataset leads to timeouts during training and is therefore skipped")
                     if ";" in param_value:
                         args.__dict__[param] = param_value.split(";")
                     else:
@@ -171,12 +171,18 @@ def main() -> Dict:
     )  # implies --testing
 
     if args.init_sweep:
-        sweep_configuration = args.config["HYPERPARAMETER_SEARCH"]
+        if args.sweep_config:
+            logging.info(f"Using sweep config from dedicated file {args.sweep_config}")
+            with open(args.sweep_config, "r") as f:
+                sweep_configuration = yaml.safe_load(f)
+        else:
+            logging.info("Using sweep config from config.yaml")
+            sweep_configuration = args.config["HYPERPARAMETER_SEARCH"]
         sweep_id = wandb.sweep(sweep=sweep_configuration, project='abag_binding_affinity')
         args.sweep_id = sweep_id
         logger.info(f"W&B Sweep initialized with ID: {args.sweep_id}")
 
-    if args.sweep_id is not None and args.sweep_runs > 0:
+    if args.sweep_id is not None and args.sweep_runs != 0:
         run_sweep(args, logger)
     else:
         logger.info(f"Performing {args.train_strategy}")
