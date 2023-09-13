@@ -58,7 +58,7 @@ def model_train(args:Namespace, validation_set: int = None) -> Tuple[AffinityGNN
     results, best_model = train_loop(model, train_data, val_datas, args)
 
     if args.fine_tune:
-        results, best_model = finetune_frozen(best_model, train_data, val_datas, args, lr_reduction=1.0)
+        results, best_model = finetune_frozen(best_model, train_data, val_datas, args, lr_reduction=0.2)
     return best_model, results
 
 
@@ -104,7 +104,7 @@ def pretrain_model(args:Namespace) -> Tuple[AffinityGNN, Dict]:
     if args.fine_tune:
         raise NotImplementedError("We would need to fine-tune on all DMS datasets, e.g. via a for-loop again?")
         train_data, val_datas = load_datasets(config, datasets[-1], args.validation_set, args)
-        results, model = finetune_frozen(model, train_data, val_datas, args, lr_reduction=1)
+        results, model = finetune_frozen(model, train_data, val_datas, args, lr_reduction=0.2)
         all_results["finetuning"] = results
 
     return model, all_results
@@ -161,7 +161,7 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
     logger.info("Training with {} completed".format(datasets))
 
     if args.fine_tune:
-        results, model = finetune_frozen(model, train_datasets, val_datasets, args, lr_reduction=1)
+        results, model = finetune_frozen(model, train_datasets, val_datasets, args, lr_reduction=0.2)
 
     logger.debug(results)
     return model, results

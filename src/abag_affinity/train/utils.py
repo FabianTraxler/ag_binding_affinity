@@ -1,5 +1,5 @@
 import glob
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple, Union, Optional
 from matplotlib._api import itertools
 import numpy as np
 import math
@@ -12,11 +12,11 @@ from pathlib import Path
 import logging
 import torch
 from scipy import stats
-from torch import nn
 from torch.optim import Adam
 from torch.utils.data import ConcatDataset
 from torch.utils.data import DataLoader as DL_torch
 from torch.utils.data import Subset
+import yaml
 from torch_geometric.data import DataLoader
 from tqdm import tqdm
 from scipy.stats.mstats import gmean
@@ -29,11 +29,10 @@ from ..model import AffinityGNN, TwinWrapper
 from ..train.wandb_config import configure
 from ..utils.config import get_data_paths
 from ..utils.visualize import plot_correlation
-
 logger = logging.getLogger(__name__)  # setup module logger
 
 
-def forward_step(model: AffinityGNN, data: Dict, device: torch.device) -> Tuple[torch.Tensor, torch.Tensor]:
+def forward_step(model: AffinityGNN, data: Dict, device: torch.device) -> Tuple[Dict, Dict]:
     """ Perform one forward step with the data and model provided
 
     Offers functionality to train models with different types of data so that the correct information is extracted from
@@ -60,7 +59,7 @@ def forward_step(model: AffinityGNN, data: Dict, device: torch.device) -> Tuple[
         if "deeprefine_graph" in data["input"]:
             data["input"]["deeprefine_graph"] = data["input"]["deeprefine_graph"].to(device)
 
-        output = model(data["input"], dataset_adjustment=data["dataset_name"] if data["affinity_type"] == "E" else None)
+        output = model(data["input"])
         output["relative"] = data["relative"]
         output["affinity_type"] = data["affinity_type"]
 
@@ -69,7 +68,7 @@ def forward_step(model: AffinityGNN, data: Dict, device: torch.device) -> Tuple[
     return output, label
 
 
-def get_label(data: Dict, device: torch.device) -> torch.Tensor:
+def get_label(data: Dict, device: torch.device) -> Dict:
     # We compute all possible labels, so that we can combine different loss functions
     label = {}
     if data["relative"]:
@@ -85,23 +84,35 @@ def get_label(data: Dict, device: torch.device) -> torch.Tensor:
     # TODO Try to return NLL values of data if available!
     return label
 
-def get_loss(criterion, label: torch.Tensor, output: torch.Tensor) -> torch.Tensor:
-    assert isinstance(criterion, list), "Criterion must be a list"
-    # We assume multiple criterions, each require different labels
-    loss = []
-    for loss_name, loss_fn in criterion:
-        # TODO use NLL when available
-        if (loss_name in ["relative_L1", "relative_L2"]) and output["relative"]:
-            # Apply L1/L2 loss to the relative binding affinity
-            loss.append(loss_fn(output["difference"], label["difference"]))
-        elif loss_name == "relative_ce" and output["relative"]:
-            loss.append(loss_fn(output["x_prob"], label["x_prob"]))
-        elif loss_name in ["L1", "L2"]:
-            loss.append(loss_fn(output["x"], label["x"]))
+def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
+    # Different loss functions are seperated with a +
+    # Optionally, they can contain a weight seperated with a -
+    # E.g. args.loss_function = L2-1+L1-0.1+relative_l1-2+relative_l2-0.1+relative_ce
+    loss_types = [x.split("-") for x in loss_functions.split("+")]
+    loss_types = [(x[0], float(x[1])) if len(x) == 2 else (x[0], 1.) for x in loss_types]
+    losses = []
+    for criterion, weight in loss_types:
+        if criterion == "L1":
+            loss = weight * torch.nn.functional.l1_loss(output["x"], label["x"])
             if output["relative"]:
-                loss.append(loss_fn(output["x2"], label["x2"]))
+                loss += weight * torch.nn.functional.l1_loss(output["x2"], label["x2"])
+        elif criterion == "L2":
+            loss = weight * torch.nn.functional.mse_loss(output["x"], label["x"])
+            if output["relative"]:
+                loss += weight * torch.nn.functional.mse_loss(output["x2"], label["x2"])
+        elif criterion == "relative_L1" and output["relative"]:
+            loss = weight * torch.nn.functional.l1_loss(output["difference"], label["difference"])
+        elif criterion == "relative_L2" and output["relative"]:
+            loss = weight * torch.nn.functional.mse_loss(output["difference"], label["difference"])
+        elif criterion == "relative_ce" and output["relative"]:
+            loss = weight * torch.nn.functional.cross_entropy(output["x_prob"], label["x_prob"])
+        else:
+            raise ValueError(
+                f"Loss_Function must either in ['L1','L2','relative_L1','relative_L2','relative_ce'] but got {criterion}")
+        losses.append(loss)
+    assert len(losses) > 0, f"No valid lossfunction was given with:{loss_functions} and relative data {output['relative']}"
+    return sum(losses)
 
-    return sum(loss)
 
 def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloaders: List[DataLoader],
                 optimizer: torch.optim, device: torch.device = torch.device("cpu"), tqdm_output: bool = True) -> Tuple[AffinityGNN, List, np.ndarray, float]:
@@ -170,11 +181,11 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
 
         # if len(all_predictions) > 2:
         #     break
-        all_predictions = np.append([], all_predictions)
-        all_labels = np.append([], all_labels)
-        all_pdbs = np.append([], all_pdbs)
-        all_binary_predictions = np.append([], all_binary_predictions)
-        all_binary_labels = np.append([], all_binary_labels)
+        all_predictions = np.concatenate(all_predictions) if len(all_predictions) > 0 else np.array([])
+        all_labels = np.concatenate(all_labels) if len(all_labels) > 0 else np.array([])
+        all_pdbs = np.concatenate(all_pdbs) if len(all_pdbs) > 0 else np.array([])
+        all_binary_predictions = np.concatenate(all_binary_predictions) if len(all_binary_predictions) > 0 else np.array([])
+        all_binary_labels = np.concatenate(all_binary_labels) if len(all_binary_labels) > 0 else np.array([])
         val_loss = total_loss_val / (len(all_predictions) + len(all_binary_predictions))
 
         if len(all_binary_labels) > 0:
@@ -230,10 +241,6 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
     results = {f"{key}_val{i}": [] for key, i in
                itertools.product(["epoch_loss", "epoch_corr", "epoch_rmse", "epoch_acc"], range(len(val_datasets)))}
 
-    if val_datasets[0].relative_data:
-        data_type = "relative"
-    else:
-        data_type = "absolute"
     use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
 
@@ -245,6 +252,7 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
     best_loss = np.inf
     best_pearson_corr = -np.inf
     best_rmse = np.inf
+    patience = args.patience
 
     best_model = deepcopy(model)
 
@@ -253,7 +261,6 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
         model, val_results, total_loss_train = train_epoch(model, train_dataloader, val_dataloaders, optimizer, device,
                                            args.tqdm_output)
 
-        patience = None
         if args.lr_scheduler == "exponential":
             scheduler.step()
         else:
@@ -280,6 +287,7 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
             results[f"epoch_rmse_val{val_i}"].append(val_result["rmse"])
 
             if val_result["val_loss"] < best_loss: # or val_result["pearson_correlation"] > best_pearson_corr:
+                patience = args.patience
                 best_loss = val_result["val_loss"]
                 best_pearson_corr = val_result["pearson_correlation"]
                 best_rmse = val_result["rmse"]
@@ -291,15 +299,17 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
                                                                 title="Label vs. Predictions")})
 
                     plot_correlation(x=all_labels, y=all_predictions,
-                                    path=os.path.join(plot_path, f"{train_dataset.full_dataset_name}-{data_type}.png"))
+                                    path=os.path.join(plot_path, f"{train_dataset.full_dataset_name}.png"))
                     # result_df = pd.DataFrame({
                     #         "pdb": val_result["all_pdbs"],
                     #         "prediction": all_predictions,
                     #         "labels": all_labels
                     # })
-                    # result_df.to_csv(os.path.join(prediction_path, f"{train_dataset.full_dataset_name}-{data_type}.csv"),
+                    # result_df.to_csv(os.path.join(prediction_path, f"{train_dataset.full_dataset_name}.csv"),
                     #                 index=False)
                 best_model = deepcopy(model)
+            elif args.lr_scheduler == 'exponential' and patience is not None:
+                patience -= 1
 
             logger.info(
                 f'Epochs: {i + 1} | Train-Loss: {total_loss_train / len(train_dataloader) : .3f}  | '
@@ -329,10 +339,10 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
                 "train_loss": total_loss_train / (len(train_dataset) / args.batch_size),
                 f"val{val_i}_pearson_correlation": val_result["pearson_correlation"],
                 f"val{val_i}_rmse": val_result["rmse"],
-                f"{val_dataset.full_dataset_name}{val_i}:{data_type}_val_loss": val_result["total_val_loss"] / (
+                f"{val_dataset.full_dataset_name}{val_i}_val_loss": val_result["total_val_loss"] / (
                         len(val_dataset) / args.batch_size),
-                f"{val_dataset.full_dataset_name}{val_i}:{data_type}_val_corr": val_result["pearson_correlation"],
-                f"{val_dataset.full_dataset_name}{val_i}:{data_type}_val_rmse": val_result["rmse"]
+                f"{val_dataset.full_dataset_name}{val_i}_val_corr": val_result["pearson_correlation"],
+                f"{val_dataset.full_dataset_name}{val_i}_val_rmse": val_result["rmse"]
             }
 
             wandb.log(wandb_log, commit=True)
@@ -342,11 +352,15 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
         for param_group in optimizer.param_groups:
             stop_training = stop_training and (
                 param_group['lr'] < args.stop_at_learning_rate)
+
+        if args.lr_scheduler == 'exponential' and patience is not None and patience < 0:
+            stop_training = True
+
         if stop_training:
             if use_wandb:
-                run.summary[f"{val_datasets[0].full_dataset_name}:{data_type}_val_corr"] = best_pearson_corr
-                run.summary[f"{val_datasets[0].full_dataset_name}:{data_type}_val_loss"] = best_loss
-                run.summary[f"{val_datasets[0].full_dataset_name}:{data_type}_val_rmse"] = best_rmse
+                run.summary[f"{val_datasets[0].full_dataset_name}_val_corr"] = best_pearson_corr
+                run.summary[f"{val_datasets[0].full_dataset_name}_val_loss"] = best_loss
+                run.summary[f"{val_datasets[0].full_dataset_name}_val_rmse"] = best_rmse
             break
 
         model.train()
@@ -365,29 +379,6 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
 
     return results, best_model
 
-
-def get_loss_function(loss_function: str):
-    # Different loss functions are seperated with a +
-    # Optionally, they can contain a weight seperated with a -
-    # E.g. args.loss_function = L2-1+L1-0.1+relative_l1-2+relative_l2-0.1+relative_ce
-    loss_types = [x.split("-") for x in loss_function.split("+")]
-    loss_types = [(x[0], float(x[1])) if len(x) == 2 else (x[0], 1.) for x in loss_types]
-    criterions = []
-    for criterion, weight in loss_types:
-        if criterion == "L1":
-            loss_fn = lambda x,y: weight * torch.nn.functional.l1_loss(x, y)
-        elif criterion == "L2":
-            loss_fn = lambda x, y: weight * torch.nn.functional.mse_loss(x, y)
-        elif criterion == "relative_L1":
-            loss_fn = lambda x, y: weight * torch.nn.functional.l1_loss(x, y)
-        elif criterion == "relative_L2":
-            loss_fn = lambda x, y: weight * torch.nn.functional.mse_loss(x, y)
-        elif criterion == "relative_ce":
-            loss_fn = lambda x, y: weight * torch.nn.functional.cross_entropy(x, y)
-        else:
-            raise ValueError(f"Loss_Function must either in ['L1','L2','relative_L1','relative_L2','relative_ce'] but got {criterion}")
-        criterions.append((criterion,loss_fn))
-    return criterions
 
 def get_optimizer(args: Namespace, model: torch.nn.Module):
     optimizer = Adam(model.parameters(), lr=args.learning_rate)
@@ -411,6 +402,35 @@ def get_optimizer(args: Namespace, model: torch.nn.Module):
 
     return optimizer, scheduler
 
+def complexes_from_dms_datasets(dataset_names: List, args) -> List:
+    """
+    Expand DMS dataset names to include the complexes
+    """
+    def complexes_from_dms_dataset(dataset_name, metadata):
+        """
+        Return complex names corresponding to dataset_name
+
+        Args:
+            dataset_name: Name of the dataset
+
+        """
+
+        if dataset_name.startswith("DMS-"):
+            dataset_name = dataset_name.split("-")[1]
+
+            return [":".join([dataset_name, complex["antibody"]["name"], complex["antigen"]["name"]])
+                    for complex in metadata[dataset_name]["complexes"]]
+        else:
+            return [dataset_name]
+
+    with open(os.path.join(args.config["DATASETS"]["path"], args.config["DATASETS"]["DMS"]["metadata"]), "r") as f:
+        metadata = yaml.safe_load(f)
+
+    unique_sets = np.unique([ds_name.split("#")[0] for ds_name in dataset_names]).tolist()
+    with_complex_datasets = np.concatenate([complexes_from_dms_dataset(dataset_name, metadata) for dataset_name in unique_sets])
+    return with_complex_datasets.tolist()
+
+
 def load_model(num_node_features: int, num_edge_features: int, dataset_names: List[str], args: Namespace,
                device: torch.device = torch.device("cpu")) -> AffinityGNN:
     """ Load a specific model type and initialize it randomly
@@ -428,7 +448,7 @@ def load_model(num_node_features: int, num_edge_features: int, dataset_names: Li
         pretrained_model_path = args.config["MODELS"][args.pretrained_model]["model_path"]
     else:
         pretrained_model_path = ""
-    dataset_name = args.target_dataset.split(':')[0]
+
     model = AffinityGNN(num_node_features, num_edge_features, args,
                         num_nodes=args.max_num_nodes,
                         pretrained_model=args.pretrained_model, pretrained_model_path=pretrained_model_path,
@@ -441,8 +461,8 @@ def load_model(num_node_features: int, num_edge_features: int, dataset_names: Li
                         num_fc_layers=args.num_fc_layers, fc_size_halving=args.fc_size_halving,
                         device=device,
                         scaled_output=args.scale_values,  # seems to work worse than if the model learns it on its own
-                        dataset_names=np.unique([ds_name.split(":")[0] for ds_name in dataset_names]).tolist())
-
+                        dataset_names=complexes_from_dms_datasets(dataset_names, args))
+    
 
     return model
 
@@ -513,7 +533,10 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int, valida
         if affinity_type == "E":
             summary_df = summary_df[~summary_df.index.duplicated(keep='first')]
 
-            e_values = summary_df["E"].values.reshape(-1,1).astype(np.float32)
+            # Normalize between 0 and 1 on a per-complex basis. This way value ranges of E and NLL fit, when computing possible pairs
+            e_values = summary_df.groupby(summary_df.index.map(lambda i: i.split("-")[0]))["E"].apply(lambda x: (x - x.min()) / (x.max() - x.min()))
+            e_values = e_values.values.reshape(-1,1).astype(np.float32)
+
             nll_values = summary_df["NLL"].values
             # Scale the NLLs to (0-1). The max NLL value in DMS_curated.csv is 4, so 0-1-scaling should be fine
             if np.max(nll_values) > np.min(nll_values):  # test that all values are not the same
@@ -628,27 +651,26 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
     Args:
         config: training configuration as dict
         dataset: Name of the dataset:Usage of data (absolute, relative) - eg. SKEMPI.v2:relative
-        data_type: Type of the dataset
         validation_set: Integer identifier of the validation split (1,2,3)
         args: CLI arguments
 
     Returns:
         Tuple: Train and validation dataset
     """
-    assert ("#" in dataset), "We need to specify a loss function with the dataset"
     dataset_name, loss_types = dataset.split("#")
 
     # We missuse the data_type to allow setting different losses
     # The losses used for this dataset come after a # seperated by a comma, when multiple losses are used
     # Optionally, the losses can contain some weight using -
     # E.g. data_type = relative#l2-1,l1-0.1,relative_l1-2,relative_2-0.1,relative_ce-1
-    dataset_specific_loss_criterion = get_loss_function(loss_types)
+
     if "relative" in loss_types:
         relative_data = True
     else:
         relative_data = False
 
-    validation_size = args.validation_size if dataset == args.target_dataset else args.transfer_learning_validation_size
+    validation_size = args.validation_size if dataset == args.target_dataset else args.transfer_learning_validation_size  # TODO this does not look right!
+    # validation_size = 10  # it's in percent
     train_ids, val_ids = train_val_split(config, dataset_name, validation_set, validation_size)
 
     if args.test:
@@ -656,7 +678,8 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
         val_ids = val_ids[:5]
 
     logger.debug(f"Get dataLoader for {dataset_name}#{loss_types}")
-    train_data = AffinityDataset(config, args.relaxed_pdbs, dataset_name, train_ids,
+    train_data = AffinityDataset(config, args.relaxed_pdbs, dataset_name, loss_types,
+                                 train_ids,
                                  node_type=args.node_type,
                                  max_nodes=args.max_num_nodes,
                                  interface_distance_cutoff=args.interface_distance_cutoff,
@@ -672,26 +695,26 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
                                  preprocess_data=args.preprocess_graph,
                                  num_threads=args.num_workers,
                                  load_embeddings=args.embeddings_path,
-                                 dataset_specific_loss_criterion=dataset_specific_loss_criterion
                                  )
 
-    val_datas = [AffinityDataset(config, relaxed, dataset_name, val_ids,
-                                node_type=args.node_type,
-                                max_nodes=args.max_num_nodes,
-                                interface_distance_cutoff=args.interface_distance_cutoff,
-                                interface_hull_size=args.interface_hull_size,
-                                max_edge_distance=args.max_edge_distance,
-                                pretrained_model=args.pretrained_model,
-                                scale_values=args.scale_values,
-                                scale_min=args.scale_min,
-                                scale_max=args.scale_max,
-                                relative_data=relative_data,
-                                save_graphs=args.save_graphs,
-                                force_recomputation=args.force_recomputation,
-                                preprocess_data=args.preprocess_graph,
-                                num_threads=args.num_workers,
-                                load_embeddings=args.embeddings_path
-                                )
+    val_datas = [AffinityDataset(config, relaxed, dataset_name, loss_types,  # TODO @marco val should be done with the same loss as training, right?
+                                 val_ids,
+                                 node_type=args.node_type,
+                                 max_nodes=args.max_num_nodes,
+                                 interface_distance_cutoff=args.interface_distance_cutoff,
+                                 interface_hull_size=args.interface_hull_size,
+                                 max_edge_distance=args.max_edge_distance,
+                                 pretrained_model=args.pretrained_model,
+                                 scale_values=args.scale_values,
+                                 scale_min=args.scale_min,
+                                 scale_max=args.scale_max,
+                                 relative_data=relative_data,
+                                 save_graphs=args.save_graphs,
+                                 force_recomputation=args.force_recomputation,
+                                 preprocess_data=args.preprocess_graph,
+                                 num_threads=args.num_workers,
+                                 load_embeddings=args.embeddings_path
+                                 )
                  for relaxed in [bool(args.relaxed_pdbs)]
                  ]  # TODO disabling , not args.relaxed_pdbs for now. Enable once we generated all relaxed data
 
@@ -830,7 +853,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
                              f"{args.node_type}/bucket_learning/val_set_{args.validation_set}")
     Path(plot_path).mkdir(exist_ok=True, parents=True)
 
-    dataset2optimize = args.target_dataset
+    dataset2optimize = args.target_dataset.split("#")[0]
 
     wandb, wdb_config, use_wandb, run = configure(args)
 
@@ -871,7 +894,6 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
             "val_loss": val_result["total_val_loss"] / len(val_dataloader),
             "train_loss": total_loss_train / len(train_dataloader),
             "pearson_correlation": val_result["pearson_correlation"],
-            "rmse":val_result["rmse"],  # TODO not sure if it is set
         }
 
         i = 0
@@ -896,12 +918,8 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
             else:
                 val_accuracy = np.nan
 
-            if val_dataset.relative_data:
-                data_type = "relative"
-            else:
-                data_type = "absolute"
             logger.info(
-                f'Epochs: {epoch + 1}  | Dataset: {val_dataset.full_dataset_name}:{data_type} | Val-Loss: {val_loss: .3f} | '
+                f'Epochs: {epoch + 1}  | Dataset: {val_dataset.full_dataset_name} | Val-Loss: {val_loss: .3f} | '
                 f'Val-r: {pearson_corr[0]: .4f} | p-value r=0: {pearson_corr[1]: .4f} | '
                 f'RMSE: {rmse} | '
                 f'Val-Acc: {val_accuracy: .4f}')
@@ -912,7 +930,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
                 logger.error(f"Pearson correlation is NaN. Preds NaN:{preds_nan}. Labels NaN: {labels_nan}")
                 return results, best_model
 
-            dataset_results[val_dataset.full_dataset_name + ":" + data_type] = {
+            dataset_results[val_dataset.full_dataset_name] = {
                 "val_loss": val_loss,
                 "pearson_correlation": pearson_corr[0],
                 "pearson_correlation_p": pearson_corr[1],
@@ -920,9 +938,9 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
                 "all_predictions": preds,
                 "rmse": rmse
             }
-            wandb_log[f"{val_dataset.full_dataset_name}:{data_type}_val_loss"] = val_loss
-            wandb_log[f"{val_dataset.full_dataset_name}:{data_type}_val_corr"] = pearson_corr[0]
-            wandb_log[f"{val_dataset.full_dataset_name}:{data_type}_val_rmse"] = rmse
+            wandb_log[f"{val_dataset.full_dataset_name}_val_loss"] = val_loss
+            wandb_log[f"{val_dataset.full_dataset_name}_val_corr"] = pearson_corr[0]
+            wandb_log[f"{val_dataset.full_dataset_name}_val_rmse"] = rmse
             i += len(val_dataset)
 
         results["epoch_loss"].append(val_result["val_loss"])
@@ -930,41 +948,39 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
 
         if args.lr_scheduler == "exponential":
             scheduler.step()
-            patience = None
         else:
             scheduler.step(metrics=val_result['val_loss'])
-            patience = args.patience - scheduler.num_bad_epochs
+            if args.patience is not None:
+                patience = args.patience - scheduler.num_bad_epochs
 
         if dataset2optimize in dataset_results:
             results["abag_epoch_loss"].append(dataset_results[dataset2optimize]["val_loss"])
             results["abag_epoch_corr"].append(dataset_results[dataset2optimize]["pearson_correlation"])
 
-        if dataset_results[dataset2optimize]["val_loss"] < best_loss:# or dataset_results[dataset2optimize]["pearson_correlation"] > best_pearson_corr:
+        if dataset_results[dataset2optimize]["val_loss"] < best_loss:  # or dataset_results[dataset2optimize]["pearson_correlation"] > best_pearson_corr:
             patience = args.patience
             best_loss = dataset_results[dataset2optimize]["val_loss"]
             best_pearson_corr = dataset_results[dataset2optimize]["pearson_correlation"]
             best_rmse = dataset_results[dataset2optimize]["rmse"]
             for val_dataset in val_datasets:  # correlation plot for each dataset
-                if val_dataset.relative_data:
-                    data_type = "relative"
-                else:
-                    data_type = "absolute"
-                dataset_name = val_dataset.full_dataset_name + ":" + data_type
 
-                plot_correlation(x=dataset_results[dataset_name]["all_labels"],
-                                 y=dataset_results[dataset_name]["all_predictions"],
-                                 path=os.path.join(plot_path, f"{dataset_name}.png"))
+                plot_correlation(x=dataset_results[val_dataset.full_dataset_name]["all_labels"],
+                                 y=dataset_results[val_dataset.full_dataset_name]["all_predictions"],
+                                 path=os.path.join(plot_path, f"{val_dataset.full_dataset_name}.png"))
 
             plot_correlation(x=val_result["all_labels"], y=val_result["all_predictions"],
                              path=os.path.join(plot_path, "all_bucket_predictions.png"))
 
-            best_data = [[x, y] for (x, y) in zip(dataset_results[dataset2optimize]["all_predictions"], dataset_results[dataset2optimize]["all_labels"])]
+            best_data = [[x, y]
+                         for x, y
+                         in zip(dataset_results[dataset2optimize]["all_predictions"],
+                                dataset_results[dataset2optimize]["all_labels"])]
             best_table = wandb.Table(data=best_data, columns=["predicted", "true"])
             wandb.log({"scatter_plot": wandb.plot.scatter(best_table, "predicted", "true",
                                                           title="Label vs. Predictions")})
 
             best_model = deepcopy(model)
-        elif patience is not None:
+        elif args.lr_scheduler == 'exponential' and patience is not None:
             patience -= 1
 
         logger.info(
@@ -973,7 +989,16 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
 
         wandb.log(wandb_log, commit=True)
 
-        if patience is not None and patience < 0:
+        stop_training = True
+
+        for param_group in optimizer.param_groups:
+            stop_training = stop_training and (
+                param_group['lr'] < args.stop_at_learning_rate)
+
+        if args.lr_scheduler == 'exponential' and patience is not None and patience < 0:
+            stop_training = True
+
+        if stop_training:
             if use_wandb:
                 run.summary[f"{dataset2optimize}_val_loss"] = best_loss
                 run.summary[f"{dataset2optimize}_val_corr"] = best_pearson_corr
@@ -1066,6 +1091,7 @@ def evaluate_model(model: AffinityGNN, dataloader: DataLoader, args: Namespace, 
         output, label = forward_step(model, data, device)
 
         loss = get_loss(data["loss_criterion"], label, output)
+
         total_loss_val += loss.item()
 
         all_predictions = np.append(all_predictions, output["x"].flatten().detach().cpu().numpy())
@@ -1103,7 +1129,7 @@ def evaluate_model(model: AffinityGNN, dataloader: DataLoader, args: Namespace, 
 
 def get_benchmark_score(model: AffinityGNN, args: Namespace, tqdm_output: bool = True, plot_path: str = None) -> Tuple[float, float, pd.DataFrame]:
 
-    dataset = AffinityDataset(args.config, args.relaxed_pdbs, "AntibodyBenchmark",
+    dataset = AffinityDataset(args.config, args.relaxed_pdbs, "AntibodyBenchmark", "L2",
                               node_type=args.node_type,
                               max_nodes=args.max_num_nodes,
                               interface_distance_cutoff=args.interface_distance_cutoff,
@@ -1119,7 +1145,6 @@ def get_benchmark_score(model: AffinityGNN, args: Namespace, tqdm_output: bool =
                               preprocess_data=args.preprocess_graph,
                               num_threads=args.num_workers,
                               load_embeddings=args.embeddings_path,
-                              dataset_specific_loss_criterion=get_loss_function("L2")
                               )
 
     dataloader = DL_torch(dataset, num_workers=args.num_workers, batch_size=1,
@@ -1132,8 +1157,8 @@ def get_benchmark_score(model: AffinityGNN, args: Namespace, tqdm_output: bool =
                           plot_path=plot_path)
 
 
-def get_abag_test_score(model: AffinityGNN, args: Namespace, tqdm_output: bool = True, plot_path: str = None,
-                        validation_set: int = None) -> Tuple[float, float, pd.DataFrame]:
+def get_abag_test_score(model: AffinityGNN, args: Namespace, tqdm_output: bool = True, plot_path: Optional[str] = None,
+                        validation_set: Optional[int] = None) -> Tuple[float, float, pd.DataFrame]:
 
 
     summary_path, _ = get_data_paths(args.config, "abag_affinity")
@@ -1145,7 +1170,7 @@ def get_abag_test_score(model: AffinityGNN, args: Namespace, tqdm_output: bool =
 
     test_pdbs_ids = summary_df.index.tolist()
 
-    dataset = AffinityDataset(args.config, args.relaxed_pdbs, "abag_affinity", test_pdbs_ids,
+    dataset = AffinityDataset(args.config, args.relaxed_pdbs, "abag_affinity", "L2", test_pdbs_ids,
                               node_type=args.node_type,
                               max_nodes=args.max_num_nodes,
                               interface_distance_cutoff=args.interface_distance_cutoff,
@@ -1161,7 +1186,6 @@ def get_abag_test_score(model: AffinityGNN, args: Namespace, tqdm_output: bool =
                               preprocess_data=args.preprocess_graph,
                               num_threads=args.num_workers,
                               load_embeddings=args.embeddings_path,
-                              dataset_specific_loss_criterion=get_loss_function("L2")
                               )
 
     dataloader = DL_torch(dataset, num_workers=args.num_workers, batch_size=1,
@@ -1178,25 +1202,23 @@ def get_skempi_corr(model: AffinityGNN, args: Namespace, tqdm_output: bool = Tru
     Take the available Skempi mutations for validation
     """
 
-    dataset = AffinityDataset(args.config, args.relaxed_pdbs, "SKEMPI.v2",
-                            node_type=args.node_type,
-                            max_nodes=args.max_num_nodes,
-                            interface_distance_cutoff=args.interface_distance_cutoff,
-                            interface_hull_size=args.interface_hull_size,
-                            max_edge_distance=args.max_edge_distance,
-                            pretrained_model=args.pretrained_model,
-                            scale_values=args.scale_values,
-                            scale_min=args.scale_min,
-                            scale_max=args.scale_max,
-                            relative_data=False,
-                            save_graphs=args.save_graphs,
-                            force_recomputation=args.force_recomputation,
-                            preprocess_data=args.preprocess_graph,
-                            num_threads=args.num_workers,
-                            load_embeddings=args.embeddings_path,
-                            dataset_specific_loss_criterion=get_loss_function("L2")
-
-                            )
+    dataset = AffinityDataset(args.config, args.relaxed_pdbs, "SKEMPI.v2", "L2",
+                              node_type=args.node_type,
+                              max_nodes=args.max_num_nodes,
+                              interface_distance_cutoff=args.interface_distance_cutoff,
+                              interface_hull_size=args.interface_hull_size,
+                              max_edge_distance=args.max_edge_distance,
+                              pretrained_model=args.pretrained_model,
+                              scale_values=args.scale_values,
+                              scale_min=args.scale_min,
+                              scale_max=args.scale_max,
+                              relative_data=False,
+                              save_graphs=args.save_graphs,
+                              force_recomputation=args.force_recomputation,
+                              preprocess_data=args.preprocess_graph,
+                              num_threads=args.num_workers,
+                              load_embeddings=args.embeddings_path,
+                              )
 
     dataloader = DL_torch(dataset, num_workers=args.num_workers, batch_size=1,
                             collate_fn=AffinityDataset.collate)

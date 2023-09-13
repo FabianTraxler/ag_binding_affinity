@@ -68,6 +68,7 @@ rule subset_dms_data:
 
     TODO if possible, implement our training such that we can do *all* datapoints and don't need subsetting
     NOTE: I could have included this subsetting into the generate_summary_df rule fs
+    NOTE: needs to be recomputed if we want to use wu20
     """
     input:
         ancient(DMS_DATA_FILE)

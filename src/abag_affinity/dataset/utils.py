@@ -97,7 +97,7 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, embeddings: Dict, affinity: 
         distances, closest_nodes = get_distances(residue_infos, residue_distance=True, ca_distance=ca_alpha_contact)
         assert len(closest_nodes) == len(residue_infos), "Number of closest nodes does not match number of residues"
         node_features = get_residue_encodings(residue_infos, structure_info)
-        
+
         if embeddings:  # I think we need to inject them so harshly here, to facilitate backpropagation later. An alternative would be to load the OF data closer to the model..
             node_features, matched_positions, matched_orientations, matched_residue_index, indices = get_residue_embeddings(residue_infos, embeddings)
             # fill residue_infos with matched positions and orientations

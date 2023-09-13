@@ -200,6 +200,7 @@ def main() -> Dict:
             logger.info(f"Benchmark results >>> {benchmark_pearson}")
             logger.info(f"SKEMPI testset results >>> {test_skempi_score}")
             logger.info(f"Mean SKEMPI correlations >>> {np.mean(test_skempi_grouped_corrs)}")
+            # TODO add to wandb summary
 
             # Save model
             if args.model_path is not None:

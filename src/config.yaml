@@ -27,6 +27,7 @@ DATASETS:
     affinity_type: "-log(Kd)"
 
   DMS:
+    metadata: "data/metadata_dms_studies.yaml"
     folder_path: "results/DMS"
     summary: "" # summary for every subdataset
     mutated_pdb_path: "mutated"  # TODO why do I have both these paths?

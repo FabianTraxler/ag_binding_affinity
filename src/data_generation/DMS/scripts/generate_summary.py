@@ -36,7 +36,7 @@ df = df.reset_index(drop=True)
 df["mutation_code"] = df["mutation_code"].replace({"": "WT"}).fillna("WT")
 df["ab_ag"] = df.apply(lambda row: row["antibody"] + "_" + row["antigen"], axis=1)
 df["pdb"] = df.apply(lambda row: ":".join([row["publication"], row["antibody"], row["antigen"]]), axis=1) # TODO  what's this???
-df["index"] = df.apply(lambda row:row["pdb"] + "-" + row["mutation_code"].lower(), axis=1)
+df["index"] = df.apply(lambda row:row["pdb"] + "-" + row["mutation_code"].lower(), axis=1)  # this is convention and needs to stay this way as it is used in data_loader.py
 df = df.set_index("index")
 df.index.name = ""
 df["data_location"] = "DATA"  # TODO delete?

@@ -38,6 +38,7 @@ class AffinityDataset(Dataset):
     def __init__(self, config: Dict,
                  is_relaxed: Union[bool, str],
                  dataset_name: str,
+                 loss_criterion: str,
                  pdb_ids: Optional[List] = None,
                  node_type: str = "residue",
                  max_nodes: Optional[int] = None,
@@ -50,7 +51,6 @@ class AffinityDataset(Dataset):
                  save_graphs: bool = False, force_recomputation: bool = False,
                  preprocess_data: bool = False, num_threads: int = 1,
                  load_embeddings: Union[bool, str] = False,
-                dataset_specific_loss_criterion: Optional[List] = None,
                  ):
         """ Initialization of class variables,
         generation of necessary directories,
@@ -75,7 +75,7 @@ class AffinityDataset(Dataset):
             force_recomputation: Boolean indicator if graphs are newly computed even if they are found on disc
             preprocess_data: Boolean indicator if data should be processed after class initialization
             num_threads: Number of threads to use for preprocessing
-            dataset_specific_loss_criterion: A set of Loss function used for this dataset
+            loss_criterion: A string containing the set of Loss function used for this dataset
         """
         super(AffinityDataset, self).__init__()
         self.dataset_name = dataset_name
@@ -93,7 +93,7 @@ class AffinityDataset(Dataset):
         self.scale_min = scale_min
         self.scale_max = scale_max
         self.load_embeddings = load_embeddings
-        self.dataset_specific_loss_criterion = dataset_specific_loss_criterion
+        self.loss_criterion = loss_criterion
         if "-" in dataset_name: # part of DMS dataset
             dataset_name, publication_code = dataset_name.split("-")
             self.affinity_type = self.config["DATASETS"][dataset_name]["affinity_types"][publication_code]
@@ -339,7 +339,7 @@ class AffinityDataset(Dataset):
         if self.interface_hull_size is None or self.interface_hull_size == "" or self.interface_hull_size == "None":
             graph_filepath = os.path.join(self.graph_dir.format(is_relaxed=relaxed), idx + ".pickle")
         else:
-            graph_filepath = os.path.join(self.graph_dir.format(is_relaxed=relaxed), f"interface_hull_{self.interface_hull_size}",
+            graph_filepath = os.path.join(self.graph_dir.format(is_relaxed=relaxed), f"interface_hull_{self.interface_hull_size}",
                                           idx + ".pickle")
 
         with open(graph_filepath, 'wb') as f:
@@ -631,7 +631,8 @@ class AffinityDataset(Dataset):
             "affinity_type": self.affinity_type,
             "input": graph_data,
             "dataset_name": self.full_dataset_name,
-            "loss_criterion": self.dataset_specific_loss_criterion,
+            "loss_criterion": self.loss_criterion,
+            "dataset_adjustment": pdb_id.split("-")[0] if self.affinity_type == "E" else None  # contains the complex name
         }
         # pdb.set_trace()
         return data
@@ -652,7 +653,9 @@ class AffinityDataset(Dataset):
             "affinity_type": self.affinity_type,
             "input": [],
             "dataset_name": self.full_dataset_name,
-            "loss_criterion": self.dataset_specific_loss_criterion,
+            "loss_criterion": self.loss_criterion,
+
+            "dataset_adjustment": [],
         }
         if self.is_relaxed == "both":
             relaxed = bool(idx // len(self.relative_pairs))
@@ -662,9 +665,11 @@ class AffinityDataset(Dataset):
 
         pdb_id, other_pdb_ids = self.relative_pairs[idx]
         data["input"].append(self.load_data_point(pdb_id, relaxed=relaxed))
+        data["dataset_adjustment"].append(pdb_id.split("-")[0] if self.affinity_type == "E" else None)  # datasetname with complex
 
         other_pdb_id = random.sample(other_pdb_ids, 1)[0]
         data["input"].append(self.load_data_point(other_pdb_id, relaxed=relaxed))
+        data["dataset_adjustment"].append(other_pdb_id.split("-")[0] if self.affinity_type == "E" else None)  # datasetname with complex
 
         return data
 
@@ -706,8 +711,9 @@ class AffinityDataset(Dataset):
         dataset_name = input_dicts[0]["dataset_name"]
         assert all([dataset_name == input_dict["dataset_name"] for input_dict in input_dicts])
 
-        # This is a list of loss functions or None
+        # This is a list of loss functions
         loss_criterion = input_dicts[0]["loss_criterion"]
+
         data_batch = {
             "relative": relative_data,
             "affinity_type": affinity_type,
@@ -718,7 +724,8 @@ class AffinityDataset(Dataset):
             input_graphs = []
             for i in range(2):
                 batched_dict = {"graph": Batch.from_data_list([input_dict["input"][i]["graph"] for input_dict in input_dicts]),
-                                "filepath": [input_dict["input"][i]["filepath"] for input_dict in input_dicts]}
+                                "filepath": [input_dict["input"][i]["filepath"] for input_dict in input_dicts],
+                                "dataset_adjustment": [input_dict["dataset_adjustment"][i] for input_dict in input_dicts]}
 
                 if "deeprefine_graph" in input_dicts[0]["input"][i]:
                     batched_dict["deeprefine_graph"] = dgl.batch(
@@ -726,14 +733,15 @@ class AffinityDataset(Dataset):
 
                 input_graphs.append(batched_dict)
 
-            data_batch["input"] = input_graphs
-
         else:
-            data_batch["input"] = {"graph": Batch.from_data_list([input_dict["input"]["graph"] for input_dict in input_dicts]),
-                            "filepath": [input_dict["input"]["filepath"] for input_dict in input_dicts]}
+            input_graphs = {"graph": Batch.from_data_list([input_dict["input"]["graph"] for input_dict in input_dicts]),
+                            "filepath": [input_dict["input"]["filepath"] for input_dict in input_dicts],
+                            "dataset_adjustment": [input_dict["dataset_adjustment"] for input_dict in input_dicts]
+                            }
 
             if "deeprefine_graph" in input_dicts[0]["input"]:
                 data_batch["input"]["deeprefine_graph"] = dgl.batch(
                     [input_dict["input"]["deeprefine_graph"] for input_dict in input_dicts])
 
+        data_batch["input"] = input_graphs
         return data_batch
