@@ -890,7 +890,6 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
 
     best_model = deepcopy(model)
 
-    logger.info('we are in bucket learning')
     for epoch in range(args.max_epochs):
         # create new buckets for each epoch
         train_dataloader, val_dataloader = get_bucket_dataloader(args, train_datasets, val_datasets)
@@ -961,13 +960,9 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
         if args.lr_scheduler == "exponential":
             scheduler.step()
         else:
-            logger.info('args patience: {args.patience}')
-            logger.info('args patience bool: {args.patience}')
             scheduler.step(metrics=val_result['val_loss'])
             if args.patience is not None:
-                logger.info(f'num bad epochs: {scheduler.num_bad_epochs}')
                 patience = args.patience - scheduler.num_bad_epochs
-                logger.info(f'patience after: {patience}')
 
         if dataset2optimize in dataset_results:
             results["abag_epoch_loss"].append(dataset_results[dataset2optimize]["val_loss"])
