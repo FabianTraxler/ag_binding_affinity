@@ -31,12 +31,14 @@ class DatasetAdjustment(nn.Module):
         """
         super(DatasetAdjustment, self).__init__()
         self.layer_type = layer_type
-        if self.layer_type in ["identity", "bias_only", "regression", "regression_sigmoid"]:
+        if self.layer_type in ["identity", "bias_only", "regression", "regression_sigmoid, mlp"]:
             self.linear = nn.Linear(1, out_n)
             self.linear.weight.data.fill_(1)
             self.linear.bias.data.fill_(0)
         else:
-            raise NotImplementedError("'mlp' is not implemented at the moment")
+            raise NotImplementedError(f"'{self.layer_type}' is not implemented at the moment")
+        if self.layer_type == 'mlp':
+            mlp_out = nn.Sequential(nn.SiLU(), nn.Linear(out_n, out_n))
 
         super().requires_grad_(False)  # Call original version to freeze all parameters
 
@@ -47,6 +49,8 @@ class DatasetAdjustment(nn.Module):
             layer_selector: torch.Tensor of shape (batch_size) with values between 0 and n_out. If -1, return x
         """
         x_all = self.linear(x)
+        if self.layer_type == 'mlp':
+            x_all = mlp_out(x_all)
         # Select the correct output node (dataset-specificity)
         x_selected = x_all[torch.arange(x_all.size(0)), layer_selector]
         if self.layer_type.endswith("_sigmoid"):
@@ -72,11 +76,12 @@ class DatasetAdjustment(nn.Module):
         else:
             return super().requires_grad_(requires_grad)
 
+
 class AffinityGNN(pl.LightningModule):
     def __init__(self, node_feat_dim: int, edge_feat_dim: int,
                  args: argparse.Namespace,  # provide args so they can be saved by the LightningModule (hparams) and for DatasetAdjustment
                  num_nodes: int = None,
-                 pretrained_model: str = "", pretrained_model_path: str = "",
+                 pretrained_model: str = "", pretrained_model_path: str = None,
                  gnn_type: str = "5A-proximity",
                  layer_type: str = "GAT", num_gat_heads: int = 3, num_gnn_layers: int = 3,
                  channel_halving: bool = True, channel_doubling: bool = False,
