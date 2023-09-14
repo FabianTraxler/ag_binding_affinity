@@ -31,14 +31,14 @@ class DatasetAdjustment(nn.Module):
         """
         super(DatasetAdjustment, self).__init__()
         self.layer_type = layer_type
-        if self.layer_type in ["identity", "bias_only", "regression", "regression_sigmoid, mlp"]:
+        if self.layer_type in ["identity", "bias_only", "regression", "regression_sigmoid", "mlp"]:
             self.linear = nn.Linear(1, out_n)
             self.linear.weight.data.fill_(1)
             self.linear.bias.data.fill_(0)
         else:
             raise NotImplementedError(f"'{self.layer_type}' is not implemented at the moment")
         if self.layer_type == 'mlp':
-            mlp_out = nn.Sequential(nn.SiLU(), nn.Linear(out_n, out_n))
+            self.mlp_out = nn.Sequential(nn.SiLU(), nn.Linear(out_n, out_n))
 
         super().requires_grad_(False)  # Call original version to freeze all parameters
 
@@ -50,7 +50,7 @@ class DatasetAdjustment(nn.Module):
         """
         x_all = self.linear(x)
         if self.layer_type == 'mlp':
-            x_all = mlp_out(x_all)
+            x_all = self.mlp_out(x_all)
         # Select the correct output node (dataset-specificity)
         x_selected = x_all[torch.arange(x_all.size(0)), layer_selector]
         if self.layer_type.endswith("_sigmoid"):
@@ -211,9 +211,10 @@ class AffinityGNN(pl.LightningModule):
             logging.warning("Pretrained model does not have an unfreeze method")
 
         # unfreeze datasets-specific layers
-        for dataset_layer in self.dataset_specific_layer:
+        # for dataset_layer in self.dataset_specific_layer:
+        # Above loop throws an error since self.dataset_specific_layer is not iterable
             # dataset_layer.unfreeze()
-            dataset_layer.requires_grad_(True)
+        self.dataset_specific_layer.requires_grad_(True)
 
     def on_save_checkpoint(self, checkpoint):
         """

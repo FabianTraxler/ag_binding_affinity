@@ -183,7 +183,9 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
         #     break
         all_predictions = np.concatenate(all_predictions) if len(all_predictions) > 0 else np.array([])
         all_labels = np.concatenate(all_labels) if len(all_labels) > 0 else np.array([])
-        all_pdbs = np.concatenate(all_pdbs) if len(all_pdbs) > 0 else np.array([])
+        if len(all_pdbs) > 0 and not isinstance(all_pdbs[0], np.ndarray):
+            all_pdbs = [np.array([pdb]) for pdb in all_pdbs]
+        all_pdbs = np.concatenate(np.array(all_pdbs)) if len(all_pdbs) > 0 else np.array([])
         all_binary_predictions = np.concatenate(all_binary_predictions) if len(all_binary_predictions) > 0 else np.array([])
         all_binary_labels = np.concatenate(all_binary_labels) if len(all_binary_labels) > 0 else np.array([])
         val_loss = total_loss_val / (len(all_predictions) + len(all_binary_predictions))
