@@ -98,6 +98,7 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--fine_tune",
                           help='Fine-tune model components that have been frozen at the start of training (e.g. published/pretrained models or dataset-specific layers)',
                           action=BooleanOptionalAction, default=True)
+    optional.add_argument('--load_pretrained_weights', action=BooleanOptionalAction, help="Load pretrained weights for the pretrained model", default=True)
     optional.add_argument("--transfer_learning_validation_size", type=int,
                           help="Percent of transfer learning dataset(s) used to validate model (only DMS)",
                           default=10)

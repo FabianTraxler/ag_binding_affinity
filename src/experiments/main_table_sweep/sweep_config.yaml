@@ -11,27 +11,15 @@ parameters:
       - "abag_affinity#L1+L2"
   transfer_learning_datasets:
     values:
-      - "DMS-madan21_mutat_hiv#L1"
-      # - "DMS-phillips21_bindin:absolute"
-      # - "DMS-taft22_deep_mutat_learn_predic_ace2:absolute"
-      - "DMS-starr21_prosp_covid#L1"
-      - "DMS-wu17_in#L1"
-      - "DMS-madan21_mutat_hiv#L2"
-      # - "DMS-phillips21_bindin:absolute"
-      # - "DMS-taft22_deep_mutat_learn_predic_ace2:absolute"
-      - "DMS-starr21_prosp_covid#L2"
-      - "DMS-wu17_in#L2"
-      - "DMS-madan21_mutat_hiv#L1+L2"
-      # - "DMS-phillips21_bindin:absolute"
-      # - "DMS-taft22_deep_mutat_learn_predic_ace2:absolute"
-      - "DMS-starr21_prosp_covid#L1+L2"
-      - "DMS-wu17_in#L1+L2"
-      - "DMS-madan21_mutat_hiv#L2-1+relative_L2-2"
-      - "DMS-madan21_mutat_hiv#L2-1+relative_ce-2"
-      # - "DMS-phillips21_bindin:absolute"
-      # - "DMS-taft22_deep_mutat_learn_predic_ace2:absolute"
-      - "DMS-starr21_prosp_covid#L2-1+relative_L2-2"
-      - "DMS-wu17_in#L2-1+relative_L2-2"
+      - ""
+      - "DMS-madan21_mutat_hiv#L2-1+relative_L2-2 DMS-starr21_prosp_covid#L2-1+relative_L2-2 DMS-wu17_in#L2-1+relative_L2-2"
+      - "DMS-madan21_mutat_hiv#L2-1+relative_ce-2 DMS-starr21_prosp_covid#L2-1+relative_ce-2 DMS-wu17_in#L2-1+relative_ce-2"
+      # - "DMS-wu17_in#L2-1+relative_L2-2"
+      # - "DMS-madan21_mutat_hiv#L2-1+relative_ce-2"
+      # # - "DMS-phillips21_bindin:absolute"
+      # # - "DMS-taft22_deep_mutat_learn_predic_ace2:absolute"
+      # - "DMS-starr21_prosp_covid#L2-1+relative_L2-2"
+      # - "DMS-wu17_in#L2-1+relative_L2-2"
   aggregation_method:
     values:
       - "interface_sum"
@@ -45,7 +33,7 @@ parameters:
     values:
       - "regression"
       - "regression_sigmoid"
-      - "bias_only"
+      - "birgas_only"
       - "identity"
   train_strategy:
     values:
@@ -54,3 +42,7 @@ parameters:
     values:
       - True
       - False
+  pretrained_model:
+    values:
+      - ""
+      - "IPA"

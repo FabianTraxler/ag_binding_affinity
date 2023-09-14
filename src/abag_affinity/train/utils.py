@@ -444,10 +444,10 @@ def load_model(num_node_features: int, num_edge_features: int, dataset_names: Li
     Returns:
         nn.Module: model on specified device
     """
-    if args.pretrained_model in args.config["MODELS"]:
+    if args.pretrained_model in args.config["MODELS"] and args.load_pretrained_weights:
         pretrained_model_path = args.config["MODELS"][args.pretrained_model]["model_path"]
     else:
-        pretrained_model_path = ""
+        pretrained_model_path = None
 
     model = AffinityGNN(num_node_features, num_edge_features, args,
                         num_nodes=args.max_num_nodes,
