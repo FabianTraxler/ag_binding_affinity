@@ -508,6 +508,7 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
         config: Dict with configuration info
         dataset_name: Name of the dataset
         validation_set: Integer identifier of the validation split (1,2,3). Only required for abag_affinity datasets
+        validation_size: Size of the validation set (proportion (0.0-1.0))
 
     Returns:
         Tuple: List with indices for train and validation set
