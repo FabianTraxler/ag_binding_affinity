@@ -3,8 +3,8 @@
 --node_type=residue
 --batch_size=64
 --layer_type=GCN
---max_epochs=200
---num_workers=20
+--max_epochs=2
+--num_workers=0
 --nonlinearity=leaky
 --scale_values
 --num_fc_layers=10
@@ -19,9 +19,10 @@
 --wandb_mode=offline
 --lr_scheduler=plateau
 --lr_decay_factor=0.5
---stop_at_learning_rate=0.000001
---learning_rate=0.00001
+--stop_at_learning_rate=0.00001
+--learning_rate=0.0001
 --relaxed_pdbs=False
 --init_sweep
---sweep_config=sweep_config.yaml
+--sweep_runs=2
+--sweep_config=src/experiments/main_table_sweep/sweep_config.yaml
 --no-load_pretrained_weights

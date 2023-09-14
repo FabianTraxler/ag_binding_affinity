@@ -11,9 +11,21 @@ parameters:
       - "abag_affinity#L1+L2"
   transfer_learning_datasets:
     values:
+      - - "DMS-madan21_mutat_hiv#relative_L2"
+        - "DMS-starr21_prosp_covid#relative_L2"
+      - - "DMS-madan21_mutat_hiv#relative_L1"
+        - "DMS-starr21_prosp_covid#relative_L1"
+      - - "DMS-madan21_mutat_hiv#L2-1+relative_L2-2"
+        - "DMS-starr21_prosp_covid#L2-1+relative_L2-2"
+      - - "DMS-madan21_mutat_hiv#L1-1+relative_L1-2"
+        - "DMS-starr21_prosp_covid#L1-1+relative_L1-2"
+        # DMS-wu17_in L2-1+relative_L2-2 not working
+        # - "DMS-wu17_in#L2-1+relative_L2-2"
+      # relative_ce is not working
+      # - - "DMS-madan21_mutat_hiv#L2-1+relative_ce-2"
+      #   - "DMS-starr21_prosp_covid#L2-1+relative_ce-2"
+        # - "DMS-wu17_in#L2-1+relative_ce-2"
       - ""
-      - "DMS-madan21_mutat_hiv#L2-1+relative_L2-2 DMS-starr21_prosp_covid#L2-1+relative_L2-2 DMS-wu17_in#L2-1+relative_L2-2"
-      - "DMS-madan21_mutat_hiv#L2-1+relative_ce-2 DMS-starr21_prosp_covid#L2-1+relative_ce-2 DMS-wu17_in#L2-1+relative_ce-2"
       # - "DMS-wu17_in#L2-1+relative_L2-2"
       # - "DMS-madan21_mutat_hiv#L2-1+relative_ce-2"
       # # - "DMS-phillips21_bindin:absolute"
@@ -31,6 +43,7 @@ parameters:
       - 3
   dms_output_layer_type:
     values:
+      - "mlp"
       - "regression"
       - "regression_sigmoid"
       - "birgas_only"
@@ -45,4 +58,3 @@ parameters:
   pretrained_model:
     values:
       - ""
-      - "IPA"

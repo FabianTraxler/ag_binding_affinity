@@ -183,8 +183,21 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
         #     break
         all_predictions = np.concatenate(all_predictions) if len(all_predictions) > 0 else np.array([])
         all_labels = np.concatenate(all_labels) if len(all_labels) > 0 else np.array([])
+
+        # for whatever reason sometimes all_pdbs contains tuples of strings (when using DMS), so this is code to simply flatten the list
+        all_pdbs_tmp = []
+        for pdb in all_pdbs:
+            if isinstance(pdb, tuple) or isinstance(pdb, list):
+                all_pdbs_tmp.extend(list(pdb))
+            else:
+                all_pdbs_tmp.append(pdb)
+        all_pdbs = all_pdbs_tmp
+
+        # this is needed because all_pdbs is a list of strings, which is not directly usable by np.concatenate
+        # need to convert to np.array
         if len(all_pdbs) > 0 and not isinstance(all_pdbs[0], np.ndarray):
             all_pdbs = [np.array([pdb]) for pdb in all_pdbs]
+
         all_pdbs = np.concatenate(np.array(all_pdbs)) if len(all_pdbs) > 0 else np.array([])
         all_binary_predictions = np.concatenate(all_binary_predictions) if len(all_binary_predictions) > 0 else np.array([])
         all_binary_labels = np.concatenate(all_binary_labels) if len(all_binary_labels) > 0 else np.array([])
@@ -195,6 +208,8 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
         else:
             acc = np.nan
 
+        print('all labels', all_labels)
+        print('all predictions', all_predictions)
         pearson_corr = stats.pearsonr(all_labels, all_predictions)
         rmse = math.sqrt(np.square(np.subtract(all_labels, all_predictions)).mean())
 
