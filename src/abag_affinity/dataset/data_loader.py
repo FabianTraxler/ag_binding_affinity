@@ -708,19 +708,11 @@ class AffinityDataset(Dataset):
         relative_data = input_dicts[0]["relative"]
         assert all([relative_data == input_dict["relative"] for input_dict in input_dicts])
 
-        affinity_type = input_dicts[0]["affinity_type"]
-        assert all([affinity_type == input_dict["affinity_type"] for input_dict in input_dicts])
-
-        dataset_name = input_dicts[0]["dataset_name"]
-        assert all([dataset_name == input_dict["dataset_name"] for input_dict in input_dicts])
-
         # This is a list of loss functions
         loss_criterion = input_dicts[0]["loss_criterion"]
 
         data_batch = {
             "relative": relative_data,
-            "affinity_type": affinity_type,
-            "dataset_name": dataset_name,
             "loss_criterion": loss_criterion,
         }
         if relative_data:  # relative data

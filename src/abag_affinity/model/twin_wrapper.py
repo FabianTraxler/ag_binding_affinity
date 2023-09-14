@@ -31,7 +31,6 @@ class TwinWrapper(torch.nn.Module):
 
         output = {
             "relative": data["relative"],
-            "affinity_type": data["affinity_type"],
             "x": out_1["x"].flatten(),
             "x2": out_2["x"].flatten(),
             "difference": out_1["x"] - out_2["x"]

@@ -156,8 +156,8 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
     model = load_model(train_datasets[0].num_features, train_datasets[0].num_edge_features, datasets, args, device)
     logger.debug(f"Training done on GPU = {next(model.parameters()).is_cuda}")
 
-    logger.info("Training with {}".format(", ".join([dataset.dataset_name for dataset in train_datasets])))
-    logger.info("Evaluating on {}".format(", ".join([dataset.dataset_name for dataset in val_datasets])))
+    logger.info("Training with {}".format(", ".join([dataset.full_dataset_name for dataset in train_datasets])))
+    logger.info("Evaluating on {}".format(", ".join([dataset.full_dataset_name for dataset in val_datasets])))
     results, model = bucket_learning(model, train_datasets, val_datasets, args)
     logger.info("Training with {} completed".format(datasets))
 
@@ -201,8 +201,8 @@ def train_transferlearnings_validate_target(args: Namespace):
     model = load_model(train_datasets[0].num_features, train_datasets[0].num_edge_features, training_set_names + [args.target_dataset], args, device)
     logger.debug(f"Training done on GPU = {next(model.parameters()).is_cuda}")
 
-    logger.info("Training with {}".format(", ".join([dataset.dataset_name for dataset in train_datasets])))
-    logger.info("Evaluating on {}".format(", ".join([dataset.dataset_name for dataset in val_datasets])))
+    logger.info("Training with {}".format(", ".join([dataset.full_dataset_name for dataset in train_datasets])))
+    logger.info("Evaluating on {}".format(", ".join([dataset.full_dataset_name for dataset in val_datasets])))
     results, model = bucket_learning(model, train_datasets, val_datasets, args)
     logger.info("Training with {} completed".format(training_set_names))
 
