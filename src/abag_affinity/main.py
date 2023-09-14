@@ -21,12 +21,13 @@ import pytorch_lightning as pl
 
 from abag_affinity.utils.argparse_utils import parse_args, enforced_node_type
 from abag_affinity.train import (bucket_train, cross_validation, model_train,
-                                 pretrain_model)
+                                 pretrain_model, train_transferlearnings_validate_target)
 # different training modalities
 training = {
     "bucket_train": bucket_train,
     "pretrain_model": pretrain_model,
     "model_train": model_train,
+    "train_transferlearnings_validate_target": train_transferlearnings_validate_target,
 }
 
 

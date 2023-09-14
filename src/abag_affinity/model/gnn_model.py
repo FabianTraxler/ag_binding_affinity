@@ -206,9 +206,7 @@ class AffinityGNN(pl.LightningModule):
             logging.warning("Pretrained model does not have an unfreeze method")
 
         # unfreeze datasets-specific layers
-        for dataset_layer in self.dataset_specific_layer:
-            # dataset_layer.unfreeze()
-            dataset_layer.requires_grad_(True)
+        self.dataset_specific_layer.requires_grad_(True)
 
     def on_save_checkpoint(self, checkpoint):
         """
