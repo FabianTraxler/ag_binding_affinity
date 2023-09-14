@@ -75,7 +75,7 @@ def get_label(data: Dict, device: torch.device) -> Dict:
         label_1 = (data["input"][0]["graph"].y > data["input"][1]["graph"].y)
         label_2 = (data["input"][1]["graph"].y > data["input"][0]["graph"].y)
         label["x_prob"] = torch.stack((label_1.float(), label_2.float()), dim=-1)
-        label["x_stronger"] = label_2.long()  # Index of the stronger binding complex
+        label["x_stronger_label"] = label_2.long()  # Index of the stronger binding complex
         label["x"] = data["input"][0]["graph"].y.to(device)
         label["x2"] = data["input"][1]["graph"].y.to(device)
         label["difference"] = label["x"] - label["x2"]
@@ -106,9 +106,9 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
         elif criterion == "relative_L2" and output["relative"]:
             loss = weight * torch.nn.functional.mse_loss(output["difference"], label["difference"])
         elif criterion == "relative_ce" and output["relative"]:
-            loss = weight * torch.nn.functional.nll_loss(output["x_logit"], label["x_stronger"])
+            loss = weight * torch.nn.functional.nll_loss(output["x_logit"], label["x_stronger_label"])
         elif criterion == "relative_cdf" and output["relative"]:
-            loss = weight * torch.nn.functional.nll_loss((output["x_prob_cdf"]+1e-10).log(), label["x_stronger"])
+            loss = weight * torch.nn.functional.nll_loss((output["x_prob_cdf"]+1e-10).log(), label["x_stronger_label"])
         else:
             raise ValueError(
                 f"Loss_Function must either in ['L1','L2','relative_L1','relative_L2','relative_ce'] but got {criterion}")
@@ -167,7 +167,7 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
                 pdb_ids_1 = [filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
                 pdb_ids_2 = [filepath.split("/")[-1].split(".")[0] for filepath in data["input"][1]["filepath"]]
                 all_pdbs.extend(list(zip(pdb_ids_1, pdb_ids_2)))
-                all_binary_labels.append( label["x_stronger"].detach().cpu().numpy())
+                all_binary_labels.append(label["x_stronger_label"].detach().cpu().numpy())
                 all_binary_predictions.append(torch.argmax(output["x_prob"].detach().cpu(), dim=1).numpy())
 
             else:

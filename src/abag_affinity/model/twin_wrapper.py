@@ -40,8 +40,8 @@ class TwinWrapper(torch.nn.Module):
         diff_1 = output["x"] - output["x2"]
         diff_2 = output["x2"] - output["x"]
         class_preds = torch.stack((diff_1, diff_2), dim=-1)
-        # Computing the Probability based on Gaussian cdf:
-        # We interpret rel_temperature as the standard deviation
+        # Computing the Probability of observing E_1 greater E_2 based on Gaussian cdf :
+        # Note that we interpret rel_temperature as the standard deviation of the process, TODO learn this parameter
         prob_1_ge_2 = torch.special.ndtr(diff_1 / 2**0.5 / rel_temperature)
         output["x_prob_cdf"] = torch.stack((prob_1_ge_2, 1-prob_1_ge_2), dim=-1)
         output["x_prob"] = torch.nn.functional.softmax(class_preds/rel_temperature, dim=-1)
