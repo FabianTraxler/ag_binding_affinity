@@ -193,7 +193,7 @@ def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, interface_f
     else:
         embeddings = None
 
-    graph_dict =  get_graph_dict(pdb_id, pdb_file_path, embeddings, affinity, distance_cutoff=max_edge_distance, node_type=node_type)
+    graph_dict =  get_graph_dict(pdb_id, pdb_file_path, embeddings, node_type, neg_log_kd, e_value, distance_cutoff=max_edge_distance)
 
     graph_dict.pop("atom_names", None)  # remove unnecessary information that takes lot of storage
     assert len(graph_dict["node_features"]) == len(graph_dict["closest_residues"])
