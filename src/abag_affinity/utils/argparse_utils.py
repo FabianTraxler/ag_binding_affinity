@@ -84,11 +84,9 @@ def parse_args(artifical_args=None) -> Namespace:
 
     optional.add_argument("--relaxed_pdbs", choices=["True", "False", "both"], help="Use the relaxed pdbs for training "
                                                                                "and validation", default="True")
-    optional.add_argument("--validation_size", type=int, help="Percent of target dataset used to validate model (only DMS)",
-                          default=10)
     # -train strategy
     optional.add_argument("-t", "--train_strategy", type=str, help='The training strategy to use',
-                          choices=["bucket_train", "pretrain_model", "model_train"],
+                          choices=["bucket_train", "pretrain_model", "model_train", "train_transferlearnings_validate_target"],
                           default="model_train")
     optional.add_argument("--bucket_size_mode", type=str, help="Mode to determine the size of the training buckets",
                           default="geometric_mean", choices=["min", "geometric_mean", "double_geometric_mean"])
@@ -98,9 +96,6 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--fine_tune",
                           help='Fine-tune model components that have been frozen at the start of training (e.g. published/pretrained models or dataset-specific layers)',
                           action=BooleanOptionalAction, default=True)
-    optional.add_argument("--transfer_learning_validation_size", type=int,
-                          help="Percent of transfer learning dataset(s) used to validate model (only DMS)",
-                          default=10)
     # -train config
     optional.add_argument("-b", "--batch_size", type=int, help="Batch size used for training", default=1)
     optional.add_argument("-e", "--max_epochs", type=int, help="Max number of training epochs", default=200)

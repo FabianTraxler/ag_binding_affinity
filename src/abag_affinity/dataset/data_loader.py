@@ -224,6 +224,9 @@ class AffinityDataset(Dataset):
             valid_pairs = (e_dists - nll_avg) >= 0
             valid_partners = np.where(valid_pairs)[0]
             possible_partners = self.data_df.index[valid_partners].tolist()
+
+            # filter further for partners from the same complex
+            possible_partners = [partner for partner in possible_partners if pdb_id.split("-")[0] == partner.split("-")[0]]
         else:
             raise ValueError(
                 f"Wrong affinity type given - expected one of (-log(Kd), E) but got {self.affinity_type}")
@@ -705,19 +708,11 @@ class AffinityDataset(Dataset):
         relative_data = input_dicts[0]["relative"]
         assert all([relative_data == input_dict["relative"] for input_dict in input_dicts])
 
-        affinity_type = input_dicts[0]["affinity_type"]
-        assert all([affinity_type == input_dict["affinity_type"] for input_dict in input_dicts])
-
-        dataset_name = input_dicts[0]["dataset_name"]
-        assert all([dataset_name == input_dict["dataset_name"] for input_dict in input_dicts])
-
         # This is a list of loss functions
         loss_criterion = input_dicts[0]["loss_criterion"]
 
         data_batch = {
             "relative": relative_data,
-            "affinity_type": affinity_type,
-            "dataset_name": dataset_name,
             "loss_criterion": loss_criterion,
         }
         if relative_data:  # relative data

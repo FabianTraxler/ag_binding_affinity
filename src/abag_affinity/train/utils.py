@@ -61,7 +61,6 @@ def forward_step(model: AffinityGNN, data: Dict, device: torch.device) -> Tuple[
 
         output = model(data["input"])
         output["relative"] = data["relative"]
-        output["affinity_type"] = data["affinity_type"]
 
     label = get_label(data, device)
 
@@ -186,9 +185,7 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
         #     break
         all_predictions = np.concatenate(all_predictions) if len(all_predictions) > 0 else np.array([])
         all_labels = np.concatenate(all_labels) if len(all_labels) > 0 else np.array([])
-        # Does not work when both relative and absolute datasets are there (as we have tuple and singe strings)
-        #all_pdbs = np.concatenate(all_pdbs) if len(all_pdbs) > 0 else np.array([])
-
+        all_pdbs = np.array(all_pdbs)
         all_binary_predictions = np.concatenate(all_binary_predictions) if len(all_binary_predictions) > 0 else np.array([])
         all_binary_labels = np.concatenate(all_binary_labels) if len(all_binary_labels) > 0 else np.array([])
         val_loss = total_loss_val / (len(all_predictions) + len(all_binary_predictions))
@@ -441,8 +438,9 @@ def load_model(num_node_features: int, num_edge_features: int, dataset_names: Li
     """ Load a specific model type and initialize it randomly
 
     Args:
-        model_type: Name of the model to be loaded
-        num_features: Dimension of features of inputs to the model
+        num_node_features: Dimension of features of nodes in the graph
+        num_edge_features: Dimension of features of edges in the graph
+        dataset_names: List of dataset names used for training
         args: CLI arguments
         device: Device the model will be loaded on
 
@@ -504,7 +502,7 @@ def get_dataloader(args: Namespace, train_dataset: AffinityDataset, val_datasets
     return train_dataloader, val_dataloaders
 
 
-def train_val_split(config: Dict, dataset_name: str, validation_set: int, validation_size: int = 20) -> Tuple[List, List]:
+def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[int] = None, validation_size: float = 0.2) -> Tuple[List, List]:
     """ Split data in a train and a validation subset
 
     For the abag_affinity datasets, we use the predefined split given in the csv, otherwise use random split
@@ -512,12 +510,13 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int, valida
     Args:
         config: Dict with configuration info
         dataset_name: Name of the dataset
-        validation_set: Integer identifier of the validation split (1,2,3)
+        validation_set: Integer identifier of the validation split (1,2,3). Only required for abag_affinity datasets
+        validation_size: Size of the validation set (proportion (0.0-1.0))
 
     Returns:
         Tuple: List with indices for train and validation set
     """
-    train_size = (100 - validation_size) / 100
+    train_size = 1 - validation_size
 
     if "-" in dataset_name:
         # DMS data
@@ -646,7 +645,7 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int, valida
     return train_ids, val_ids
 
 
-def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespace) -> Tuple[
+def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespace, validation_size: Optional[float] = 0.1) -> Tuple[
     AffinityDataset, List[AffinityDataset]]:
     """ Get train and validation datasets for a specific dataset and data type
 
@@ -658,6 +657,7 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
         dataset: Name of the dataset:Usage of data (absolute, relative) - eg. SKEMPI.v2:relative
         validation_set: Integer identifier of the validation split (1,2,3)
         args: CLI arguments
+        validation_size: Size of the validation set (proportion (0.0-1.0))
 
     Returns:
         Tuple: Train and validation dataset
@@ -674,8 +674,6 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
     else:
         relative_data = False
 
-    validation_size = args.validation_size if dataset == args.target_dataset else args.transfer_learning_validation_size  # TODO this does not look right!
-    # validation_size = 10  # it's in percent
     train_ids, val_ids = train_val_split(config, dataset_name, validation_set, validation_size)
 
     if args.test:
@@ -959,7 +957,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
                 patience = args.patience - scheduler.num_bad_epochs
 
         if dataset2optimize in dataset_results:
-            results["abag_epoch_loss"].append(dataset_results[dataset2optimize]["val_loss"])
+            results["abag_epoch_loss"].append(dataset_results[dataset2optimize]["val_loss"])  # TODO why is this abag_?
             results["abag_epoch_corr"].append(dataset_results[dataset2optimize]["pearson_correlation"])
 
         if dataset_results[dataset2optimize]["val_loss"] < best_loss:  # or dataset_results[dataset2optimize]["pearson_correlation"] > best_pearson_corr:
@@ -1049,8 +1047,9 @@ def finetune_frozen(model: AffinityGNN, train_dataset: Union[AffinityDataset, Li
     logger.info(f"Fintuning pretrained model with lr={args.learning_rate}")
     model.unfreeze()
 
+
     # TODO When finetuning is applied after normal training a new wandb instance is generated?!
-    if args.train_strategy == "bucket_train":
+    if args.train_strategy in ["bucket_train", "train_transferlearnings_validate_target"]:
         results, model, wandb = bucket_learning(model, train_dataset, val_dataset, args)
     else:
         results, model, wandb = train_loop(model, train_dataset, val_dataset, args)
