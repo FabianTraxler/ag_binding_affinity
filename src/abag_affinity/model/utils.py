@@ -14,6 +14,23 @@ class NoOpModel(torch.nn.Module):
         return data["graph"]["node"].x
 
 
+
+class PositiveLinear(torch.nn.Module):
+    def __init__(self, in_features, out_features):
+        super(PositiveLinear, self).__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.log_weight = torch.nn.Parameter(torch.zeros(out_features, in_features))
+        self.bias = torch.nn.Parameter(torch.zeros(out_features))
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        torch.nn.init.zeros_(self.log_weight)
+        torch.nn.init.zeros_(self.bias)
+
+    def forward(self, input):
+        return torch.nn.functional.linear(input, self.log_weight.exp(), bias=self.bias)
+
 class FixedSizeAggregation(torch.nn.Module):
     def forward(self, x: torch.Tensor, batch: torch.Tensor):
         graph_embeddings = []
