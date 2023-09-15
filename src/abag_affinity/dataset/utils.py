@@ -65,8 +65,8 @@ def get_pdb_path_and_id(row: pd.Series, dataset_name: str, config: Dict, relaxed
     return pdb_file_path, pdb_id
 
 
-def get_graph_dict(pdb_id: str, pdb_file_path: str, embeddings: Dict, affinity: float,
-                   node_type: str, distance_cutoff: int = 5,
+def get_graph_dict(pdb_id: str, pdb_file_path: str, embeddings: Dict, 
+                   node_type: str, neglogkd: Optional[float], evalue: Optional[float] = None, distance_cutoff: int = 5,
                    ca_alpha_contact: bool = False) -> Dict:
     """
     Generate a dictionary with node, edge and meta-information for a given PDB File.
@@ -126,7 +126,8 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, embeddings: Dict, affinity: 
         "residue_infos": residue_infos,
         "residue_atom_coordinates": residue_atom_coordinates,
         "adjacency_tensor": adj_tensor,
-        "affinity": affinity,
+        "-log(Kd)": neglogkd,
+        "E": evalue,
         "closest_residues": closest_nodes,
         "atom_names": atom_names
     }
@@ -164,7 +165,8 @@ def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, interface_f
 
     pdb_file_path, pdb_id = get_pdb_path_and_id(row, dataset_name, config, relaxed)
 
-    affinity = row[affinity_type]
+    neglogkd = row["-log(Kd)"]
+    evalue = row["E"]
 
     if interface_hull_size is not None:
         pdb_file_path = reduce2interface_hull(pdb_id, pdb_file_path, interface_distance_cutoff, interface_hull_size)

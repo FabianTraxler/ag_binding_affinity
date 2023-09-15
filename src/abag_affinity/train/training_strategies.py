@@ -6,7 +6,7 @@ import pandas as pd
 import torch
 from argparse import Namespace
 import numpy as np
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 import random
 from collections import Counter
 
@@ -23,7 +23,7 @@ torch.multiprocessing.set_sharing_strategy('file_system') # cluster mulitple dat
 logger = logging.getLogger(__name__) # setup module logger
 
 
-def model_train(args:Namespace, validation_set: int = None) -> Tuple[AffinityGNN, Dict]:
+def model_train(args:Namespace, validation_set: Optional[int] = None) -> Tuple[AffinityGNN, Dict]:
     """ Model training functionality
 
     1. Get random initialized model

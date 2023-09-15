@@ -70,16 +70,17 @@ def forward_step(model: AffinityGNN, data: Dict, device: torch.device) -> Tuple[
 def get_label(data: Dict, device: torch.device) -> Dict:
     # We compute all possible labels, so that we can combine different loss functions
     label = {}
-    if data["relative"]:
-        label_1 = (data["input"][0]["graph"].y > data["input"][1]["graph"].y)
-        label_2 = (data["input"][1]["graph"].y > data["input"][0]["graph"].y)
-        label["x_prob"] = torch.stack((label_1.float(), label_2.float()), dim=-1)
-        label["x_stronger_label"] = label_2.long()  # Index of the stronger binding complex
-        label["x"] = data["input"][0]["graph"].y.to(device)
-        label["x2"] = data["input"][1]["graph"].y.to(device)
-        label["difference"] = label["x"] - label["x2"]
-    else:
-        label["x"] = data["input"]["graph"].y.to(device)
+    for output_type in ["evalue", "neglogkd"]:
+        if data["relative"]:
+            label_1 = (data["input"][0]["graph"][output_type] > data["input"][1]["graph"].evalue)
+            label_2 = (data["input"][1]["graph"][output_type] > data["input"][0]["graph"].evalue)
+            label[f"{output_type}_prob"] = torch.stack((label_1.float(), label_2.float()), dim=-1)
+            label[f"{output_type}_stronger_label"] = label_2.long()  # Index of the stronger binding complex
+            label[f"{output_type}"] = data["input"][0]["graph"][output_type].to(device)
+            label[f"{output_type}2"] = data["input"][1]["graph"][output_type].to(device)
+            label[f"{output_type}_difference"] = label[f"{output_type}"] - label[f"{output_type}2"]
+        else:
+            label[output_type] = data["input"]["graph"][output_type].to(device)
 
     # TODO Try to return NLL values of data if available!
     return label
@@ -91,27 +92,35 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
     loss_types = [x.split("-") for x in loss_functions.split("+")]
     loss_types = [(x[0], float(x[1])) if len(x) == 2 else (x[0], 1.) for x in loss_types]
     losses = []
-    for criterion, weight in loss_types:
-        if criterion == "L1":
-            loss = weight * torch.nn.functional.l1_loss(output["x"], label["x"])
-            if output["relative"]:
-                loss += weight * torch.nn.functional.l1_loss(output["x2"], label["x2"])
-        elif criterion == "L2":
-            loss = weight * torch.nn.functional.mse_loss(output["x"], label["x"])
-            if output["relative"]:
-                loss += weight * torch.nn.functional.mse_loss(output["x2"], label["x2"])
-        elif criterion == "relative_L1" and output["relative"]:
-            loss = weight * torch.nn.functional.l1_loss(output["difference"], label["difference"])
-        elif criterion == "relative_L2" and output["relative"]:
-            loss = weight * torch.nn.functional.mse_loss(output["difference"], label["difference"])
-        elif criterion == "relative_ce" and output["relative"]:
-            loss = weight * torch.nn.functional.nll_loss(output["x_logit"], label["x_stronger_label"])
-        elif criterion == "relative_cdf" and output["relative"]:
-            loss = weight * torch.nn.functional.nll_loss((output["x_prob_cdf"]+1e-10).log(), label["x_stronger_label"])
-        else:
-            raise ValueError(
-                f"Loss_Function must either in ['L1','L2','relative_L1','relative_L2','relative_ce'] but got {criterion}")
-        losses.append(loss)
+    for (criterion, weight) in loss_types:
+        check = False
+        for output_type in ["evalue", "neglogkd"]:
+            try:
+                if criterion == "L1":
+                    losses.append(weight * torch.nn.functional.l1_loss(output[output_type], label[output_type]))
+                    if output["relative"]:
+                        losses.append(weight * torch.nn.functional.l1_loss(output[f"{output_type}2"], label[f"{output_type}2"]))
+                elif criterion == "L2":
+                    losses.append(weight * torch.nn.functional.mse_loss(output[output_type], label[output_type]))
+                    if output["relative"]:
+                        losses.append(weight * torch.nn.functional.mse_loss(output[f"{output_type}2"], label[f"{output_type}2"]))
+                elif output["relative"]:
+                    if criterion == "relative_L1":
+                        losses.append(weight * torch.nn.functional.l1_loss(output[f"{output_type}_difference"], label[f"{output_type}_difference"]))
+                    elif criterion == "relative_L2":
+                        losses.append(weight * torch.nn.functional.mse_loss(output[f"{output_type}_difference"], label[f"{output_type}_difference"]))
+                    elif criterion == "relative_ce":
+                        losses.append(weight * torch.nn.functional.nll_loss(output[f"{output_type}_logit"], label[f"{output_type}_stronger_label"]))
+                    elif criterion == "relative_cdf":
+                        losses.append(weight * torch.nn.functional.nll_loss((output[f"{output_type}_prob_cdf"]+1e-10).log(), label[f"{output_type}_stronger_label"]))
+            except KeyError:
+                pass
+            else:
+                check = True
+
+        if not check:
+            raise ValueError(f"Loss_Function must either in ['L1','L2','relative_L1','relative_L2','relative_ce'] but got {criterion}")
+
     assert len(losses) > 0, f"No valid lossfunction was given with:{loss_functions} and relative data {output['relative']}"
     return sum(losses)
 
@@ -538,8 +547,8 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
             summary_df = summary_df[~summary_df.index.duplicated(keep='first')]
 
             # Normalize between 0 and 1 on a per-complex basis. This way value ranges of E and NLL fit, when computing possible pairs
-            e_values = summary_df.groupby(summary_df.index.map(lambda i: i.split("-")[0]))["E"].apply(lambda x: (x - x.min()) / (x.max() - x.min()))
-            e_values = e_values.values.reshape(-1,1).astype(np.float32)
+            evalues = summary_df.groupby(summary_df.index.map(lambda i: i.split("-")[0]))["E"].apply(lambda x: (x - x.min()) / (x.max() - x.min()))
+            evalues = evalues.values.reshape(-1,1).astype(np.float32)
 
             nll_values = summary_df["NLL"].values
             # Scale the NLLs to (0-1). The max NLL value in DMS_curated.csv is 4, so 0-1-scaling should be fine
@@ -550,10 +559,10 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
                 nll_values = np.full_like(nll_values, 0.5)
 
             # TODO refactor this block (just always split, as it includes the else-case)
-            if len(e_values) > 50000:
-                n_splits = int(len(e_values) / 50000) + 1
+            if len(evalues) > 50000:
+                n_splits = int(len(evalues) / 50000) + 1
                 has_valid_partner = set()
-                e_splits = np.array_split(e_values, n_splits)
+                e_splits = np.array_split(evalues, n_splits)
                 nll_splits = np.array_split(nll_values, n_splits)
                 total_elements = 0
                 for i in range(len(e_splits)):
@@ -567,7 +576,7 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
                 has_valid_partner = np.fromiter(has_valid_partner, int, len(has_valid_partner))
                 valid_partners = None
             else:
-                e_dists = sp.distance.cdist(e_values, e_values)
+                e_dists = sp.distance.cdist(evalues, evalues)
                 nll_avg = (nll_values[:, None] + nll_values) / 2
 
                 valid_pairs = (e_dists - nll_avg) >= 0
