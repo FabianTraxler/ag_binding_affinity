@@ -183,13 +183,14 @@ def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, interface_f
                                           config['DATASETS'][dataset_name]['embeddings'],
                                           pdb_id + '.pt')
                 embeddings = torch.load(embeddings, map_location='cpu')
-            elif 'of_embeddings' in dataset_name:
+            # elif 'of_embeddings' in dataset_name:
+            else:
                 # NOTE generating OF embeddings might clash with parallel data loading because of GPU usage
                 diffusion_data = load_protein(pdb_file_path)
                 diffusion_data = tensor_tree_map(lambda x: x.to(diffusion_args.device), diffusion_data)
                 embeddings = of_embedding(diffusion_data)
-            else:
-                raise NotImplementedError("Dynamic loading of RF embeddings is not yet implemented.")
+            # else:
+            #     raise NotImplementedError("Dynamic loading of RF embeddings is not yet implemented.")
     else:
         embeddings = None
 
