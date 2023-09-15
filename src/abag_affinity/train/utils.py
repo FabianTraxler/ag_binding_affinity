@@ -399,7 +399,7 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
     results["best_correlation"] = best_pearson_corr
     results["best_rmse"] = best_rmse
 
-    return results, best_model
+    return results, best_model, wandb
 
 
 def get_optimizer(args: Namespace, model: torch.nn.Module):
@@ -1041,7 +1041,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
     results["best_correlation"] = best_pearson_corr
     results["best_rmse"] = best_rmse
 
-    return results, best_model
+    return results, best_model, wandb
 
 
 def finetune_frozen(model: AffinityGNN, train_dataset: Union[AffinityDataset, List[AffinityDataset]], val_dataset: Union[AffinityDataset, List[AffinityDataset]],
@@ -1057,6 +1057,7 @@ def finetune_frozen(model: AffinityGNN, train_dataset: Union[AffinityDataset, Li
 
     Returns:
         Tuple: Finetuned model, results as dict
+
     """
 
     # lower learning rate for pretrained model finetuning
@@ -1066,10 +1067,12 @@ def finetune_frozen(model: AffinityGNN, train_dataset: Union[AffinityDataset, Li
     logger.info(f"Fintuning pretrained model with lr={args.learning_rate}")
     model.unfreeze()
 
+
+    # TODO When finetuning is applied after normal training a new wandb instance is generated?!
     if args.train_strategy in ["bucket_train", "train_transferlearnings_validate_target"]:
-        results, model = bucket_learning(model, train_dataset, val_dataset, args)
+        results, model, wandb = bucket_learning(model, train_dataset, val_dataset, args)
     else:
-        results, model = train_loop(model, train_dataset, val_dataset, args)
+        results, model, wandb = train_loop(model, train_dataset, val_dataset, args)
 
     logger.info("Fintuning pretrained model completed")
     logger.debug(results)

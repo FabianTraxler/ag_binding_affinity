@@ -209,7 +209,7 @@ class AffinityGNN(pl.LightningModule):
 
         # unfreeze datasets-specific layers
         self.dataset_specific_layer.requires_grad_(True)
-
+        
     def on_save_checkpoint(self, checkpoint):
         """
         Drop frozen parameters (don't save them)
