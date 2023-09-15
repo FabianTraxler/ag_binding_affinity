@@ -189,8 +189,8 @@ class AffinityGNN(pl.LightningModule):
             raise NotImplementedError("Would need to allow scaling the sigmoidal values back to the original range")
 
         return {
-            "neglogkd": neglogkd,
-            "evalue": evalue,
+            "-log(Kd)": -log(Kd),
+            "E": evalue,
         }
 
     def unfreeze(self):

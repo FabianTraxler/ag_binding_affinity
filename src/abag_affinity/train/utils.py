@@ -70,7 +70,7 @@ def forward_step(model: AffinityGNN, data: Dict, device: torch.device) -> Tuple[
 def get_label(data: Dict, device: torch.device) -> Dict:
     # We compute all possible labels, so that we can combine different loss functions
     label = {}
-    for output_type in ["evalue", "neglogkd"]:
+    for output_type in ["E", "-log(Kd)"]:
         if data["relative"]:
             label_1 = (data["input"][0]["graph"][output_type] > data["input"][1]["graph"][output_type])
             label_2 = (data["input"][1]["graph"][output_type] > data["input"][0]["graph"][output_type])
@@ -104,7 +104,7 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
 
     for (criterion, weight) in loss_types:
         loss_fn = loss_functions[criterion]
-        for output_type in ["evalue", "neglogkd"]:
+        for output_type in ["E", "-log(Kd)"]:
             valid_indices = ~torch.isnan(label[output_type])
             if criterion in ["L1", "L2"]:
                 losses.append(weight * loss_fn(output[output_type][valid_indices],
@@ -174,7 +174,7 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
             loss = get_loss(data["loss_criterion"], label, output)
             total_loss_val += loss.item()
 
-            output_type = "evalue" if val_dataloader.dataset.affinity_type == "E" else "neglogkd"
+            output_type = "E" if val_dataloader.dataset.affinity_type == "E" else "-log(Kd)"
 
             all_predictions.append(output[f"{output_type}"].flatten().detach().cpu().numpy())
             all_labels.append(label[f"{output_type}"].detach().cpu().numpy())
@@ -1111,7 +1111,7 @@ def evaluate_model(model: AffinityGNN, dataloader: DataLoader, args: Namespace, 
 
         total_loss_val += loss.item()
 
-        output_type = "evalue" if dataloader.dataset.affinity_type == "E" else "neglogkd"
+        output_type = "E" if dataloader.dataset.affinity_type == "E" else "-log(Kd)"
         all_predictions = np.append(all_predictions, output[f"{output_type}"].flatten().detach().cpu().numpy())
 
         all_labels = np.append(all_labels, label[f"{output_type}"].detach().cpu().numpy())

@@ -31,7 +31,7 @@ class TwinWrapper(torch.nn.Module):
 
         output = {"relative": data["relative"]}
 
-        for output_type in ["evalue", "neglogkd"]:
+        for output_type in ["E", "-log(Kd)"]:
             output[output_type] = out_1[output_type].flatten()
             output[f"{output_type}2"] = out_2[output_type].flatten()
             output[f"{output_type}_difference"] = out_1[output_type] - out_2[output_type]

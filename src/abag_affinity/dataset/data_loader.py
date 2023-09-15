@@ -531,8 +531,8 @@ class AffinityDataset(Dataset):
             graph["node"].residue_index = torch.stack([residue_info["matched_residue_index"] for residue_info in graph_dict["residue_infos"]]) # this is the index of the residue in the LOADED protein
         except KeyError:
             pass  # data is only available when of-embeddings are used
-        graph.evalue = torch.from_numpy(evalue).float()
-        graph.neglogkd = torch.from_numpy(neglogkd).float()
+        graph["E"] = torch.from_numpy(evalue).float()
+        graph["-log(Kd)"] = torch.from_numpy(neglogkd).float()
 
         for edge_type, edges in edge_indices.items():
             graph[edge_type].edge_index = edges
