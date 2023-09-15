@@ -8,7 +8,7 @@ parameters:
     values:
       - "abag_affinity#L1"
       - "abag_affinity#L2"
-      - "abag_affinity#L1+L2"
+      # - "abag_affinity#L1+L2"
   transfer_learning_datasets:
     values:
       - - "DMS-madan21_mutat_hiv#relative_L2"
@@ -19,6 +19,10 @@ parameters:
         - "DMS-starr21_prosp_covid#L2-1+relative_L2-2"
       - - "DMS-madan21_mutat_hiv#L1-1+relative_L1-2"
         - "DMS-starr21_prosp_covid#L1-1+relative_L1-2"
+      - - "DMS-madan21_mutat_hiv#L2-1"
+        - "DMS-starr21_prosp_covid#L2-1"
+      - - "DMS-madan21_mutat_hiv#L2-1+relative_cdf-0.5"
+        - "DMS-starr21_prosp_covid#L2-1+relative_cdf-0.5"
         # DMS-wu17_in L2-1+relative_L2-2 not working
         # - "DMS-wu17_in#L2-1+relative_L2-2"
       # relative_ce is not working
@@ -45,8 +49,8 @@ parameters:
     values:
       - "mlp"
       - "regression"
-      - "regression_sigmoid"
-      - "birgas_only"
+      # - "regression_sigmoid"
+      - "bias_only"
       - "identity"
   train_strategy:
     values:
