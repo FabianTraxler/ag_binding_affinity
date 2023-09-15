@@ -116,15 +116,18 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
             elif output["relative"] and criterion.startswith("relative"):
                 criterion_types = ["relative_L1", "relative_L2"]
                 output_key = f"{output_type}_difference" if criterion in criterion_types else f"{output_type}_stronger_label"
+                label_key = f"{output_type}_difference"
                 valid_indices = ~torch.isnan(label[output_key])
 
                 if criterion == "relative_ce":
                     output_key = f"{output_type}_logit"
+                    label_key = f"{output_type}_stronger_label"
                 elif criterion != "relative_L1" and criterion != "relative_L2":
                     output_key = f"{output_type}_prob_cdf"
+                    label_key = f"{output_type}_stronger_label"
 
                 losses.append(weight * loss_fn(output[output_key][valid_indices],
-                                               label[output_key][valid_indices]))
+                                               label[label_key][valid_indices]))
 
         assert len(losses) > 0, f"No valid lossfunction was given with:{loss_functions} and relative data {output['relative']}"
         return sum(losses)
