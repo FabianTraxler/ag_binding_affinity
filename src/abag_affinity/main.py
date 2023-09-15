@@ -14,19 +14,20 @@ import torch
 from torch.utils.data import DataLoader
 import wandb
 import subprocess
-
+import os
 import yaml
-from abag_affinity.train.utils import get_benchmark_score, get_skempi_corr
+from abag_affinity.train.utils import get_benchmark_score, get_skempi_corr, get_abag_test_score
 import pytorch_lightning as pl
 
 from abag_affinity.utils.argparse_utils import parse_args, enforced_node_type
 from abag_affinity.train import (bucket_train, cross_validation, model_train,
-                                 pretrain_model)
+                                 pretrain_model, train_transferlearnings_validate_target)
 # different training modalities
 training = {
     "bucket_train": bucket_train,
     "pretrain_model": pretrain_model,
     "model_train": model_train,
+    "train_transferlearnings_validate_target": train_transferlearnings_validate_target,
 }
 
 
@@ -191,17 +192,25 @@ def main() -> Dict:
         if args.cross_validation:
             model, results = cross_validation(args)
         else:
-            model, results = training[args.train_strategy](args)
+            model, results, wandb = training[args.train_strategy](args)
 
             # Run benchmarks
             benchmark_pearson, benchmark_loss, benchmark_df = get_benchmark_score(model, args, tqdm_output=args.tqdm_output)
             test_skempi_grouped_corrs, test_skempi_score, test_loss_skempi, test_skempi_df = get_skempi_corr(model, args, tqdm_output=args.tqdm_output)
+            abag_test_plot_path = os.path.join(args.config["plot_path"], f"abag_affinity_test_cv{args.validation_set}.png")
 
+            test_pearson, test_loss, test_df = get_abag_test_score(model, args, tqdm_output=args.tqdm_output,
+                                                                   plot_path=abag_test_plot_path,
+                                                                   validation_set=args.validation_set)
             logger.info(f"Benchmark results >>> {benchmark_pearson}")
             logger.info(f"SKEMPI testset results >>> {test_skempi_score}")
             logger.info(f"Mean SKEMPI correlations >>> {np.mean(test_skempi_grouped_corrs)}")
             # TODO add to wandb summary
 
+            wandb_benchmark_log = {"abag_test_pearson": test_pearson, "abag_test_loss": test_loss,
+                                   "skempi_test_pearson": test_skempi_score, "skempi_test_loss": test_loss_skempi,
+                                   "benchmark_test_pearson": benchmark_pearson, "benchmark_test_loss": benchmark_loss}
+            wandb.log(wandb_benchmark_log, commit=True)
             # Save model
             if args.model_path is not None:
                 path = Path(args.model_path)

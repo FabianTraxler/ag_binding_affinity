@@ -72,7 +72,7 @@ def parse_args(artifical_args=None) -> Namespace:
         """
         NOTE: we could also add all possible dataset names
         """
-        pattern = r'^[A-Za-z0-9-_.]+#(L1|L2|relative_L1|relative_L2|relative_ce)(-[0-9.]+)?(\+(L1|L2|relative_L1|relative_L2|relative_ce)(-[0-9.]+)?)*$'
+        pattern = r'^[A-Za-z0-9-_.]+#(L1|L2|relative_L1|relative_L2|relative_ce|relative_cdf)(-[0-9.]+)?(\+(L1|L2|relative_L1|relative_L2|relative_ce|relative_cdf)(-[0-9.]+)?)*$'
         if not re.match(pattern, value):
             raise ArgumentTypeError(f"Invalid value: {value}. Expected format: DATASET#LOSS1-LAMBDA1+LOSS2-LAMBDA2")
         return value
@@ -84,11 +84,9 @@ def parse_args(artifical_args=None) -> Namespace:
 
     optional.add_argument("--relaxed_pdbs", choices=["True", "False", "both"], help="Use the relaxed pdbs for training "
                                                                                "and validation", default="True")
-    optional.add_argument("--validation_size", type=int, help="Percent of target dataset used to validate model (only DMS)",
-                          default=10)
     # -train strategy
     optional.add_argument("-t", "--train_strategy", type=str, help='The training strategy to use',
-                          choices=["bucket_train", "pretrain_model", "model_train"],
+                          choices=["bucket_train", "pretrain_model", "model_train", "train_transferlearnings_validate_target"],
                           default="model_train")
     optional.add_argument("--bucket_size_mode", type=str, help="Mode to determine the size of the training buckets",
                           default="geometric_mean", choices=["min", "geometric_mean", "double_geometric_mean"])
@@ -153,9 +151,9 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--fc_size_halving", action=BooleanOptionalAction,
                           help="Indicator if after every FC layer the embedding sizeshould be halved",
                           default=False)
-    optional.add_argument("--dms_output_layer_type", choices=["identity", "bias_only", "regression", "regression_sigmoid", "mlp"],
+    optional.add_argument("--dms_output_layer_type", choices=["identity", "bias_only", "regression", "regression_sigmoid", "positive_regression","positive_regression_sigmoid","mlp"],
                           help="Architecture of the DMS-specific output layers",
-                          default="bias_only")
+                          default="positive_regression")
 
     # weight and bias arguments
     optional.add_argument("-wdb", "--use_wandb", action=BooleanOptionalAction, help="Use Weight&Bias to log training process",

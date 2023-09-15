@@ -61,7 +61,6 @@ def forward_step(model: AffinityGNN, data: Dict, device: torch.device) -> Tuple[
 
         output = model(data["input"])
         output["relative"] = data["relative"]
-        output["affinity_type"] = data["affinity_type"]
 
     label = get_label(data, device)
 
@@ -71,15 +70,17 @@ def forward_step(model: AffinityGNN, data: Dict, device: torch.device) -> Tuple[
 def get_label(data: Dict, device: torch.device) -> Dict:
     # We compute all possible labels, so that we can combine different loss functions
     label = {}
-    if data["relative"]:
-        label_1 = (data["input"][0]["graph"].y > data["input"][1]["graph"].y).float()
-        label_2 = (data["input"][1]["graph"].y > data["input"][0]["graph"].y).float()
-        label["x_prob"] = torch.stack((label_1, label_2), dim=-1)
-        label["x"] = data["input"][0]["graph"].y.to(device)
-        label["x2"] = data["input"][1]["graph"].y.to(device)
-        label["difference"] = label["x"] - label["x2"]
-    else:
-        label["x"] = data["input"]["graph"].y.to(device)
+    for output_type in ["E", "-log(Kd)"]:
+        if data["relative"]:
+            label_1 = (data["input"][0]["graph"][output_type] > data["input"][1]["graph"][output_type])
+            label_2 = (data["input"][1]["graph"][output_type] > data["input"][0]["graph"][output_type])
+            label[f"{output_type}_prob"] = torch.stack((label_1.float(), label_2.float()), dim=-1)
+            label[f"{output_type}_stronger_label"] = label_2.long()  # Index of the stronger binding complex
+            label[f"{output_type}"] = data["input"][0]["graph"][output_type].to(device)
+            label[f"{output_type}2"] = data["input"][1]["graph"][output_type].to(device)
+            label[f"{output_type}_difference"] = label[f"{output_type}"] - label[f"{output_type}2"]
+        else:
+            label[output_type] = data["input"]["graph"][output_type].to(device)
 
     # TODO Try to return NLL values of data if available!
     return label
@@ -90,28 +91,46 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
     # E.g. args.loss_function = L2-1+L1-0.1+relative_l1-2+relative_l2-0.1+relative_ce
     loss_types = [x.split("-") for x in loss_functions.split("+")]
     loss_types = [(x[0], float(x[1])) if len(x) == 2 else (x[0], 1.) for x in loss_types]
+
     losses = []
-    for criterion, weight in loss_types:
-        if criterion == "L1":
-            loss = weight * torch.nn.functional.l1_loss(output["x"], label["x"])
-            if output["relative"]:
-                loss += weight * torch.nn.functional.l1_loss(output["x2"], label["x2"])
-        elif criterion == "L2":
-            loss = weight * torch.nn.functional.mse_loss(output["x"], label["x"])
-            if output["relative"]:
-                loss += weight * torch.nn.functional.mse_loss(output["x2"], label["x2"])
-        elif criterion == "relative_L1" and output["relative"]:
-            loss = weight * torch.nn.functional.l1_loss(output["difference"], label["difference"])
-        elif criterion == "relative_L2" and output["relative"]:
-            loss = weight * torch.nn.functional.mse_loss(output["difference"], label["difference"])
-        elif criterion == "relative_ce" and output["relative"]:
-            loss = weight * torch.nn.functional.cross_entropy(output["x_prob"], label["x_prob"])
-        else:
-            raise ValueError(
-                f"Loss_Function must either in ['L1','L2','relative_L1','relative_L2','relative_ce'] but got {criterion}")
-        losses.append(loss)
-    assert len(losses) > 0, f"No valid lossfunction was given with:{loss_functions} and relative data {output['relative']}"
-    return sum(losses)
+    loss_functions = {
+        "L1": torch.nn.functional.l1_loss,
+        "L2": torch.nn.functional.mse_loss,
+        "relative_L1": torch.nn.functional.l1_loss,
+        "relative_L2": torch.nn.functional.mse_loss,
+        "relative_ce": torch.nn.functional.nll_loss,
+        "relative_cdf": lambda output, label: torch.nn.functional.nll_loss((output+1e-10).log(), label)
+    }
+
+    for (criterion, weight) in loss_types:
+        loss_fn = loss_functions[criterion]
+        for output_type in ["E", "-log(Kd)"]:
+            valid_indices = ~torch.isnan(label[output_type])
+            if criterion in ["L1", "L2"]:
+                losses.append(weight * loss_fn(output[output_type][valid_indices],
+                                               label[output_type][valid_indices]))
+                if output["relative"]:
+                    valid_indices = ~torch.isnan(label[f"{output_type}2"])
+                    losses.append(weight * loss_fn(output[f"{output_type}2"][valid_indices],
+                                                   label[f"{output_type}2"][valid_indices]))
+            elif output["relative"] and criterion.startswith("relative"):
+                criterion_types = ["relative_L1", "relative_L2"]
+                output_key = f"{output_type}_difference" if criterion in criterion_types else f"{output_type}_stronger_label"
+                label_key = f"{output_type}_difference"
+                valid_indices = ~torch.isnan(label[output_key])
+
+                if criterion == "relative_ce":
+                    output_key = f"{output_type}_logit"
+                    label_key = f"{output_type}_stronger_label"
+                elif criterion != "relative_L1" and criterion != "relative_L2":
+                    output_key = f"{output_type}_prob_cdf"
+                    label_key = f"{output_type}_stronger_label"
+
+                losses.append(weight * loss_fn(output[output_key][valid_indices],
+                                               label[label_key][valid_indices]))
+
+        assert len(losses) > 0, f"No valid lossfunction was given with:{loss_functions} and relative data {output['relative']}"
+        return sum(losses)
 
 
 def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloaders: List[DataLoader],
@@ -158,24 +177,27 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
             loss = get_loss(data["loss_criterion"], label, output)
             total_loss_val += loss.item()
 
-            all_predictions.append(output["x"].flatten().detach().cpu().numpy())
-            all_labels.append(label["x"].detach().cpu().numpy())
+            try:
+                output_type = "E" if val_dataloader.dataset.affinity_type == "E" else "-log(Kd)"
+            except AttributeError:
+                output_type = "E" if val_dataloader.dataset.datasets[0].affinity_type == "E" else "-log(Kd)"  # hacky
+
+            all_predictions.append(output[f"{output_type}"].flatten().detach().cpu().numpy())
+            all_labels.append(label[f"{output_type}"].detach().cpu().numpy())
             if data["relative"]:
                 pdb_ids_1 = [filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
                 pdb_ids_2 = [filepath.split("/")[-1].split(".")[0] for filepath in data["input"][1]["filepath"]]
                 all_pdbs.extend(list(zip(pdb_ids_1, pdb_ids_2)))
-                all_binary_labels.append( torch.argmax(label["x_prob"].detach().cpu(), dim=1).numpy())
-                all_binary_predictions.append(torch.argmax(output["x_prob"].detach().cpu(), dim=1).numpy())
-
+                all_binary_labels.append(label[f"{output_type}_stronger_label"].detach().cpu().numpy())
+                all_binary_predictions.append(torch.argmax(output[f"{output_type}_prob"].detach().cpu(), dim=1).numpy())
             else:
                 #We need to ensure that binary labels have the length of the validation dataset as we later slice the datasets appart.
                 # TODO maybe we could store them in a dataset specific dict instead?
-                all_binary_labels.append(np.zeros(label["x"].shape[0]))
-                all_binary_predictions.append(np.zeros(label["x"].shape[0]))
+                all_binary_labels.append(np.zeros(label[f"{output_type}"].shape[0]))
+                all_binary_predictions.append(np.zeros(label[f"{output_type}"].shape[0]))
                 all_pdbs.extend([filepath.split("/")[-1].split(".")[0] for filepath in data["input"]["filepath"]])
 
-            #all_labels = np.append(all_labels, label.numpy())
-            #all_predictions = np.append(all_predictions, output["x"].flatten().detach().cpu().numpy())
+            #all_predictions = np.append(all_predictions, output[f"{output_type}"].flatten().detach().cpu().numpy())
 
         val_loss = total_loss_val / len(all_predictions)
 
@@ -183,8 +205,7 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
         #     break
         all_predictions = np.concatenate(all_predictions) if len(all_predictions) > 0 else np.array([])
         all_labels = np.concatenate(all_labels) if len(all_labels) > 0 else np.array([])
-
-        # for whatever reason sometimes all_pdbs contains tuples of strings (when using DMS), so this is code to simply flatten the list
+        # sometimes all_pdbs contains tuples of strings (when using RELATIVE LOSS), so this is code to simply flatten the list
         all_pdbs_tmp = []
         for pdb in all_pdbs:
             if isinstance(pdb, tuple) or isinstance(pdb, list):
@@ -195,10 +216,12 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
 
         # this is needed because all_pdbs is a list of strings, which is not directly usable by np.concatenate
         # need to convert to np.array
+        # TODO maybe this is never used? Also we change the length of all_pdbs, make it longer than others
         if len(all_pdbs) > 0 and not isinstance(all_pdbs[0], np.ndarray):
             all_pdbs = [np.array([pdb]) for pdb in all_pdbs]
-
+      
         all_pdbs = np.concatenate(np.array(all_pdbs)) if len(all_pdbs) > 0 else np.array([])
+        
         all_binary_predictions = np.concatenate(all_binary_predictions) if len(all_binary_predictions) > 0 else np.array([])
         all_binary_labels = np.concatenate(all_binary_labels) if len(all_binary_labels) > 0 else np.array([])
         val_loss = total_loss_val / (len(all_predictions) + len(all_binary_predictions))
@@ -394,7 +417,7 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
     results["best_correlation"] = best_pearson_corr
     results["best_rmse"] = best_rmse
 
-    return results, best_model
+    return results, best_model, wandb
 
 
 def get_optimizer(args: Namespace, model: torch.nn.Module):
@@ -453,8 +476,9 @@ def load_model(num_node_features: int, num_edge_features: int, dataset_names: Li
     """ Load a specific model type and initialize it randomly
 
     Args:
-        model_type: Name of the model to be loaded
-        num_features: Dimension of features of inputs to the model
+        num_node_features: Dimension of features of nodes in the graph
+        num_edge_features: Dimension of features of edges in the graph
+        dataset_names: List of dataset names used for training
         args: CLI arguments
         device: Device the model will be loaded on
 
@@ -516,7 +540,7 @@ def get_dataloader(args: Namespace, train_dataset: AffinityDataset, val_datasets
     return train_dataloader, val_dataloaders
 
 
-def train_val_split(config: Dict, dataset_name: str, validation_set: int, validation_size: int = 20) -> Tuple[List, List]:
+def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[int] = None, validation_size: float = 0.2) -> Tuple[List, List]:
     """ Split data in a train and a validation subset
 
     For the abag_affinity datasets, we use the predefined split given in the csv, otherwise use random split
@@ -524,12 +548,13 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int, valida
     Args:
         config: Dict with configuration info
         dataset_name: Name of the dataset
-        validation_set: Integer identifier of the validation split (1,2,3)
+        validation_set: Integer identifier of the validation split (1,2,3). Only required for abag_affinity datasets
+        validation_size: Size of the validation set (proportion (0.0-1.0))
 
     Returns:
         Tuple: List with indices for train and validation set
     """
-    train_size = (100 - validation_size) / 100
+    train_size = 1 - validation_size
 
     if "-" in dataset_name:
         # DMS data
@@ -552,7 +577,9 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int, valida
 
             # Normalize between 0 and 1 on a per-complex basis. This way value ranges of E and NLL fit, when computing possible pairs
             e_values = summary_df.groupby(summary_df.index.map(lambda i: i.split("-")[0]))["E"].apply(lambda x: (x - x.min()) / (x.max() - x.min()))
+
             e_values = e_values.values.reshape(-1,1).astype(np.float32)
+
 
             nll_values = summary_df["NLL"].values
             # Scale the NLLs to (0-1). The max NLL value in DMS_curated.csv is 4, so 0-1-scaling should be fine
@@ -564,9 +591,12 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int, valida
 
             # TODO refactor this block (just always split, as it includes the else-case)
             if len(e_values) > 50000:
+
                 n_splits = int(len(e_values) / 50000) + 1
+
                 has_valid_partner = set()
                 e_splits = np.array_split(e_values, n_splits)
+
                 nll_splits = np.array_split(nll_values, n_splits)
                 total_elements = 0
                 for i in range(len(e_splits)):
@@ -581,6 +611,7 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int, valida
                 valid_partners = None
             else:
                 e_dists = sp.distance.cdist(e_values, e_values)
+
                 nll_avg = (nll_values[:, None] + nll_values) / 2
 
                 valid_pairs = (e_dists - nll_avg) >= 0
@@ -658,7 +689,7 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: int, valida
     return train_ids, val_ids
 
 
-def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespace) -> Tuple[
+def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespace, validation_size: Optional[float] = 0.1) -> Tuple[
     AffinityDataset, List[AffinityDataset]]:
     """ Get train and validation datasets for a specific dataset and data type
 
@@ -670,6 +701,7 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
         dataset: Name of the dataset:Usage of data (absolute, relative) - eg. SKEMPI.v2:relative
         validation_set: Integer identifier of the validation split (1,2,3)
         args: CLI arguments
+        validation_size: Size of the validation set (proportion (0.0-1.0))
 
     Returns:
         Tuple: Train and validation dataset
@@ -686,8 +718,6 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
     else:
         relative_data = False
 
-    validation_size = args.validation_size if dataset == args.target_dataset else args.transfer_learning_validation_size  # TODO this does not look right!
-    # validation_size = 10  # it's in percent
     train_ids, val_ids = train_val_split(config, dataset_name, validation_set, validation_size)
 
     if args.test:
@@ -971,7 +1001,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
                 patience = args.patience - scheduler.num_bad_epochs
 
         if dataset2optimize in dataset_results:
-            results["abag_epoch_loss"].append(dataset_results[dataset2optimize]["val_loss"])
+            results["abag_epoch_loss"].append(dataset_results[dataset2optimize]["val_loss"])  # TODO why is this abag_?
             results["abag_epoch_corr"].append(dataset_results[dataset2optimize]["pearson_correlation"])
 
         if dataset_results[dataset2optimize]["val_loss"] < best_loss:  # or dataset_results[dataset2optimize]["pearson_correlation"] > best_pearson_corr:
@@ -1035,7 +1065,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
     results["best_correlation"] = best_pearson_corr
     results["best_rmse"] = best_rmse
 
-    return results, best_model
+    return results, best_model, wandb
 
 
 def finetune_frozen(model: AffinityGNN, train_dataset: Union[AffinityDataset, List[AffinityDataset]], val_dataset: Union[AffinityDataset, List[AffinityDataset]],
@@ -1051,6 +1081,7 @@ def finetune_frozen(model: AffinityGNN, train_dataset: Union[AffinityDataset, Li
 
     Returns:
         Tuple: Finetuned model, results as dict
+
     """
 
     # lower learning rate for pretrained model finetuning
@@ -1060,10 +1091,12 @@ def finetune_frozen(model: AffinityGNN, train_dataset: Union[AffinityDataset, Li
     logger.info(f"Fintuning pretrained model with lr={args.learning_rate}")
     model.unfreeze()
 
-    if args.train_strategy == "bucket_train":
-        results, model = bucket_learning(model, train_dataset, val_dataset, args)
+
+    # TODO When finetuning is applied after normal training a new wandb instance is generated?!
+    if args.train_strategy in ["bucket_train", "train_transferlearnings_validate_target"]:
+        results, model, wandb = bucket_learning(model, train_dataset, val_dataset, args)
     else:
-        results, model = train_loop(model, train_dataset, val_dataset, args)
+        results, model, wandb = train_loop(model, train_dataset, val_dataset, args)
 
     logger.info("Fintuning pretrained model completed")
     logger.debug(results)
@@ -1111,9 +1144,14 @@ def evaluate_model(model: AffinityGNN, dataloader: DataLoader, args: Namespace, 
 
         total_loss_val += loss.item()
 
-        all_predictions = np.append(all_predictions, output["x"].flatten().detach().cpu().numpy())
+        try:
+            output_type = "E" if dataloader.dataset.affinity_type == "E" else "-log(Kd)"
+        except AttributeError:
+            output_type = "E" if dataloader.dataset.datasets[0].affinity_type == "E" else "-log(Kd)"  # hacky
 
-        all_labels = np.append(all_labels, label["x"].detach().cpu().numpy())
+        all_predictions = np.append(all_predictions, output[f"{output_type}"].flatten().detach().cpu().numpy())
+
+        all_labels = np.append(all_labels, label[f"{output_type}"].detach().cpu().numpy())
         all_pdbs.extend([ filepath.split("/")[-1].split(".")[0] for filepath in data["input"]["filepath"]])
         # if len(all_labels) > 2:
             # break

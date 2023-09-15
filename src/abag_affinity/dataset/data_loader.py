@@ -216,14 +216,17 @@ class AffinityDataset(Dataset):
             pdb_nll = self.data_df.loc[self.data_df.index == pdb_id, "NLL"].values[0]
             pdb_e = np.array(self.data_df.loc[self.data_df.index == pdb_id, "E"].values[0]).reshape(-1, 1)
 
-            e_values = self.data_df["E"].values.reshape(-1, 1)
+            e_values = self.data_df["E"].values.reshape(-1, 1)
             nll_values = self.data_df["NLL"].values
-            e_dists = sp.distance.cdist(pdb_e, e_values)[0, :]
+            e_dists = sp.distance.cdist(pdb_e, e_values)[0, :]
             nll_avg = (pdb_nll + nll_values) / 2
 
             valid_pairs = (e_dists - nll_avg) >= 0
             valid_partners = np.where(valid_pairs)[0]
             possible_partners = self.data_df.index[valid_partners].tolist()
+
+            # filter further for partners from the same complex
+            possible_partners = [partner for partner in possible_partners if pdb_id.split("-")[0] == partner.split("-")[0]]
         else:
             raise ValueError(
                 f"Wrong affinity type given - expected one of (-log(Kd), E) but got {self.affinity_type}")
@@ -509,10 +512,12 @@ class AffinityDataset(Dataset):
         node_features = self.get_node_features(graph_dict)
         edge_indices, edge_features = self.get_edges(graph_dict)
 
-        affinity = graph_dict["affinity"]
-        if self.scale_values and self.affinity_type == "-log(Kd)":
-            affinity = scale_affinity(affinity, self.scale_min, self.scale_max)
-        affinity = np.array(affinity)
+        neg_log_kd = graph_dict["-log(Kd)"]
+        e_value = graph_dict["E"]
+
+        if self.scale_values and not np.isnan(neg_log_kd):
+            neg_log_kd = scale_affinity(neg_log_kd, self.scale_min, self.scale_max)
+        neg_log_kd = np.array(neg_log_kd)
 
         graph = HeteroData()
 
@@ -526,7 +531,8 @@ class AffinityDataset(Dataset):
             graph["node"].residue_index = torch.stack([residue_info["matched_residue_index"] for residue_info in graph_dict["residue_infos"]]) # this is the index of the residue in the LOADED protein
         except KeyError:
             pass  # data is only available when of-embeddings are used
-        graph.y = torch.from_numpy(affinity).float()
+        graph["E"] = torch.tensor(e_value).float()
+        graph["-log(Kd)"] = torch.tensor(neg_log_kd).float()
 
         for edge_type, edges in edge_indices.items():
             graph[edge_type].edge_index = edges
@@ -705,19 +711,11 @@ class AffinityDataset(Dataset):
         relative_data = input_dicts[0]["relative"]
         assert all([relative_data == input_dict["relative"] for input_dict in input_dicts])
 
-        affinity_type = input_dicts[0]["affinity_type"]
-        assert all([affinity_type == input_dict["affinity_type"] for input_dict in input_dicts])
-
-        dataset_name = input_dicts[0]["dataset_name"]
-        assert all([dataset_name == input_dict["dataset_name"] for input_dict in input_dicts])
-
         # This is a list of loss functions
         loss_criterion = input_dicts[0]["loss_criterion"]
 
         data_batch = {
             "relative": relative_data,
-            "affinity_type": affinity_type,
-            "dataset_name": dataset_name,
             "loss_criterion": loss_criterion,
         }
         if relative_data:  # relative data

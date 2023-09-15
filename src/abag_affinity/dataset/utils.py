@@ -65,8 +65,8 @@ def get_pdb_path_and_id(row: pd.Series, dataset_name: str, config: Dict, relaxed
     return pdb_file_path, pdb_id
 
 
-def get_graph_dict(pdb_id: str, pdb_file_path: str, embeddings: Dict, affinity: float,
-                   node_type: str, distance_cutoff: int = 5,
+def get_graph_dict(pdb_id: str, pdb_file_path: str, embeddings: Dict, 
+                   node_type: str, neg_log_kd: Optional[float], e_value: Optional[float] = None, distance_cutoff: int = 5,
                    ca_alpha_contact: bool = False) -> Dict:
     """
     Generate a dictionary with node, edge and meta-information for a given PDB File.
@@ -126,7 +126,8 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, embeddings: Dict, affinity: 
         "residue_infos": residue_infos,
         "residue_atom_coordinates": residue_atom_coordinates,
         "adjacency_tensor": adj_tensor,
-        "affinity": affinity,
+        "-log(Kd)": neg_log_kd,
+        "E": e_value,
         "closest_residues": closest_nodes,
         "atom_names": atom_names
     }
@@ -164,7 +165,9 @@ def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, interface_f
 
     pdb_file_path, pdb_id = get_pdb_path_and_id(row, dataset_name, config, relaxed)
 
-    affinity = row[affinity_type]
+    # dataframe loading can lead to empty strings, if values are not present
+    neg_log_kd = row["-log(Kd)"] if isinstance(row.get("-log(Kd)"), (int, float)) else np.nan
+    e_value = row["E"] if isinstance(row.get("E"), (int, float)) else np.nan
 
     if interface_hull_size is not None:
         pdb_file_path = reduce2interface_hull(pdb_id, pdb_file_path, interface_distance_cutoff, interface_hull_size)
@@ -259,8 +262,8 @@ def scale_affinity(affinity: float, min: float = 0, max: float = 16) -> float:
         float: scaled affinity
     """
 
-    if not min < affinity < max:
-        logging.warning(f"Affinity value out of scaling range {min} - {max}: {affinity}")
+    #if not min < affinity < max: #TODO for abdb we have a few samples
+    #    logging.warning(f"Affinity value out of scaling range {min} - {max}: {affinity}")
     affinity = np.clip(affinity, min, max)
     assert min <= affinity <= max, f"Affinity value out of scaling range: {affinity}"
 

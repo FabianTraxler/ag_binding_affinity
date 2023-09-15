@@ -2,10 +2,11 @@
 import logging
 import os
 from pathlib import Path
+import pandas as pd
 import torch
 from argparse import Namespace
 import numpy as np
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 import random
 from collections import Counter
 
@@ -22,7 +23,7 @@ torch.multiprocessing.set_sharing_strategy('file_system') # cluster mulitple dat
 logger = logging.getLogger(__name__) # setup module logger
 
 
-def model_train(args:Namespace, validation_set: int = None) -> Tuple[AffinityGNN, Dict]:
+def model_train(args:Namespace, validation_set: Optional[int] = None) -> Tuple[AffinityGNN, Dict]:
     """ Model training functionality
 
     1. Get random initialized model
@@ -55,11 +56,11 @@ def model_train(args:Namespace, validation_set: int = None) -> Tuple[AffinityGNN
     logger.debug(f"Training with  {dataset_name}")
     logger.debug(f"Training done on GPU: {next(model.parameters()).is_cuda}")
 
-    results, best_model = train_loop(model, train_data, val_datas, args)
+    results, best_model, wandb = train_loop(model, train_data, val_datas, args)
 
     if args.fine_tune:
         results, best_model = finetune_frozen(best_model, train_data, val_datas, args, lr_reduction=0.2)
-    return best_model, results
+    return best_model, results, wandb
 
 
 def pretrain_model(args:Namespace) -> Tuple[AffinityGNN, Dict]:
@@ -95,7 +96,7 @@ def pretrain_model(args:Namespace) -> Tuple[AffinityGNN, Dict]:
         logger.debug(f"Training with  {dataset_name}")
         logger.debug(f"Training done on GPU: {next(model.parameters()).is_cuda}")
 
-        results, model = train_loop(model, train_data, val_datas, args)
+        results, model, wandb = train_loop(model, train_data, val_datas, args)
 
         logger.info("Training with {} completed".format(dataset_name))
         logger.debug(results)
@@ -107,7 +108,7 @@ def pretrain_model(args:Namespace) -> Tuple[AffinityGNN, Dict]:
         results, model = finetune_frozen(model, train_data, val_datas, args, lr_reduction=0.2)
         all_results["finetuning"] = results
 
-    return model, all_results
+    return model, all_results, wandb
 
 
 def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
@@ -155,10 +156,57 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
     model = load_model(train_datasets[0].num_features, train_datasets[0].num_edge_features, datasets, args, device)
     logger.debug(f"Training done on GPU = {next(model.parameters()).is_cuda}")
 
-    logger.info("Training with {}".format(", ".join([dataset.dataset_name for dataset in train_datasets])))
-    logger.info("Evaluating on {}".format(", ".join([dataset.dataset_name for dataset in val_datasets])))
-    results, model = bucket_learning(model, train_datasets, val_datasets, args)
+    logger.info("Training with {}".format(", ".join([dataset.full_dataset_name for dataset in train_datasets])))
+    logger.info("Evaluating on {}".format(", ".join([dataset.full_dataset_name for dataset in val_datasets])))
+    results, model, wandb = bucket_learning(model, train_datasets, val_datasets, args)
+
     logger.info("Training with {} completed".format(datasets))
+
+    if args.fine_tune:
+        # TODO here we generate a new wandb instance?!
+        results, model = finetune_frozen(model, train_datasets, val_datasets, args, lr_reduction=0.2)
+
+    logger.debug(results)
+    return model, results, wandb
+
+
+def train_transferlearnings_validate_target(args: Namespace):
+    """
+    Train on the transfer learning datasets, validate on the target dataset, making sure that the target dataset is excluded from the training
+
+    This function is dedicated to the DMS cross-validation and slightly abuses the CLI argument names
+    """
+    config = read_config(args.config_file)
+
+    # make sure that the loss functions are not in the way
+    logging.warning(f"loss in target_dataset ({args.target_dataset}) is ignored.")
+
+    training_set_names = [dataset for dataset in args.transfer_learning_datasets if dataset.split("#")[0] != args.target_dataset.split("#")[0]]
+
+    use_cuda = args.cuda and torch.cuda.is_available()
+    device = torch.device("cuda" if use_cuda else "cpu")
+
+    train_datasets = []
+    val_datasets = []
+
+    for dataset_type in training_set_names:
+        train_data, val_datas = load_datasets(config, dataset_type, args.validation_set, args, 0.0)  # For simplicity, we only load training data. (makes the DMS cross-validation sweep simpler)
+
+        if len(train_data) > 0:
+            train_datasets.append(train_data)
+
+    # Load the main validation dataset
+    for val_data in load_datasets(config, args.target_dataset, args.validation_set, args, 1.0)[1]:
+        if len(val_data) > 0:
+            val_datasets.append(val_data)
+
+    model = load_model(train_datasets[0].num_features, train_datasets[0].num_edge_features, training_set_names + [args.target_dataset], args, device)
+    logger.debug(f"Training done on GPU = {next(model.parameters()).is_cuda}")
+
+    logger.info("Training with {}".format(", ".join([dataset.full_dataset_name for dataset in train_datasets])))
+    logger.info("Evaluating on {}".format(", ".join([dataset.full_dataset_name for dataset in val_datasets])))
+    results, model = bucket_learning(model, train_datasets, val_datasets, args)
+    logger.info("Training with {} completed".format(training_set_names))
 
     if args.fine_tune:
         results, model = finetune_frozen(model, train_datasets, val_datasets, args, lr_reduction=0.2)
@@ -176,7 +224,7 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
     Returns:
         Tuple: None and the results and statistics of training
     """
-    import pandas as pd
+
 
     experiment_name = "CV_experiment_transfer_learning"
 
@@ -208,7 +256,7 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
     for i in range(1, n_splits):
         logger.info("\nValidation on split {} and training with all other splits".format(i))
         args.validation_set = i
-        best_model, results = training[args.train_strategy](args)
+        best_model, results, wandb = training[args.train_strategy](args)
         torch.save(best_model.state_dict(), os.path.join(args.config["model_path"], f"best_model_val_set_{i}.pt"))
 
         if args.target_dataset in results:
@@ -253,6 +301,11 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
         test_losses.append(test_loss)
         test_correlation.append(test_pearson)
         logger.info(f"AbAg-Affinity testset results >>> {test_pearson}")
+
+        wandb_benchmark_log = {"abag_test_pearson": test_pearson, "abag_test_loss": test_loss,
+                               "skempi_test_pearson": test_skempi_score, "skempi_test_loss": test_loss_skempi,
+                               "benchmark_test_pearson": benchmark_pearson, "benchmark_test_loss": benchmark_loss}
+        wandb.log(wandb_benchmark_log, commit=True)
 
 
     logger.info("Average Loss: {} ({})".format(np.mean(losses), np.std(losses)))

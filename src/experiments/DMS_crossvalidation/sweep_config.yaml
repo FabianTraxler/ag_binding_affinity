@@ -1,0 +1,20 @@
+method: 'grid'
+name: 'DMS-cross-validation'
+metric:
+  goal: 'maximize'
+  name: 'pearson_correlation'  # this works because we only use a single validation set
+parameters:
+  target_dataset:
+    values:
+      - "DMS-madan21_mutat_hiv#L2"
+      - "DMS-phillips21_bindin#L2"
+      - "DMS-taft22_deep_mutat_learn_predic_ace2#L2"
+      - "DMS-starr21_prosp_covid#L2"
+      - "DMS-wu17_in#L2"
+  aggregation_method:
+    values:
+      - "interface_sum"  # TODO mean is broken
+  seed:
+    values:
+      - 1
+      - 2
