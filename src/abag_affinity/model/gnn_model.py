@@ -11,15 +11,17 @@ from .utils import pretrained_models, pretrained_embeddings, NoOpModel, Positive
 from .regression_heads import EdgeRegressionHead, RegressionHead
 from .graph_conv_layers import NaiveGraphConv, GuidedGraphConv
 import pytorch_lightning as pl
+from collections import defaultdict
 
-DATASET_WEIGHT_BIAS_DICT = {
- 'madan21_mutat_hiv': (0.8282454412193105, 0.41644568799226406),
- 'mason21_comb_optim_therap_antib_by_predic_combined_H3_3': (1.0829338825283161, 0.1493535863888128),
- 'wu17_in': (0.746111647985783, 0.5749515719406949),
- 'mason21_comb_optim_therap_antib_by_predic_combined_H3_2': (0.49509497516218, 0.3880937320273913),
- 'mason21_comb_optim_therap_antib_by_predic_combined_H3_1': (0.7443947282767032, 0.28162449514249066),
- 'wu20_differ_ha_h3_h1': (0.9122811283046462, 0.31676705347051387)
-}
+# We compute the default values for the dataset specific outputlayer using linear regression on available paired data
+# More details can be found in data_analysis/Finding_Optimal_h_function.ipynb
+DATASET_WEIGHT_BIAS_DICT = defaultdict(lambda: (0.87047189, 0.34777069727887455))
+DATASET_WEIGHT_BIAS_DICT['madan21_mutat_hiv'] = (0.8282454412193105, 0.41644568799226406)
+DATASET_WEIGHT_BIAS_DICT['mason21_comb_optim_therap_antib_by_predic_combined_H3_3'] = (1.0829338825283161, 0.1493535863888128)
+DATASET_WEIGHT_BIAS_DICT['wu17_in'] = (0.746111647985783, 0.5749515719406949)
+DATASET_WEIGHT_BIAS_DICT['mason21_comb_optim_therap_antib_by_predic_combined_H3_2'] = (0.49509497516218, 0.3880937320273913)
+DATASET_WEIGHT_BIAS_DICT['mason21_comb_optim_therap_antib_by_predic_combined_H3_1'] = (0.7443947282767032, 0.28162449514249066)
+DATASET_WEIGHT_BIAS_DICT['wu20_differ_ha_h3_h1'] = (0.9122811283046462, 0.31676705347051387)
 
 class DatasetAdjustment(nn.Module):
     """
@@ -29,13 +31,16 @@ class DatasetAdjustment(nn.Module):
     As we observed that DMS modeling works better with sigmoid, we include it here
 
     TODO: Can be experimented with to see whether it improves learning from distinct datasets (e.g. by adding an additional layer)
-    Args:
-        output_sigmoid: Whether to apply a sigmoid to the output
 
     """
     def __init__(self, layer_type, out_n, dataset_names = None):
         """
-        As we initialize with weight=1 and bias=0, implementing bias_only is as simple as only unfreezing bias_only in requires_grad_
+        Args:
+        layer_type: The kind of layer used for the prediction
+        Available types: "identity", "bias_only", "regression", "regression_sigmoid", "positive_regression","positive_regression_sigmoid","mlp"
+
+        out_n: Number of outputs, should be the number of datasets
+        dataset_names: A list of dataset_names (same length as out_n) to initialize with a datasetspecific prior
         """
         super(DatasetAdjustment, self).__init__()
         self.layer_type = layer_type
@@ -43,12 +48,12 @@ class DatasetAdjustment(nn.Module):
             self.linear = nn.Linear(1, out_n)
             weights = torch.ones((out_n, 1))
             bias = torch.zeros((out_n))
-            if dataset_names is not None:
+            if dataset_names is not None and self.layer_type not in ["identity","bias_only"]:
                 # When a dataset is given, we initialize with a precomputed h function if available
+                # TODO this does not make sense when using sigmoid activation
                 for i, ds_name in enumerate(dataset_names):
-                    if ds_name.split(":")[0] in DATASET_WEIGHT_BIAS_DICT.keys():
-                        weights[i,0] = DATASET_WEIGHT_BIAS_DICT[ds_name.split(":")[0]][0]
-                        bias[i] = DATASET_WEIGHT_BIAS_DICT[ds_name.split(":")[0]][1]
+                    weights[i,0] = DATASET_WEIGHT_BIAS_DICT[ds_name.split(":")[0]][0]
+                    bias[i] = DATASET_WEIGHT_BIAS_DICT[ds_name.split(":")[0]][1]
             self.linear.weight.data = weights
             self.linear.bias.data = bias
         elif self.layer_type in ["positive_regression", "positive_regression_sigmoid"]:
@@ -58,9 +63,8 @@ class DatasetAdjustment(nn.Module):
                 bias = torch.zeros((out_n))
                 # When a dataset is given, we initialize with a precomputed h function if available
                 for i, ds_name in enumerate(dataset_names):
-                    if ds_name.split(":")[0] in DATASET_WEIGHT_BIAS_DICT.keys():
-                        log_weights[i, 0] = math.log(DATASET_WEIGHT_BIAS_DICT[ds_name.split(":")[0]][0])
-                        bias[i] = DATASET_WEIGHT_BIAS_DICT[ds_name.split(":")[0]][1]
+                    log_weights[i, 0] = math.log(DATASET_WEIGHT_BIAS_DICT[ds_name.split(":")[0]][0])
+                    bias[i] = DATASET_WEIGHT_BIAS_DICT[ds_name.split(":")[0]][1]
                 self.linear.log_weight.data = log_weights
                 self.linear.bias.data = bias
         else:
