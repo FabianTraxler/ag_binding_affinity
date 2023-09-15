@@ -177,7 +177,10 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
             loss = get_loss(data["loss_criterion"], label, output)
             total_loss_val += loss.item()
 
-            output_type = "E" if val_dataloader.dataset.affinity_type == "E" else "-log(Kd)"
+            try:
+                output_type = "E" if val_dataloader.dataset.affinity_type == "E" else "-log(Kd)"
+            except AttributeError:
+                output_type = "E" if val_dataloader.dataset.datasets[0].affinity_type == "E" else "-log(Kd)"  # hacky
 
             all_predictions.append(output[f"{output_type}"].flatten().detach().cpu().numpy())
             all_labels.append(label[f"{output_type}"].detach().cpu().numpy())
@@ -1114,7 +1117,11 @@ def evaluate_model(model: AffinityGNN, dataloader: DataLoader, args: Namespace, 
 
         total_loss_val += loss.item()
 
-        output_type = "E" if dataloader.dataset.affinity_type == "E" else "-log(Kd)"
+        try:
+            output_type = "E" if dataloader.dataset.affinity_type == "E" else "-log(Kd)"
+        except AttributeError:
+            output_type = "E" if dataloader.dataset.datasets[0].affinity_type == "E" else "-log(Kd)"  # hacky
+
         all_predictions = np.append(all_predictions, output[f"{output_type}"].flatten().detach().cpu().numpy())
 
         all_labels = np.append(all_labels, label[f"{output_type}"].detach().cpu().numpy())

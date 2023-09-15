@@ -515,7 +515,7 @@ class AffinityDataset(Dataset):
         neg_log_kd = graph_dict["-log(Kd)"]
         e_value = graph_dict["E"]
 
-        if self.scale_values and neg_log_kd is not None:
+        if self.scale_values and not np.isnan(neg_log_kd):
             neg_log_kd = scale_affinity(neg_log_kd, self.scale_min, self.scale_max)
         neg_log_kd = np.array(neg_log_kd)
 
@@ -531,8 +531,8 @@ class AffinityDataset(Dataset):
             graph["node"].residue_index = torch.stack([residue_info["matched_residue_index"] for residue_info in graph_dict["residue_infos"]]) # this is the index of the residue in the LOADED protein
         except KeyError:
             pass  # data is only available when of-embeddings are used
-        graph["E"] = torch.from_numpy(e_value).float()
-        graph["-log(Kd)"] = torch.from_numpy(neg_log_kd).float()
+        graph["E"] = torch.tensor(e_value).float()
+        graph["-log(Kd)"] = torch.tensor(neg_log_kd).float()
 
         for edge_type, edges in edge_indices.items():
             graph[edge_type].edge_index = edges
