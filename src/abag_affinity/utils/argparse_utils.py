@@ -147,7 +147,7 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--fc_size_halving", action=BooleanOptionalAction,
                           help="Indicator if after every FC layer the embedding sizeshould be halved",
                           default=False)
-    optional.add_argument("--dms_output_layer_type", choices=["identity", "bias_only", "regression", "regression_sigmoid", "mlp"],
+    optional.add_argument("--dms_output_layer_type", choices=["identity", "bias_only", "regression", "regression_sigmoid", "positive_regression","positive_regression_sigmoid","mlp"],
                           help="Architecture of the DMS-specific output layers",
                           default="bias_only")
 

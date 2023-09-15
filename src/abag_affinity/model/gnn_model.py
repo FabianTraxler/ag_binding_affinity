@@ -4,14 +4,22 @@ import argparse
 import logging
 import torch
 import torch.nn as nn
-
+import math
 from typing import Dict, List, Optional
 
-from .utils import pretrained_models, pretrained_embeddings, NoOpModel
+from .utils import pretrained_models, pretrained_embeddings, NoOpModel, PositiveLinear
 from .regression_heads import EdgeRegressionHead, RegressionHead
 from .graph_conv_layers import NaiveGraphConv, GuidedGraphConv
 import pytorch_lightning as pl
 
+DATASET_WEIGHT_BIAS_DICT = {
+ 'madan21_mutat_hiv': (0.8282454412193105, 0.41644568799226406),
+ 'mason21_comb_optim_therap_antib_by_predic_combined_H3_3': (1.0829338825283161, 0.1493535863888128),
+ 'wu17_in': (0.746111647985783, 0.5749515719406949),
+ 'mason21_comb_optim_therap_antib_by_predic_combined_H3_2': (0.49509497516218, 0.3880937320273913),
+ 'mason21_comb_optim_therap_antib_by_predic_combined_H3_1': (0.7443947282767032, 0.28162449514249066),
+ 'wu20_differ_ha_h3_h1': (0.9122811283046462, 0.31676705347051387)
+}
 
 class DatasetAdjustment(nn.Module):
     """
@@ -25,7 +33,7 @@ class DatasetAdjustment(nn.Module):
         output_sigmoid: Whether to apply a sigmoid to the output
 
     """
-    def __init__(self, layer_type, out_n):
+    def __init__(self, layer_type, out_n, dataset_names = None):
         """
         As we initialize with weight=1 and bias=0, implementing bias_only is as simple as only unfreezing bias_only in requires_grad_
         """
@@ -33,8 +41,28 @@ class DatasetAdjustment(nn.Module):
         self.layer_type = layer_type
         if self.layer_type in ["identity", "bias_only", "regression", "regression_sigmoid"]:
             self.linear = nn.Linear(1, out_n)
-            self.linear.weight.data.fill_(1)
-            self.linear.bias.data.fill_(0)
+            weights = torch.ones((out_n, 1))
+            bias = torch.zeros((out_n))
+            if dataset_names is not None:
+                # When a dataset is given, we initialize with a precomputed h function if available
+                for i, ds_name in enumerate(dataset_names):
+                    if ds_name.split(":")[0] in DATASET_WEIGHT_BIAS_DICT.keys():
+                        weights[i,0] = DATASET_WEIGHT_BIAS_DICT[ds_name.split(":")[0]][0]
+                        bias[i] = DATASET_WEIGHT_BIAS_DICT[ds_name.split(":")[0]][1]
+            self.linear.weight.data = weights
+            self.linear.bias.data = bias
+        elif self.layer_type in ["positive_regression", "positive_regression_sigmoid"]:
+            self.linear = PositiveLinear(1, out_n)
+            if dataset_names is not None:
+                log_weights = torch.ones((out_n, 1))
+                bias = torch.zeros((out_n))
+                # When a dataset is given, we initialize with a precomputed h function if available
+                for i, ds_name in enumerate(dataset_names):
+                    if ds_name.split(":")[0] in DATASET_WEIGHT_BIAS_DICT.keys():
+                        log_weights[i, 0] = math.log(DATASET_WEIGHT_BIAS_DICT[ds_name.split(":")[0]][0])
+                        bias[i] = DATASET_WEIGHT_BIAS_DICT[ds_name.split(":")[0]][1]
+                self.linear.log_weight.data = log_weights
+                self.linear.bias.data = bias
         else:
             raise NotImplementedError("'mlp' is not implemented at the moment")
 
@@ -153,7 +181,7 @@ class AffinityGNN(pl.LightningModule):
                                                   nonlinearity=nonlinearity,  num_fc_layers=num_fc_layers, device=device)
         # Dataset-specific output layers
         self.dataset_names = dataset_names
-        self.dataset_specific_layer = DatasetAdjustment(args.dms_output_layer_type, len(dataset_names))
+        self.dataset_specific_layer = DatasetAdjustment(args.dms_output_layer_type, len(dataset_names), dataset_names)
         self.scaled_output = scaled_output
 
         self.float()
