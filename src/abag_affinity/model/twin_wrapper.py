@@ -29,20 +29,19 @@ class TwinWrapper(torch.nn.Module):
             data_2["deeprefine_graph"] = data_2["deeprefine_graph"].to(self.device)
         out_2 = self.backbone_net(data_2)
 
-        output = {
-            "relative": data["relative"],
-            "x": out_1["x"].flatten(),
-            "x2": out_2["x"].flatten(),
-            "difference": out_1["x"] - out_2["x"]
-        }
-        # Better always compute both x_prob and x as the difference and do not differ depending on affinity type!
-        diff_1 = output["x"] - output["x2"]
-        diff_2 = output["x2"] - output["x"]
-        class_preds = torch.stack((diff_1, diff_2), dim=-1)
-        # Computing the Probability of observing E_1 greater E_2 based on Gaussian cdf :
-        # Note that we interpret rel_temperature as the standard deviation of the process, TODO learn this parameter
-        prob_1_ge_2 = torch.special.ndtr(diff_1 / 2**0.5 / rel_temperature)
-        output["x_prob_cdf"] = torch.stack((prob_1_ge_2, 1-prob_1_ge_2), dim=-1)
-        output["x_prob"] = torch.nn.functional.softmax(class_preds/rel_temperature, dim=-1)
-        output["x_logit"] = torch.nn.functional.log_softmax(class_preds / rel_temperature, dim=-1)
+        output = {"relative": data["relative"]}
+
+        for output_type in ["E", "-log(Kd)"]:
+            output[output_type] = out_1[output_type].flatten()
+            output[f"{output_type}2"] = out_2[output_type].flatten()
+            output[f"{output_type}_difference"] = out_1[output_type] - out_2[output_type]
+
+            diff_1 = output[output_type] - output[f"{output_type}2"]
+            diff_2 = output[f"{output_type}2"] - output[output_type]
+            class_preds = torch.stack((diff_1, diff_2), dim=-1)
+            prob_1_ge_2 = torch.special.ndtr(diff_1 / 2**0.5 / rel_temperature)
+            output[f"{output_type}_prob_cdf"] = torch.stack((prob_1_ge_2, 1-prob_1_ge_2), dim=-1)
+            output[f"{output_type}_prob"] = torch.nn.functional.softmax(class_preds/rel_temperature, dim=-1)
+            output[f"{output_type}_logit"] = torch.nn.functional.log_softmax(class_preds / rel_temperature, dim=-1)
+
         return output

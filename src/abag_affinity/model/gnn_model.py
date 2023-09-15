@@ -168,7 +168,7 @@ class AffinityGNN(pl.LightningModule):
             dataset_adjustment: Whether to run a dataset-specific module (linear layer) at the end (to map E-values to binding affinities)
 
         Returns:
-            torch.Tensor
+            Dict containing neg_log_kd and e_value. Note that e_value is same as neg_log_kd (identity), the corresponding `dataset_adjustment` value was None
         """
         output = {}
         # calculate pretrained node embeddings
@@ -178,18 +178,20 @@ class AffinityGNN(pl.LightningModule):
         graph = self.graph_conv(data["graph"])
 
         # calculate binding affinity
-        affinity = self.regression_head(graph)
+        neg_log_kd = self.regression_head(graph)
 
         # dataset-specific scaling (could be done before or after scale_output)
         dataset_indices = torch.Tensor([self.dataset_names.index(dataset) if dataset is not None else -1
-                                        for dataset in data["dataset_adjustment"]]).long().to(affinity.device)
-        affinity = self.dataset_specific_layer(affinity, dataset_indices)
+                                        for dataset in data["dataset_adjustment"]]).long().to(neg_log_kd.device)
+        e_value = self.dataset_specific_layer(neg_log_kd, dataset_indices)
 
         if self.dataset_specific_layer.layer_type.endswith("_sigmoid") and not self.scaled_output and any(data["dataset_adjustment"]):
             raise NotImplementedError("Would need to allow scaling the sigmoidal values back to the original range")
 
-        output["x"] = affinity
-        return output
+        return {
+            "-log(Kd)": neg_log_kd,
+            "E": e_value,
+        }
 
     def unfreeze(self):
         """
