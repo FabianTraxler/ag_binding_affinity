@@ -51,6 +51,7 @@ class AffinityDataset(Dataset):
                  save_graphs: bool = False, force_recomputation: bool = False,
                  preprocess_data: bool = False, num_threads: int = 1,
                  load_embeddings: Optional[Tuple[str, str]] = None,
+                 only_neglogkd_samples: bool = False,
                  ):
         """ Initialization of class variables,
         generation of necessary directories,
@@ -77,6 +78,8 @@ class AffinityDataset(Dataset):
             preprocess_data: Boolean indicator if data should be processed after class initialization
             num_threads: Number of threads to use for preprocessing
             load_embeddings: Tuple of embeddings type and path to embeddings
+            loss_criterion: A string containing the set of Loss function used for this dataset
+            only_neglogkd_samples: Boolean indicator if only samples with -log(Kd) labels should be used
         """
         super(AffinityDataset, self).__init__()
         #TODO: filter dataframe for logkd values and pass in on to the pipeline as is
@@ -96,6 +99,7 @@ class AffinityDataset(Dataset):
         self.scale_max = scale_max
         self.load_embeddings = load_embeddings
         self.loss_criterion = loss_criterion
+        self.only_neglogkd_samples = only_neglogkd_samples
         if "-" in dataset_name: # part of DMS dataset
             dataset_name, publication_code = dataset_name.split("-")
             self.affinity_type = self.config["DATASETS"][dataset_name]["affinity_types"][publication_code]
@@ -136,7 +140,7 @@ class AffinityDataset(Dataset):
         self.preprocess_data = preprocess_data
 
         # load dataframe with metainfo
-        self.data_df, pdb_ids = self.load_df(pdb_ids)
+        self.data_df, pdb_ids = self.load_df(pdb_ids, only_neglogkd_samples=only_neglogkd_samples)
         self.pdb_ids = pdb_ids
 
         # set dataset to load relative or absolute data points
@@ -352,7 +356,7 @@ class AffinityDataset(Dataset):
         with open(graph_filepath, 'wb') as f:
             pickle.dump(graph, f)
 
-    def load_df(self, pdb_ids: List):
+    def load_df(self, pdb_ids: List, only_neglogkd_samples: bool = False):
         """ Load all the dataset information (csv) into a pandas dataframe
 
         Discard all PDBs not given in argument
@@ -371,6 +375,10 @@ class AffinityDataset(Dataset):
             pdb_ids = summary_df.index.tolist()
         else:
             summary_df = summary_df.loc[pdb_ids]
+
+        if only_neglogkd_samples:
+            summary_df = summary_df[summary_df["-log(Kd)"].notna()]
+            pdb_ids = summary_df.index.tolist()
 
         summary_df = summary_df[~summary_df.index.duplicated(keep='first')]
         return summary_df.fillna(""), pdb_ids
