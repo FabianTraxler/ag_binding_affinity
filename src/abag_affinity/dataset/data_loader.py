@@ -79,6 +79,7 @@ class AffinityDataset(Dataset):
             load_embeddings: Tuple of embeddings type and path to embeddings
         """
         super(AffinityDataset, self).__init__()
+        #TODO: filter dataframe for logkd values and pass in on to the pipeline as is
         self.dataset_name = dataset_name
         self.config = config
         self.node_type = node_type
