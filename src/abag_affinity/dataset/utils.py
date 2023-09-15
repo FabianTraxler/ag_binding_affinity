@@ -165,8 +165,9 @@ def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, interface_f
 
     pdb_file_path, pdb_id = get_pdb_path_and_id(row, dataset_name, config, relaxed)
 
-    neglogkd = row["-log(Kd)"]
-    evalue = row["E"]
+    # dataframe loading can lead to empty strings, if values are not present
+    neglogkd = row["-log(Kd)"] if isinstance(row["-log(Kd)"], (int, float)) else np.nan
+    evalue = row["E"] if isinstance(row["E"], (int, float)) else np.nan
 
     if interface_hull_size is not None:
         pdb_file_path = reduce2interface_hull(pdb_id, pdb_file_path, interface_distance_cutoff, interface_hull_size)

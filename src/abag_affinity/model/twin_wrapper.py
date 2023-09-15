@@ -32,9 +32,9 @@ class TwinWrapper(torch.nn.Module):
         output = {"relative": data["relative"]}
 
         for output_type in ["evalue", "neglogkd"]:
-            output[output_type] = out_1[output_type].flatten(),
-            output[f"{output_type}2"] = out_2[output_type].flatten(),
-            output[f"{output_type}_difference"] = out_1[output_type] - out_2[output_type],
+            output[output_type] = out_1[output_type].flatten()
+            output[f"{output_type}2"] = out_2[output_type].flatten()
+            output[f"{output_type}_difference"] = out_1[output_type] - out_2[output_type]
 
             diff_1 = output[output_type] - output[f"{output_type}2"]
             diff_2 = output[f"{output_type}2"] - output[output_type]

@@ -72,8 +72,8 @@ def get_label(data: Dict, device: torch.device) -> Dict:
     label = {}
     for output_type in ["evalue", "neglogkd"]:
         if data["relative"]:
-            label_1 = (data["input"][0]["graph"][output_type] > data["input"][1]["graph"].evalue)
-            label_2 = (data["input"][1]["graph"][output_type] > data["input"][0]["graph"].evalue)
+            label_1 = (data["input"][0]["graph"][output_type] > data["input"][1]["graph"][output_type])
+            label_2 = (data["input"][1]["graph"][output_type] > data["input"][0]["graph"][output_type])
             label[f"{output_type}_prob"] = torch.stack((label_1.float(), label_2.float()), dim=-1)
             label[f"{output_type}_stronger_label"] = label_2.long()  # Index of the stronger binding complex
             label[f"{output_type}"] = data["input"][0]["graph"][output_type].to(device)
@@ -91,38 +91,43 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
     # E.g. args.loss_function = L2-1+L1-0.1+relative_l1-2+relative_l2-0.1+relative_ce
     loss_types = [x.split("-") for x in loss_functions.split("+")]
     loss_types = [(x[0], float(x[1])) if len(x) == 2 else (x[0], 1.) for x in loss_types]
+
     losses = []
+    loss_functions = {
+        "L1": torch.nn.functional.l1_loss,
+        "L2": torch.nn.functional.mse_loss,
+        "relative_L1": torch.nn.functional.l1_loss,
+        "relative_L2": torch.nn.functional.mse_loss,
+        "relative_ce": torch.nn.functional.nll_loss,
+        "relative_cdf": lambda output, label: torch.nn.functional.nll_loss((output+1e-10).log(), label)
+    }
+
     for (criterion, weight) in loss_types:
-        check = False
+        loss_fn = loss_functions[criterion]
         for output_type in ["evalue", "neglogkd"]:
-            try:
-                if criterion == "L1":
-                    losses.append(weight * torch.nn.functional.l1_loss(output[output_type], label[output_type]))
-                    if output["relative"]:
-                        losses.append(weight * torch.nn.functional.l1_loss(output[f"{output_type}2"], label[f"{output_type}2"]))
-                elif criterion == "L2":
-                    losses.append(weight * torch.nn.functional.mse_loss(output[output_type], label[output_type]))
-                    if output["relative"]:
-                        losses.append(weight * torch.nn.functional.mse_loss(output[f"{output_type}2"], label[f"{output_type}2"]))
-                elif output["relative"]:
-                    if criterion == "relative_L1":
-                        losses.append(weight * torch.nn.functional.l1_loss(output[f"{output_type}_difference"], label[f"{output_type}_difference"]))
-                    elif criterion == "relative_L2":
-                        losses.append(weight * torch.nn.functional.mse_loss(output[f"{output_type}_difference"], label[f"{output_type}_difference"]))
-                    elif criterion == "relative_ce":
-                        losses.append(weight * torch.nn.functional.nll_loss(output[f"{output_type}_logit"], label[f"{output_type}_stronger_label"]))
-                    elif criterion == "relative_cdf":
-                        losses.append(weight * torch.nn.functional.nll_loss((output[f"{output_type}_prob_cdf"]+1e-10).log(), label[f"{output_type}_stronger_label"]))
-            except KeyError:
-                pass
-            else:
-                check = True
+            valid_indices = ~torch.isnan(label[output_type])
+            if criterion in ["L1", "L2"]:
+                losses.append(weight * loss_fn(output[output_type][valid_indices],
+                                               label[output_type][valid_indices]))
+                if output["relative"]:
+                    valid_indices = ~torch.isnan(label[f"{output_type}2"])
+                    losses.append(weight * loss_fn(output[f"{output_type}2"][valid_indices],
+                                                   label[f"{output_type}2"][valid_indices]))
+            elif output["relative"] and criterion.startswith("relative"):
+                criterion_types = ["relative_L1", "relative_L2"]
+                output_key = f"{output_type}_difference" if criterion in criterion_types else f"{output_type}_stronger_label"
+                valid_indices = ~torch.isnan(label[output_key])
 
-        if not check:
-            raise ValueError(f"Loss_Function must either in ['L1','L2','relative_L1','relative_L2','relative_ce'] but got {criterion}")
+                if criterion == "relative_ce":
+                    output_key = f"{output_type}_logit"
+                elif criterion != "relative_L1" and criterion != "relative_L2":
+                    output_key = f"{output_type}_prob_cdf"
 
-    assert len(losses) > 0, f"No valid lossfunction was given with:{loss_functions} and relative data {output['relative']}"
-    return sum(losses)
+                losses.append(weight * loss_fn(output[output_key][valid_indices],
+                                               label[output_key][valid_indices]))
+
+        assert len(losses) > 0, f"No valid lossfunction was given with:{loss_functions} and relative data {output['relative']}"
+        return sum(losses)
 
 
 def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloaders: List[DataLoader],
@@ -169,24 +174,24 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
             loss = get_loss(data["loss_criterion"], label, output)
             total_loss_val += loss.item()
 
-            all_predictions.append(output["x"].flatten().detach().cpu().numpy())
-            all_labels.append(label["x"].detach().cpu().numpy())
+            output_type = "evalue" if val_dataloader.dataset.affinity_type == "E" else "neglogkd"
+
+            all_predictions.append(output[f"{output_type}"].flatten().detach().cpu().numpy())
+            all_labels.append(label[f"{output_type}"].detach().cpu().numpy())
             if data["relative"]:
                 pdb_ids_1 = [filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
                 pdb_ids_2 = [filepath.split("/")[-1].split(".")[0] for filepath in data["input"][1]["filepath"]]
                 all_pdbs.extend(list(zip(pdb_ids_1, pdb_ids_2)))
-                all_binary_labels.append(label["x_stronger_label"].detach().cpu().numpy())
-                all_binary_predictions.append(torch.argmax(output["x_prob"].detach().cpu(), dim=1).numpy())
-
+                all_binary_labels.append(label[f"{output_type}_stronger_label"].detach().cpu().numpy())
+                all_binary_predictions.append(torch.argmax(output[f"{output_type}_prob"].detach().cpu(), dim=1).numpy())
             else:
                 #We need to ensure that binary labels have the length of the validation dataset as we later slice the datasets appart.
                 # TODO maybe we could store them in a dataset specific dict instead?
-                all_binary_labels.append(np.zeros(label["x"].shape[0]))
-                all_binary_predictions.append(np.zeros(label["x"].shape[0]))
+                all_binary_labels.append(np.zeros(label[f"{output_type}"].shape[0]))
+                all_binary_predictions.append(np.zeros(label[f"{output_type}"].shape[0]))
                 all_pdbs.extend([filepath.split("/")[-1].split(".")[0] for filepath in data["input"]["filepath"]])
 
-            #all_labels = np.append(all_labels, label.numpy())
-            #all_predictions = np.append(all_predictions, output["x"].flatten().detach().cpu().numpy())
+            #all_predictions = np.append(all_predictions, output[f"{output_type}"].flatten().detach().cpu().numpy())
 
         val_loss = total_loss_val / len(all_predictions)
 
@@ -1106,9 +1111,10 @@ def evaluate_model(model: AffinityGNN, dataloader: DataLoader, args: Namespace, 
 
         total_loss_val += loss.item()
 
-        all_predictions = np.append(all_predictions, output["x"].flatten().detach().cpu().numpy())
+        output_type = "evalue" if dataloader.dataset.affinity_type == "E" else "neglogkd"
+        all_predictions = np.append(all_predictions, output[f"{output_type}"].flatten().detach().cpu().numpy())
 
-        all_labels = np.append(all_labels, label["x"].detach().cpu().numpy())
+        all_labels = np.append(all_labels, label[f"{output_type}"].detach().cpu().numpy())
         all_pdbs.extend([ filepath.split("/")[-1].split(".")[0] for filepath in data["input"]["filepath"]])
         # if len(all_labels) > 2:
             # break
