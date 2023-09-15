@@ -53,10 +53,7 @@ class DatasetAdjustment(nn.Module):
         """
         x_all = self.linear(x)
         if self.layer_type == 'mlp':
-            print('MLP requires grad', self.linear_mlp.weight.requires_grad)
-            print('x_all before', x_all)
             x_all = self.linear_mlp(self.nonlinear(x_all))
-            print('x_all after', x_all)
         # Select the correct output node (dataset-specificity)
         x_selected = x_all[torch.arange(x_all.size(0)), layer_selector]
         if self.layer_type.endswith("_sigmoid"):

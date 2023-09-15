@@ -165,10 +165,10 @@ def main() -> Dict:
     if args.debug:
         start_debugger()
 
-    # from guided_protein_diffusion.utils.interact import init_interactive_environment
-    # init_interactive_environment(
-    #     ["--dataset", "abdb", "--openfold_time_injection_alpha", "0.0", "--antigen_conditioning"]
-    # )  # implies --testing
+    from guided_protein_diffusion.utils.interact import init_interactive_environment
+    init_interactive_environment(
+        ["--dataset", "abdb", "--openfold_time_injection_alpha", "0.0", "--antigen_conditioning"]
+    )  # implies --testing
 
     if args.init_sweep:
         if args.sweep_config:
