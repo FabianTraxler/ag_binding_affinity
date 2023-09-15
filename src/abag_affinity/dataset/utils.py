@@ -66,7 +66,7 @@ def get_pdb_path_and_id(row: pd.Series, dataset_name: str, config: Dict, relaxed
 
 
 def get_graph_dict(pdb_id: str, pdb_file_path: str, embeddings: Dict, 
-                   node_type: str, neglogkd: Optional[float], evalue: Optional[float] = None, distance_cutoff: int = 5,
+                   node_type: str, neg_log_kd: Optional[float], e_value: Optional[float] = None, distance_cutoff: int = 5,
                    ca_alpha_contact: bool = False) -> Dict:
     """
     Generate a dictionary with node, edge and meta-information for a given PDB File.
@@ -126,8 +126,8 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, embeddings: Dict,
         "residue_infos": residue_infos,
         "residue_atom_coordinates": residue_atom_coordinates,
         "adjacency_tensor": adj_tensor,
-        "-log(Kd)": neglogkd,
-        "E": evalue,
+        "-log(Kd)": neg_log_kd,
+        "E": e_value,
         "closest_residues": closest_nodes,
         "atom_names": atom_names
     }
@@ -166,8 +166,8 @@ def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, interface_f
     pdb_file_path, pdb_id = get_pdb_path_and_id(row, dataset_name, config, relaxed)
 
     # dataframe loading can lead to empty strings, if values are not present
-    neglogkd = row["-log(Kd)"] if isinstance(row["-log(Kd)"], (int, float)) else np.nan
-    evalue = row["E"] if isinstance(row["E"], (int, float)) else np.nan
+    neg_log_kd = row["-log(Kd)"] if isinstance(row["-log(Kd)"], (int, float)) else np.nan
+    e_value = row["E"] if isinstance(row["E"], (int, float)) else np.nan
 
     if interface_hull_size is not None:
         pdb_file_path = reduce2interface_hull(pdb_id, pdb_file_path, interface_distance_cutoff, interface_hull_size)

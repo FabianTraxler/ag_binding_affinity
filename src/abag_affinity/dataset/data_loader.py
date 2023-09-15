@@ -216,9 +216,9 @@ class AffinityDataset(Dataset):
             pdb_nll = self.data_df.loc[self.data_df.index == pdb_id, "NLL"].values[0]
             pdb_e = np.array(self.data_df.loc[self.data_df.index == pdb_id, "E"].values[0]).reshape(-1, 1)
 
-            evalues = self.data_df["E"].values.reshape(-1, 1)
+            e_values = self.data_df["E"].values.reshape(-1, 1)
             nll_values = self.data_df["NLL"].values
-            e_dists = sp.distance.cdist(pdb_e, evalues)[0, :]
+            e_dists = sp.distance.cdist(pdb_e, e_values)[0, :]
             nll_avg = (pdb_nll + nll_values) / 2
 
             valid_pairs = (e_dists - nll_avg) >= 0
@@ -512,12 +512,12 @@ class AffinityDataset(Dataset):
         node_features = self.get_node_features(graph_dict)
         edge_indices, edge_features = self.get_edges(graph_dict)
 
-        neglogkd = graph_dict["-log(Kd)"]
-        evalue = graph_dict["E"]
+        neg_log_kd = graph_dict["-log(Kd)"]
+        e_value = graph_dict["E"]
 
-        if self.scale_values and neglogkd is not None:
-            neglogkd = scale_affinity(neglogkd, self.scale_min, self.scale_max)
-        neglogkd = np.array(neglogkd)
+        if self.scale_values and neg_log_kd is not None:
+            neg_log_kd = scale_affinity(neg_log_kd, self.scale_min, self.scale_max)
+        neg_log_kd = np.array(neg_log_kd)
 
         graph = HeteroData()
 
@@ -531,8 +531,8 @@ class AffinityDataset(Dataset):
             graph["node"].residue_index = torch.stack([residue_info["matched_residue_index"] for residue_info in graph_dict["residue_infos"]]) # this is the index of the residue in the LOADED protein
         except KeyError:
             pass  # data is only available when of-embeddings are used
-        graph["E"] = torch.from_numpy(evalue).float()
-        graph["-log(Kd)"] = torch.from_numpy(neglogkd).float()
+        graph["E"] = torch.from_numpy(e_value).float()
+        graph["-log(Kd)"] = torch.from_numpy(neg_log_kd).float()
 
         for edge_type, edges in edge_indices.items():
             graph[edge_type].edge_index = edges

@@ -552,8 +552,8 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
             summary_df = summary_df[~summary_df.index.duplicated(keep='first')]
 
             # Normalize between 0 and 1 on a per-complex basis. This way value ranges of E and NLL fit, when computing possible pairs
-            evalues = summary_df.groupby(summary_df.index.map(lambda i: i.split("-")[0]))["E"].apply(lambda x: (x - x.min()) / (x.max() - x.min()))
-            evalues = evalues.values.reshape(-1,1).astype(np.float32)
+            e_values = summary_df.groupby(summary_df.index.map(lambda i: i.split("-")[0]))["E"].apply(lambda x: (x - x.min()) / (x.max() - x.min()))
+            e_values = e_values.values.reshape(-1,1).astype(np.float32)
 
             nll_values = summary_df["NLL"].values
             # Scale the NLLs to (0-1). The max NLL value in DMS_curated.csv is 4, so 0-1-scaling should be fine
@@ -564,10 +564,10 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
                 nll_values = np.full_like(nll_values, 0.5)
 
             # TODO refactor this block (just always split, as it includes the else-case)
-            if len(evalues) > 50000:
-                n_splits = int(len(evalues) / 50000) + 1
+            if len(e_values) > 50000:
+                n_splits = int(len(e_values) / 50000) + 1
                 has_valid_partner = set()
-                e_splits = np.array_split(evalues, n_splits)
+                e_splits = np.array_split(e_values, n_splits)
                 nll_splits = np.array_split(nll_values, n_splits)
                 total_elements = 0
                 for i in range(len(e_splits)):
@@ -581,7 +581,7 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
                 has_valid_partner = np.fromiter(has_valid_partner, int, len(has_valid_partner))
                 valid_partners = None
             else:
-                e_dists = sp.distance.cdist(evalues, evalues)
+                e_dists = sp.distance.cdist(e_values, e_values)
                 nll_avg = (nll_values[:, None] + nll_values) / 2
 
                 valid_pairs = (e_dists - nll_avg) >= 0
