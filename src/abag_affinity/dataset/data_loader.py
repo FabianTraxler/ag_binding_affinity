@@ -49,8 +49,7 @@ class AffinityDataset(Dataset):
                  relative_data: bool = False,
                  save_graphs: bool = False, force_recomputation: bool = False,
                  preprocess_data: bool = False, num_threads: int = 1,
-                 embeddings_type: str = "",
-                 embeddings_path: str = "",
+                 embeddings: Optional[Tuple[str, str]] = None
                  ):
         """ Initialization of class variables,
         generation of necessary directories,
@@ -74,7 +73,8 @@ class AffinityDataset(Dataset):
             save_graphs: Boolean indicator if processed graphs are stored to disc
             force_recomputation: Boolean indicator if graphs are newly computed even if they are found on disc
             preprocess_data: Boolean indicator if data should be processed after class initialization
-            num_threads: Number of threads to use for preprocessing
+            embeddings: Tuple of embeddings type and path to embeddings
+            
         """
         super(AffinityDataset, self).__init__()
         self.dataset_name = dataset_name
@@ -91,8 +91,7 @@ class AffinityDataset(Dataset):
         self.scale_values = scale_values
         self.scale_min = scale_min
         self.scale_max = scale_max
-        self.embeddings_path = embeddings_path
-        self.embeddings_type = embeddings_type
+        self.embeddings = embeddings
 
         if "-" in dataset_name: # part of DMS dataset
             dataset_name, publication_code = dataset_name.split("-")
@@ -120,7 +119,9 @@ class AffinityDataset(Dataset):
         self.results_dir = os.path.join(self.config["PROJECT_ROOT"], self.config["RESULTS"]["path"])
 
         # No need to include IPA in model path because the graph should have the same features regardless
-        self.graph_dir = os.path.join(self.config["processed_graph_path"], self.full_dataset_name, node_type, pretrained_model if pretrained_model in ["DeepRefine", "Binding_DDG"] else "", f"embeddings_{embeddings_type}_relaxed_{is_relaxed}")
+        self.graph_dir = os.path.join(self.config["processed_graph_path"], self.full_dataset_name, node_type,
+                                      pretrained_model if pretrained_model in ["DeepRefine", "Binding_DDG"] else "",
+                                      f"embeddings_{embeddings[0]}_relaxed_{is_relaxed}")
         self.processed_graph_files = os.path.join(self.graph_dir, "{}.npz")
         if self.save_graphs or preprocess_data:
             logger.debug(f"Saving processed graphs in {self.graph_dir}")
@@ -285,15 +286,14 @@ class AffinityDataset(Dataset):
             """
 
             graph_dict = load_graph_dict(row, self.dataset_name, self.config, self.interface_dir,
-                                        node_type=self.node_type,
-                                        interface_distance_cutoff=self.interface_distance_cutoff,
-                                        interface_hull_size=self.interface_hull_size,
-                                        max_edge_distance=self.max_edge_distance,
-                                        affinity_type=self.affinity_type,
-                                        embeddings_path=self.embeddings_path,
-                                        embeddings_type=self.embeddings_type,
-                                        save_path=out_path
-                                        )
+                                         node_type=self.node_type,
+                                         interface_distance_cutoff=self.interface_distance_cutoff,
+                                         interface_hull_size=self.interface_hull_size,
+                                         max_edge_distance=self.max_edge_distance,
+                                         affinity_type=self.affinity_type,
+                                         embeddings=self.embeddings,
+                                         save_path=out_path
+                                         )
         submit_jobs(preload_graph_dict, graph_dicts2process, self.num_threads)
 
         if self.pretrained_model == "DeepRefine":
@@ -472,8 +472,7 @@ class AffinityDataset(Dataset):
                                          interface_hull_size=self.interface_hull_size,
                                          max_edge_distance=self.max_edge_distance,
                                          affinity_type=self.affinity_type,
-                                         embeddings_type=self.embeddings_type,
-                                         embeddings_path=self.embeddings_path,
+                                         embeddings=self.embeddings,
                                          save_path=self.save_graphs and file_path
                                          )
         return graph_dict

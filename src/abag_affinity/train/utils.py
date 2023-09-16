@@ -645,8 +645,7 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
                                  force_recomputation=args.force_recomputation,
                                  preprocess_data=args.preprocess_graph,
                                  num_threads=args.num_workers,
-                                 embeddings_path=args.embeddings_path,
-                                 embeddings_type=args.embeddings_type,
+                                 embeddings=None if not args.embeddings_type else (args.embeddings_type, args.embeddings_path)
                                  )
     val_data = AffinityDataset(config, args.relaxed_pdbs, dataset_name, val_ids,
                                node_type=args.node_type,
@@ -663,8 +662,7 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
                                force_recomputation=args.force_recomputation,
                                preprocess_data=args.preprocess_graph,
                                num_threads=args.num_workers,
-                               embeddings_path=args.embeddings_path,
-                               embeddings_type=args.embeddings_type,
+                               embeddings=None if not args.embeddings_type else (args.embeddings_type, args.embeddings_path)
                                )
 
     return train_data, val_data
@@ -1092,8 +1090,7 @@ def get_benchmark_score(model: AffinityGNN, args: Namespace, tqdm_output: bool =
                               force_recomputation=args.force_recomputation,
                               preprocess_data=args.preprocess_graph,
                               num_threads=args.num_workers,
-                              embeddings_path=args.embeddings_path,
-                              embeddings_type=args.embeddings_type,
+                              embeddings=None if not args.embeddings_type else (args.embeddings_type, args.embeddings_path)
                               )
 
     dataloader = DL_torch(dataset, num_workers=args.num_workers, batch_size=1,
@@ -1135,8 +1132,7 @@ def get_abag_test_score(model: AffinityGNN, args: Namespace, tqdm_output: bool =
                               force_recomputation=args.force_recomputation,
                               preprocess_data=args.preprocess_graph,
                               num_threads=args.num_workers,
-                              embeddings_path=args.embeddings_path,
-                              embeddings_type=args.embeddings_type,
+                              embeddings=None if not args.embeddings_type else (args.embeddings_type, args.embeddings_path)
                               )
 
     dataloader = DL_torch(dataset, num_workers=args.num_workers, batch_size=1,
@@ -1169,8 +1165,7 @@ def get_skempi_corr(model: AffinityGNN, args: Namespace, tqdm_output: bool = Tru
                             force_recomputation=args.force_recomputation,
                             preprocess_data=args.preprocess_graph,
                             num_threads=args.num_workers,
-                            embeddings_path=args.embeddings_path,
-                            embeddings_type=args.embeddings_type,
+                            embeddings=None if not args.embeddings_type else (args.embeddings_type, args.embeddings_path)
                             )
 
     dataloader = DL_torch(dataset, num_workers=args.num_workers, batch_size=1,

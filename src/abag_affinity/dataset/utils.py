@@ -135,8 +135,8 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, embeddings: Dict, affinity: 
 def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, interface_folder: str, node_type: str = "residue",
                     interface_distance_cutoff: int = 5, interface_hull_size: int = None, max_edge_distance: int = 5,
                     affinity_type: str = "-log(Kd)",
-                    embeddings_type: str = '',
-                    embeddings_path: str = '',
+
+                    embeddings: Optional[Tuple[str, str]] = None,
                     save_path: Optional[str]=None
                 ) -> Dict:
     """ Load and process a data point and generate a graph and meta-information for it
@@ -157,8 +157,7 @@ def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, interface_f
         interface_hull_size: interface hull size
         max_edge_distance: Max. distance between nodes
         affinity_type: Type of affinity (Kd, Ki, ..)
-        embeddings_type: Indicates which types of external node embeddings should be loaded
-        embeddings_path: Path to file containing external node embeddings
+        embeddings: Tuple of embeddings type and path to embeddings
     Returns:
         Dict: Graph and meta-information for that data point
     """
@@ -170,24 +169,24 @@ def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, interface_f
     if interface_hull_size is not None:
         pdb_file_path = reduce2interface_hull(pdb_id, pdb_file_path, interface_distance_cutoff, interface_hull_size)
 
-    if embeddings_type != '':
-        if embeddings_path != '':
-            embeddings = os.path.join(embeddings_path, pdb_id + '.pt')
-            embeddings = torch.load(embeddings, map_location='cpu')
-        elif embeddings_type == 'of_embeddings':
+    if embeddings:
+        if embeddings[1]:
+            embeddings_tensor = os.path.join(embeddings[1], pdb_id + '.pt')
+            embeddings_tensor = torch.load(embeddings_tensor, map_location='cpu')
+        elif embeddings[0] == 'of_embeddings':
             # NOTE generating OF embeddings might clash with parallel data loading because of GPU usage
             diffusion_data = load_protein(pdb_file_path)
             diffusion_data = tensor_tree_map(lambda x: x.to(diffusion_args.device), diffusion_data)
-            embeddings = of_embedding(diffusion_data)
-        elif embeddings_type == 'rf_embeddings':
+            embeddings_tensor = of_embedding(diffusion_data)
+        elif embeddings[0] == 'rf_embeddings':
             raise NotImplementedError("Dynamic loading of RF embeddings is not yet implemented.")
             #TODO: get unified enviroment for affinity and RF diffusion, call get_state() function from RFDiffusion/scripts
         else:
             raise ValueError("Invalid embeddings_type: Either 'of_embeddings' or 'rf_embeddings'")
     else:
-        embeddings = None
+        embeddings_tensor = None
 
-    graph_dict =  get_graph_dict(pdb_id, pdb_file_path, embeddings, affinity, distance_cutoff=max_edge_distance, node_type=node_type)
+    graph_dict =  get_graph_dict(pdb_id, pdb_file_path, embeddings_tensor, affinity, distance_cutoff=max_edge_distance, node_type=node_type)
 
     graph_dict.pop("atom_names", None)  # remove unnecessary information that takes lot of storage
     assert len(graph_dict["node_features"]) == len(graph_dict["closest_residues"])

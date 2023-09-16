@@ -192,7 +192,7 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--args_file", type=str,
                           help="Specify the path to a file with additional arguments",
                           default=None)
-    optional.add_argument("--embeddings_path", type=str, default="", help="Path to embeddins file.")  # TODO no option to provide path at the moment
+    optional.add_argument("--embeddings_path", type=str, default=None, help="Path to embeddings file. Requires --embeddings_type to be set.")
     optional.add_argument("--embeddings_type", type=str, default="", choices=["", "rf_embeddings", "of_embeddings"], help="Type of embeddings to use.")
     optional.add_argument("--node_feature_list", type=str,
                           help='List of external node features that are included in node embeddings', default=[], nargs='+')
