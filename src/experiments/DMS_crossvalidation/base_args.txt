@@ -29,5 +29,5 @@ DMS-wu17_in#L2
 --stop_at_learning_rate=0.0000001
 --learning_rate=0.000001
 --relaxed_pdbs=False
---init_sweep
+--sweep_id=komf8gmj
 --sweep_config=src/experiments/DMS_crossvalidation/sweep_config.yaml
