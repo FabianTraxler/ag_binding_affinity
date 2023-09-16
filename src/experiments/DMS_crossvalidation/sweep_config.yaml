@@ -11,9 +11,6 @@ parameters:
       - "DMS-taft22_deep_mutat_learn_predic_ace2#L2"
       - "DMS-starr21_prosp_covid#L2"
       - "DMS-wu17_in#L2"
-  aggregation_method:
-    values:
-      - "interface_sum"  # TODO mean is broken
   seed:
     values:
       - 1

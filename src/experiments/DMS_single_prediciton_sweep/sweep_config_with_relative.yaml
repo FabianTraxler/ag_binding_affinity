@@ -14,7 +14,8 @@ parameters:
       - "DMS-wu17_in#L2-1+relative_L2-2"
   aggregation_method:
     values:
-      - "interface_sum"  # TODO mean is broken
+      - "interface_sum"
+      - "mean"
   seed:
     values:
       - 1

@@ -202,7 +202,7 @@ class AffinityDataset(Dataset):
             # Abag affinity does not have mutation data, so we also need to look at other mutations
             # We get data point with distance > std
             kd_std = self.data_df["-log(Kd)"].std()
-            pdb_kd = self.data_df.loc[self.data_df.index == pdb_id, "-log(Kd)"].values[0].reshape(-1, 1)
+            pdb_kd = self.data_df.loc[self.data_df.index == pdb_id, "-log(Kd)"].values[0].reshape(-1, 1)  # refactor
             kd_values = self.data_df["-log(Kd)"].values.reshape(-1, 1)
             kd_dists = sp.distance.cdist(pdb_kd, kd_values)[0, :]
             valid_pairs = (kd_dists - 2*kd_std) >= 0

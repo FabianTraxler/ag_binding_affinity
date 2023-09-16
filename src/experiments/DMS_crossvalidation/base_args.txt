@@ -26,8 +26,8 @@ DMS-wu17_in#L2
 --wandb_mode=offline
 --lr_scheduler=plateau
 --lr_decay_factor=0.5
---stop_at_learning_rate=0.000001
---learning_rate=0.00001
+--stop_at_learning_rate=0.0000001
+--learning_rate=0.000001
 --relaxed_pdbs=False
 --init_sweep
---sweep_config=sweep_config.yaml
+--sweep_config=src/experiments/DMS_crossvalidation/sweep_config.yaml
