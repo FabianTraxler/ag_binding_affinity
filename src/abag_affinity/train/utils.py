@@ -153,14 +153,12 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
     for data in tqdm(train_dataloader, disable=not tqdm_output):
         optimizer.zero_grad()
 
-        # pdb.set_trace()
         output, label = forward_step(model, data, device)
         loss = get_loss(data["loss_criterion"], label, output)
         total_loss_train += loss.item()
 
         loss.backward()
         optimizer.step()
-        # break
 
     model.eval()
     results = []
@@ -177,10 +175,14 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
             loss = get_loss(data["loss_criterion"], label, output)
             total_loss_val += loss.item()
 
-            try:
-                output_type = "E" if val_dataloader.dataset.affinity_type == "E" else "-log(Kd)"
-            except AttributeError:
-                output_type = "E" if val_dataloader.dataset.datasets[0].affinity_type == "E" else "-log(Kd)"  # hacky
+            if label["E"].isnan().any():
+                if label["-log(Kd)"].isnan().any():
+                    logger.error(f"Both E and -log(Kd) are NaN. Skipping batch (len {len(label['E'])})")
+                    continue
+                else:
+                    output_type = "-log(Kd)"
+            else:
+                output_type = "E"
 
             all_predictions.append(output[f"{output_type}"].flatten().detach().cpu().numpy())
             all_labels.append(label[f"{output_type}"].detach().cpu().numpy())
@@ -526,7 +528,7 @@ def get_dataloader(args: Namespace, train_dataset: AffinityDataset, val_datasets
     return train_dataloader, val_dataloaders
 
 
-def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[int] = None, validation_size: float = 0.2) -> Tuple[List, List]:
+def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[int] = None, validation_size: Optional[float] = 0.2) -> Tuple[List, List]:
     """ Split data in a train and a validation subset
 
     For the abag_affinity datasets, we use the predefined split given in the csv, otherwise use random split
