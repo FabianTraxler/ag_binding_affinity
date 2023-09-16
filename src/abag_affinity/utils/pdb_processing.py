@@ -202,12 +202,12 @@ def get_distances(residue_info: List[Dict], residue_distance: bool = True, ca_di
     antigen_idx = np.array(antigen_idx).astype(int)
 
     if ca_distance or not residue_distance:
-        distances = sp.distance_matrix(coordinates, coordinates)
+        distances = sp.distance_matrix(coordinates, coordinates).astype(coordinates.dtype)
     else:
         atom_per_residue = coordinates.shape[1]
-        coordinates_flattend = coordinates.reshape((len(coordinates) * atom_per_residue, 3))
+        coordinates_flattened = coordinates.reshape((len(coordinates) * atom_per_residue, 3))
 
-        distances = sp.distance_matrix(coordinates_flattend, coordinates_flattend)
+        distances = sp.distance_matrix(coordinates_flattened, coordinates_flattened).astype(coordinates_flattened.dtype)
 
         new_shape = (len(coordinates), atom_per_residue, len(coordinates), atom_per_residue)
         distances = distances.reshape(new_shape)
@@ -262,7 +262,7 @@ def get_residue_edge_encodings(distance_matrix: np.ndarray, residue_infos: List,
     Returns:
         np.ndarray: Tensor edge information about interface closeness, chain identity, protein identity, distances
     """
-    A = np.zeros((4, len(residue_infos), len(residue_infos)))
+    A = np.zeros((4, len(residue_infos), len(residue_infos))).astype(distance_matrix.dtype)
 
     contact_map = distance_matrix < distance_cutoff
 
