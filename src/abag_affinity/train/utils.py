@@ -439,9 +439,13 @@ def complexes_from_dms_datasets(dataset_names: List, args) -> List:
 
         if dataset_name.startswith("DMS-"):
             dataset_name = dataset_name.split("-")[1]
+            if dataset_name.startswith("mason21"):
+                complexes = metadata["mason21_optim_therap_antib_by_predic"]["complexes"]
+            else:
+                complexes = metadata[dataset_name]["complexes"]
 
             return [":".join([dataset_name, complex["antibody"]["name"], complex["antigen"]["name"]])
-                    for complex in metadata[dataset_name]["complexes"]]
+                    for complex in complexes]
         else:
             return [dataset_name]
 
