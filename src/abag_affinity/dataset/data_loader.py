@@ -50,7 +50,7 @@ class AffinityDataset(Dataset):
                  relative_data: bool = False,
                  save_graphs: bool = False, force_recomputation: bool = False,
                  preprocess_data: bool = False, num_threads: int = 1,
-                 load_embeddings: Union[bool, str] = False,
+                 load_embeddings: Optional[Tuple[str, str]] = None,
                  ):
         """ Initialization of class variables,
         generation of necessary directories,
@@ -60,6 +60,7 @@ class AffinityDataset(Dataset):
             config: Dict with data configuration
             is_relaxed: Boolean indicator if relaxed structures are used
             dataset_name: Name of the dataset
+            loss_criterion: A string containing the set of Loss function used for this dataset
             pdb_ids: List of PDB IDs to use in this dataset
             node_type: Type of graph nodes
             max_nodes: Maximal number of nodes
@@ -75,7 +76,7 @@ class AffinityDataset(Dataset):
             force_recomputation: Boolean indicator if graphs are newly computed even if they are found on disc
             preprocess_data: Boolean indicator if data should be processed after class initialization
             num_threads: Number of threads to use for preprocessing
-            loss_criterion: A string containing the set of Loss function used for this dataset
+            load_embeddings: Tuple of embeddings type and path to embeddings
         """
         super(AffinityDataset, self).__init__()
         self.dataset_name = dataset_name
@@ -121,7 +122,9 @@ class AffinityDataset(Dataset):
 
         # No need to include IPA in model path because the graph should have the same features regardless
         self.is_relaxed = is_relaxed
-        self.graph_dir = os.path.join(self.config["processed_graph_path"], self.full_dataset_name, node_type, pretrained_model if pretrained_model in ["DeepRefine", "Binding_DDG"] else "", f"embeddings_{load_embeddings}_relaxed_{{is_relaxed}}")  # is_relaxed is being evaluated later (using format)
+        self.graph_dir = os.path.join(self.config["processed_graph_path"], self.full_dataset_name, node_type,
+                                      pretrained_model if pretrained_model in ["DeepRefine", "Binding_DDG"] else "",
+                                      f"embeddings_{load_embeddings and load_embeddings[0]}_relaxed_{{is_relaxed}}")  # is_relaxed is being evaluated later (using format)
         self.processed_graph_files = os.path.join(self.graph_dir, "{filestem}.npz")  # filestem is being evaluated later (using format)
         # create path for clean pdbs
         self.interface_dir = os.path.join(self.config["interface_pdbs"], ("relaxed" if self.is_relaxed else ""), self.full_dataset_name)

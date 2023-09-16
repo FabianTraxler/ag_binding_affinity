@@ -202,7 +202,8 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--args_file", type=str,
                           help="Specify the path to a file with additional arguments",
                           default=None)
-    optional.add_argument("--embeddings_path", action=BooleanOptionalAction, default=False, help="Whether to use embeddings.")  # TODO no option to provide path at the moment
+    optional.add_argument("--embeddings_path", type=str, default=None, help="Path to embeddings file. Requires --embeddings_type to be set.")
+    optional.add_argument("--embeddings_type", type=str, default="", choices=["", "rf_embeddings", "of_embeddings"], help="Type of embeddings to use.")
     optional.add_argument("--seed", type=int, default=42, help="Seed for random number generator")
     optional.add_argument("--debug", action=BooleanOptionalAction, default=False, help="Start debugger on a free port starting from 5678")
 

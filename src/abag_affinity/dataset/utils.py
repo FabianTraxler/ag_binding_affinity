@@ -136,7 +136,7 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, embeddings: Dict,
 def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, interface_folder: str, node_type: str = "residue",
                     interface_distance_cutoff: int = 5, interface_hull_size: int = None, max_edge_distance: int = 5,
                     affinity_type: str = "-log(Kd)",
-                    load_embeddings: Union[bool, str] = False,
+                    load_embeddings: Optional[Tuple[str, str]] = None,
                     save_path: Optional[str]=None,
                     relaxed=False
                 ) -> Dict:
@@ -158,7 +158,7 @@ def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, interface_f
         interface_hull_size: interface hull size
         max_edge_distance: Max. distance between nodes
         affinity_type: Type of affinity (Kd, Ki, ..)
-        load_embeddings: Indicator if OF/RF embeddings should be loaded
+        load_embeddings: Tuple of embeddings type and path to embeddings
     Returns:
         Dict: Graph and meta-information for that data point
     """
@@ -173,24 +173,16 @@ def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, interface_f
         pdb_file_path = reduce2interface_hull(pdb_id, pdb_file_path, interface_distance_cutoff, interface_hull_size)
 
     if load_embeddings:
-        if isinstance(load_embeddings, str):
-            embeddings = os.path.join(load_embeddings, pdb_id + '.pt')
+        if load_embeddings[1]:
+            embeddings = os.path.join(load_embeddings[1], pdb_id + '.pt')
             embeddings = torch.load(embeddings, map_location='cpu')
-        else:
-            if 'embeddings' in config['DATASETS'][dataset_name]:  # TODO generalize this to "embeddings"?
-                embeddings = os.path.join(config['DATASETS']["path"],
-                                          config['DATASETS'][dataset_name]['folder_path'],
-                                          config['DATASETS'][dataset_name]['embeddings'],
-                                          pdb_id + '.pt')
-                embeddings = torch.load(embeddings, map_location='cpu')
-            # elif 'of_embeddings' in dataset_name:
-            else:
-                # NOTE generating OF embeddings might clash with parallel data loading because of GPU usage
-                diffusion_data = load_protein(pdb_file_path)
-                diffusion_data = tensor_tree_map(lambda x: x.to(diffusion_args.device), diffusion_data)
-                embeddings = of_embedding(diffusion_data)
-            # else:
-            #     raise NotImplementedError("Dynamic loading of RF embeddings is not yet implemented.")
+        elif load_embeddings[0] == "of_embeddings":
+            # NOTE generating OF embeddings might clash with parallel data loading because of GPU usage
+            diffusion_data = load_protein(pdb_file_path)
+            diffusion_data = tensor_tree_map(lambda x: x.to(diffusion_args.device), diffusion_data)
+            embeddings = of_embedding(diffusion_data)
+        elif load_embeddings[0] == "rf_embeddings":
+            raise ValueError("Invalid embeddings_type: Either 'of_embeddings' or 'rf_embeddings'")
     else:
         embeddings = None
 
