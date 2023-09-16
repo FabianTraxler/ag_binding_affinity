@@ -153,14 +153,12 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
     for data in tqdm(train_dataloader, disable=not tqdm_output):
         optimizer.zero_grad()
 
-        # pdb.set_trace()
         output, label = forward_step(model, data, device)
         loss = get_loss(data["loss_criterion"], label, output)
         total_loss_train += loss.item()
 
         loss.backward()
         optimizer.step()
-        # break
 
     model.eval()
     results = []
@@ -177,10 +175,14 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
             loss = get_loss(data["loss_criterion"], label, output)
             total_loss_val += loss.item()
 
-            try:
-                output_type = "E" if val_dataloader.dataset.affinity_type == "E" else "-log(Kd)"
-            except AttributeError:
-                output_type = "E" if val_dataloader.dataset.datasets[0].affinity_type == "E" else "-log(Kd)"  # hacky
+            if label["E"].isnan().any():
+                if label["-log(Kd)"].isnan().any():
+                    logger.error(f"Both E and -log(Kd) are NaN. Skipping batch (len {len(label['E'])})")
+                    continue
+                else:
+                    output_type = "-log(Kd)"
+            else:
+                output_type = "E"
 
             all_predictions.append(output[f"{output_type}"].flatten().detach().cpu().numpy())
             all_labels.append(label[f"{output_type}"].detach().cpu().numpy())
@@ -526,7 +528,7 @@ def get_dataloader(args: Namespace, train_dataset: AffinityDataset, val_datasets
     return train_dataloader, val_dataloaders
 
 
-def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[int] = None, validation_size: float = 0.2) -> Tuple[List, List]:
+def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[int] = None, validation_size: Optional[float] = 0.2) -> Tuple[List, List]:
     """ Split data in a train and a validation subset
 
     For the abag_affinity datasets, we use the predefined split given in the csv, otherwise use random split
@@ -669,7 +671,9 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
     return train_ids, val_ids
 
 
-def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespace, validation_size: Optional[float] = 0.1) -> Tuple[
+def load_datasets(config: Dict, dataset: str, validation_set: int,
+                  args: Namespace, validation_size: Optional[float] = 0.1,
+                  only_neglogkd_samples=False) -> Tuple[
     AffinityDataset, List[AffinityDataset]]:
     """ Get train and validation datasets for a specific dataset and data type
 
@@ -682,6 +686,7 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
         validation_set: Integer identifier of the validation split (1,2,3)
         args: CLI arguments
         validation_size: Size of the validation set (proportion (0.0-1.0))
+        only_neglogkd_samples: If True, only use only samples that have -log(Kd) labels
 
     Returns:
         Tuple: Train and validation dataset
@@ -693,11 +698,10 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
     # Optionally, the losses can contain some weight using -
     # E.g. data_type = relative#l2-1,l1-0.1,relative_l1-2,relative_2-0.1,relative_ce-1
 
-    if "relative" in loss_types:
+    if "relative" in loss_types and not only_neglogkd_samples:
         relative_data = True
     else:
         relative_data = False
-
     train_ids, val_ids = train_val_split(config, dataset_name, validation_set, validation_size)
 
     if args.test:
@@ -721,7 +725,8 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
                                  force_recomputation=args.force_recomputation,
                                  preprocess_data=args.preprocess_graph,
                                  num_threads=args.num_workers,
-                                 load_embeddings=None if not args.embeddings_type else (args.embeddings_type, args.embeddings_path)
+                                 load_embeddings=None if not args.embeddings_type else (args.embeddings_type, args.embeddings_path),
+                                 only_neglogkd_samples=only_neglogkd_samples,
                                  )
 
     val_datas = [AffinityDataset(config, relaxed, dataset_name, loss_types,  # TODO @marco val should be done with the same loss as training, right?
@@ -740,7 +745,8 @@ def load_datasets(config: Dict, dataset: str, validation_set: int, args: Namespa
                                  force_recomputation=args.force_recomputation,
                                  preprocess_data=args.preprocess_graph,
                                  num_threads=args.num_workers,
-                                 load_embeddings=None if not args.embeddings_type else (args.embeddings_type, args.embeddings_path)
+                                 load_embeddings=None if not args.embeddings_type else (args.embeddings_type, args.embeddings_path),
+                                 only_neglogkd_samples=only_neglogkd_samples,
                                  )
                  for relaxed in [bool(args.relaxed_pdbs)]
                  ]  # TODO disabling , not args.relaxed_pdbs for now. Enable once we generated all relaxed data

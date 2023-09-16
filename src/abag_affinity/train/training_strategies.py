@@ -136,8 +136,14 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
         if count > 1:
             double_dataset.add(name)
 
+    neglogkd_datasets = []
     for dataset_type in datasets:
         train_data, val_datas = load_datasets(config, dataset_type, args.validation_set, args)
+
+        if args.add_neglogkd_labels_dataset:
+            neglogkd_data, _ = load_datasets(config, dataset_type, args.validation_set, args=args,
+                                             validation_size=0, only_neglogkd_samples=True)
+            neglogkd_datasets.append(neglogkd_data)
 
         data_name, loss_type = dataset_type.split("#")
         if not train_data.relative_data and data_name in double_dataset:
@@ -152,6 +158,18 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
         for val_data in val_datas:
             if len(val_data) > 0:
                 val_datasets.append(val_data)
+
+    if args.add_neglogkd_labels_dataset:
+        concat_neglogkd_datasets = True
+        if concat_neglogkd_datasets:
+            neglogkd_dataset = torch.utils.data.ConcatDataset(neglogkd_datasets)
+            neglogkd_dataset.full_dataset_name = "DMS-neglogkd-mixed"
+            neglogkd_dataset.dataset_name = "DMS"
+            neglogkd_dataset.relative_data = False
+            neglogkd_dataset.relative_data = False
+            train_datasets.append(neglogkd_dataset)
+        else:
+            train_datasets.extend(neglogkd_datasets)
 
     model = load_model(train_datasets[0].num_features, train_datasets[0].num_edge_features, datasets, args, device)
     logger.debug(f"Training done on GPU = {next(model.parameters()).is_cuda}")
@@ -179,7 +197,8 @@ def train_transferlearnings_validate_target(args: Namespace):
     config = read_config(args.config_file)
 
     # make sure that the loss functions are not in the way
-    logging.warning(f"loss in target_dataset ({args.target_dataset}) is ignored.")
+    if args.target_dataset.split("#")[1] != "L2":
+        logging.warning(f"target_dataset was set to ({args.target_dataset}), but L2/RMSE loss will be enforced in the validation")
 
     training_set_names = [dataset for dataset in args.transfer_learning_datasets if dataset.split("#")[0] != args.target_dataset.split("#")[0]]
 

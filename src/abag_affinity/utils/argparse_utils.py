@@ -83,7 +83,7 @@ def parse_args(artifical_args=None) -> Namespace:
                         help='Datasets used for transfer-learning in addition to goal_dataset', default=[], nargs='+')
 
     optional.add_argument("--relaxed_pdbs", choices=["True", "False", "both"], help="Use the relaxed pdbs for training "
-                                                                               "and validation", default="True")
+                                                                               "and validation", default="False")
     # -train strategy
     optional.add_argument("-t", "--train_strategy", type=str, help='The training strategy to use',
                           choices=["bucket_train", "pretrain_model", "model_train", "train_transferlearnings_validate_target"],
@@ -125,7 +125,7 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--scale_max", type=int, help="The maximal affinity value -> gets mapped to 1",
                           default=14)
     optional.add_argument("--max_edge_distance", type=int, help="Maximal distance of proximity edges", default=3)
-
+    optional.add_argument("--add_neglogkd_labels_dataset", action=BooleanOptionalAction, help="Include an additional dataset composed of only samples with -log(kd) labels. Only implemented for bucket_learning", default=False)
     # model config arguments
     optional.add_argument("--layer_type", type=str, help="Type of GNN Layer", default="GCN",
                           choices=["GAT", "GCN"] )
