@@ -1,5 +1,6 @@
 """Submodule for Graph Neural Networks trained to predict binding affinity"""
 
+import logging
 import torch
 import torch.nn as nn
 
@@ -83,6 +84,7 @@ class AffinityGNN(pl.LightningModule):
             self.max_edge_distance = args.max_edge_distance
             self.interface_distance_cutoff = args.interface_distance_cutoff
         else:
+            logging.warning("No args given. Using default values for max_edge_distance and interface_distance_cutoff")
             self.max_edge_distance = 5.0
             self.interface_distance_cutoff = 5.0
 
