@@ -111,13 +111,12 @@ class IPABindingEmbedder(torch.nn.Module):
     Very similar to IPAWrapper (for diffusion process, maybe DRY this up?)
     """
 
-    def __init__(self, pretrained_model_path: str, device: device = torch.device("cpu"), c_s: int = 384, c_z: int = 128, relpos_k: int = 32, split_ipa_weights: bool = False):
+    def __init__(self, pretrained_model_path: str, device: device = torch.device("cpu"), c_s: int = 384, c_z: int = 128, relpos_k: int = 32, split_ipa_weights: bool = False, no_ipa_blocks: int = 2):
         super(IPABindingEmbedder, self).__init__()
 
         self.model_type = "IPA"
 
         # default arguments fit pretrained weights
-        no_ipa_blocks = 2
         self.model = IPADenoiser(no_blocks=no_ipa_blocks, only_s_updates=True, split_ipa_weights=split_ipa_weights)
         if pretrained_model_path is not None:
             of_weights = torch.load(pretrained_model_path, map_location=torch.device(device))

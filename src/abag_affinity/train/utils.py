@@ -106,6 +106,8 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
         loss_fn = loss_functions[criterion]
         for output_type in ["E", "-log(Kd)"]:
             valid_indices = ~torch.isnan(label[output_type])
+            if valid_indices.sum() == 0:
+                continue
             if criterion in ["L1", "L2"]:
                 losses.append(weight * loss_fn(output[output_type][valid_indices],
                                                label[output_type][valid_indices]))
@@ -199,10 +201,6 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
                 all_binary_predictions.append(np.zeros(label[f"{output_type}"].shape[0]))
                 all_pdbs.extend([filepath.split("/")[-1].split(".")[0] for filepath in data["input"]["filepath"]])
 
-            #all_predictions = np.append(all_predictions, output[f"{output_type}"].flatten().detach().cpu().numpy())
-
-        val_loss = total_loss_val / len(all_predictions)
-
         # if len(all_predictions) > 2:
         #     break
         all_predictions = np.concatenate(all_predictions) if len(all_predictions) > 0 else np.array([])
@@ -226,7 +224,11 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
         
         all_binary_predictions = np.concatenate(all_binary_predictions) if len(all_binary_predictions) > 0 else np.array([])
         all_binary_labels = np.concatenate(all_binary_labels) if len(all_binary_labels) > 0 else np.array([])
-        val_loss = total_loss_val / (len(all_predictions) + len(all_binary_predictions))
+        try:
+            val_loss = total_loss_val / (len(all_predictions) + len(all_binary_predictions))
+        except ZeroDivisionError:
+            val_loss = np.nan
+            logging.error("No predictions available for validation set.")
 
         if len(all_binary_labels) > 0:
             acc = accuracy_score(all_binary_labels, all_binary_predictions)
