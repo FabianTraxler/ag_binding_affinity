@@ -176,13 +176,13 @@ def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, interface_f
         if load_embeddings[1]:
             embeddings = os.path.join(load_embeddings[1], pdb_id + '.pt')
             embeddings = torch.load(embeddings, map_location='cpu')
-        elif load_embeddings[0] == "of_embeddings":
+        elif load_embeddings[0] == "of":
             # NOTE generating OF embeddings might clash with parallel data loading because of GPU usage
             diffusion_data = load_protein(pdb_file_path)
             diffusion_data = tensor_tree_map(lambda x: x.to(diffusion_args.device), diffusion_data)
             embeddings = of_embedding(diffusion_data)
-        elif load_embeddings[0] == "rf_embeddings":
-            raise ValueError("Invalid embeddings_type: Either 'of_embeddings' or 'rf_embeddings'")
+        elif load_embeddings[0] == "rf":
+            raise ValueError("Invalid embeddings_type: Either 'of' or 'rf'")
     else:
         embeddings = None
 

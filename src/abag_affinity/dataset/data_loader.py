@@ -82,7 +82,6 @@ class AffinityDataset(Dataset):
             only_neglogkd_samples: Boolean indicator if only samples with -log(Kd) labels should be used
         """
         super(AffinityDataset, self).__init__()
-        #TODO: filter dataframe for logkd values and pass in on to the pipeline as is
         self.dataset_name = dataset_name
         self.config = config
         self.node_type = node_type
@@ -129,7 +128,7 @@ class AffinityDataset(Dataset):
         self.is_relaxed = is_relaxed
         self.graph_dir = os.path.join(self.config["processed_graph_path"], self.full_dataset_name, node_type,
                                       pretrained_model if pretrained_model in ["DeepRefine", "Binding_DDG"] else "",
-                                      f"embeddings_{load_embeddings and load_embeddings[0]}_relaxed_{{is_relaxed}}")  # is_relaxed is being evaluated later (using format)
+                                      f"embeddings_{(load_embeddings[0] if load_embeddings else False)}_relaxed_{{is_relaxed}}")  # is_relaxed is being evaluated later (using format)
         self.processed_graph_files = os.path.join(self.graph_dir, "{filestem}.npz")  # filestem is being evaluated later (using format)
         # create path for clean pdbs
         self.interface_dir = os.path.join(self.config["interface_pdbs"], ("relaxed" if self.is_relaxed else ""), self.full_dataset_name)
