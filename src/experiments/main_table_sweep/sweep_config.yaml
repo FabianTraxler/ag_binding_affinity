@@ -29,7 +29,7 @@ parameters:
       # - - "DMS-madan21_mutat_hiv#L2-1+relative_ce-2"
       #   - "DMS-starr21_prosp_covid#L2-1+relative_ce-2"
         # - "DMS-wu17_in#L2-1+relative_ce-2"
-      - ""
+      # - ""
       # - "DMS-wu17_in#L2-1+relative_L2-2"
       # - "DMS-madan21_mutat_hiv#L2-1+relative_ce-2"
       # # - "DMS-phillips21_bindin:absolute"
@@ -39,12 +39,12 @@ parameters:
   aggregation_method:
     values:
       - "interface_sum"
-      - "mean"
+      # - "mean"
   seed:
     values:
       - 1
       - 2
-      # - 3
+      - 3
   dms_output_layer_type:
     values:
       # - "mlp"
