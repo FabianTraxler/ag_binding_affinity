@@ -192,7 +192,7 @@ def main() -> Dict:
         if args.cross_validation:
             model, results = cross_validation(args)
         else:
-            model, results, wandb = training[args.train_strategy](args)
+            model, results, wand_inst = training[args.train_strategy](args)
 
             # Run benchmarks
             benchmark_pearson, benchmark_loss, benchmark_df = get_benchmark_score(model, args, tqdm_output=args.tqdm_output)
@@ -209,7 +209,7 @@ def main() -> Dict:
             wandb_benchmark_log = {"abag_test_pearson": test_pearson, "abag_test_loss": test_loss,
                                    "skempi_test_pearson": test_skempi_score, "skempi_test_loss": test_loss_skempi,
                                    "benchmark_test_pearson": benchmark_pearson, "benchmark_test_loss": benchmark_loss}
-            wandb.log(wandb_benchmark_log, commit=True)
+            wand_inst.log(wandb_benchmark_log, commit=True)
             # Save model
             if args.model_path is not None:
                 path = Path(args.model_path)
