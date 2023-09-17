@@ -96,6 +96,10 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--fine_tune",
                           help='Fine-tune model components that have been frozen at the start of training (e.g. published/pretrained models or dataset-specific layers)',
                           action=BooleanOptionalAction, default=True)
+    optional.add_argument('--load_pretrained_weights', action=BooleanOptionalAction, help="Load pretrained weights for the pretrained model", default=True)
+    optional.add_argument("--transfer_learning_validation_size", type=int,
+                          help="Percent of transfer learning dataset(s) used to validate model (only DMS)",
+                          default=10)
     # -train config
     optional.add_argument("-b", "--batch_size", type=int, help="Batch size used for training", default=1)
     optional.add_argument("-e", "--max_epochs", type=int, help="Max number of training epochs", default=200)

@@ -44,7 +44,7 @@ class DatasetAdjustment(nn.Module):
         """
         super(DatasetAdjustment, self).__init__()
         self.layer_type = layer_type
-        if self.layer_type in ["identity", "bias_only", "regression", "regression_sigmoid"]:
+        if self.layer_type in ["identity", "bias_only", "regression", "regression_sigmoid", "mlp"]:
             self.linear = nn.Linear(1, out_n)
             weights = torch.ones((out_n, 1))
             bias = torch.zeros((out_n))
@@ -68,7 +68,12 @@ class DatasetAdjustment(nn.Module):
                 self.linear.log_weight.data = log_weights
                 self.linear.bias.data = bias
         else:
-            raise NotImplementedError("'mlp' is not implemented at the moment")
+            raise NotImplementedError(f"'{self.layer_type}' is not implemented at the moment")
+        if self.layer_type == 'mlp':
+            self.linear_mlp = nn.Linear(out_n, out_n)
+            self.linear_mlp.weight.data.copy_(torch.eye(out_n))
+            self.linear_mlp.bias.data.fill_(0)
+            self.nonlinear = nn.Identity() 
 
         super().requires_grad_(False)  # Call original version to freeze all parameters
 
@@ -79,6 +84,8 @@ class DatasetAdjustment(nn.Module):
             layer_selector: torch.Tensor of shape (batch_size) with values between 0 and n_out. If -1, return x
         """
         x_all = self.linear(x)
+        if self.layer_type == 'mlp':
+            x_all = self.linear_mlp(self.nonlinear(x_all))
         # Select the correct output node (dataset-specificity)
         x_selected = x_all[torch.arange(x_all.size(0)), layer_selector]
         if self.layer_type.endswith("_sigmoid"):
@@ -92,23 +99,28 @@ class DatasetAdjustment(nn.Module):
 
         return x_selected
 
-    def requires_grad_(self, requires_grad: bool = True) -> nn.Module:
+
+    def unfreeze(self):
         """
-        Overwriting requires_grad_ to enable training of bias only
+        Unfreeze weights to enable trainig for different settings
         """
+        if self.layer_type == 'mlp':
+            self.nonlinear = nn.SiLU()
+
         if self.layer_type == "bias_only":
-            self.linear.bias.requires_grad_(requires_grad)
+            self.linear.bias.requires_grad_(True)
             return self
         elif self.layer_type == "identity":
             return self
         else:
-            return super().requires_grad_(requires_grad)
+            return super().requires_grad_(True)
+
 
 class AffinityGNN(pl.LightningModule):
     def __init__(self, node_feat_dim: int, edge_feat_dim: int,
                  args: argparse.Namespace,  # provide args so they can be saved by the LightningModule (hparams) and for DatasetAdjustment
                  num_nodes: int = None,
-                 pretrained_model: str = "", pretrained_model_path: str = "",
+                 pretrained_model: str = "", pretrained_model_path: str = None,
                  gnn_type: str = "5A-proximity",
                  layer_type: str = "GAT", num_gat_heads: int = 3, num_gnn_layers: int = 3,
                  channel_halving: bool = True, channel_doubling: bool = False,
@@ -228,8 +240,6 @@ class AffinityGNN(pl.LightningModule):
     def unfreeze(self):
         """
         Unfreeze potentially frozen modules
-
-        TODO I should just use requires_grad_ everywhere
         """
 
         # make pretrained model trainable
@@ -240,7 +250,7 @@ class AffinityGNN(pl.LightningModule):
             logging.warning("Pretrained model does not have an unfreeze method")
 
         # unfreeze datasets-specific layers
-        self.dataset_specific_layer.requires_grad_(True)
+        self.dataset_specific_layer.unfreeze()
         
     def on_save_checkpoint(self, checkpoint):
         """

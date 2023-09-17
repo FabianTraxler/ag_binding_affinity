@@ -2,7 +2,7 @@
 
 UNAME=$(whoami)
 if [[ "$UNAME" =~ Mihail ]]; then
-  python ../../abag_affinity/main.py "$@"
+  python src/abag_affinity/main.py "$@"
 else
   sbatch --mem 60GB -N 1 --gres gpu:a100:1 --ntasks-per-node=1 ~/guided-protein-diffusion/scripts/sbatch_process.job affinity_training "$@"
 fi

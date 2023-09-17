@@ -207,7 +207,23 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
         #     break
         all_predictions = np.concatenate(all_predictions) if len(all_predictions) > 0 else np.array([])
         all_labels = np.concatenate(all_labels) if len(all_labels) > 0 else np.array([])
-        all_pdbs = np.array(all_pdbs)
+        # sometimes all_pdbs contains tuples of strings (when using RELATIVE LOSS), so this is code to simply flatten the list
+        all_pdbs_tmp = []
+        for pdb in all_pdbs:
+            if isinstance(pdb, tuple) or isinstance(pdb, list):
+                all_pdbs_tmp.extend(list(pdb))
+            else:
+                all_pdbs_tmp.append(pdb)
+        all_pdbs = all_pdbs_tmp
+
+        # this is needed because all_pdbs is a list of strings, which is not directly usable by np.concatenate
+        # need to convert to np.array
+        # TODO maybe this is never used? Also we change the length of all_pdbs, make it longer than others
+        if len(all_pdbs) > 0 and not isinstance(all_pdbs[0], np.ndarray):
+            all_pdbs = [np.array([pdb]) for pdb in all_pdbs]
+      
+        all_pdbs = np.concatenate(np.array(all_pdbs)) if len(all_pdbs) > 0 else np.array([])
+        
         all_binary_predictions = np.concatenate(all_binary_predictions) if len(all_binary_predictions) > 0 else np.array([])
         all_binary_labels = np.concatenate(all_binary_labels) if len(all_binary_labels) > 0 else np.array([])
         val_loss = total_loss_val / (len(all_predictions) + len(all_binary_predictions))
@@ -217,6 +233,8 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
         else:
             acc = np.nan
 
+        print('all labels', all_labels)
+        print('all predictions', all_predictions)
         pearson_corr = stats.pearsonr(all_labels, all_predictions)
         rmse = math.sqrt(np.square(np.subtract(all_labels, all_predictions)).mean())
 
@@ -473,10 +491,10 @@ def load_model(num_node_features: int, num_edge_features: int, dataset_names: Li
     Returns:
         nn.Module: model on specified device
     """
-    if args.pretrained_model in args.config["MODELS"]:
+    if args.pretrained_model in args.config["MODELS"] and args.load_pretrained_weights:
         pretrained_model_path = args.config["MODELS"][args.pretrained_model]["model_path"]
     else:
-        pretrained_model_path = ""
+        pretrained_model_path = None
 
     model = AffinityGNN(num_node_features, num_edge_features, args,
                         num_nodes=args.max_num_nodes,
@@ -564,8 +582,10 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
             summary_df = summary_df[~summary_df.index.duplicated(keep='first')]
 
             # Normalize between 0 and 1 on a per-complex basis. This way value ranges of E and NLL fit, when computing possible pairs
-            e_values = summary_df.groupby(summary_df.index.map(lambda i: i.split("-")[0]))["E"].apply(lambda x: (x - x.min()) / (x.max() - x.min()))
-            e_values = e_values.values.reshape(-1,1).astype(np.float32)
+            e_values = summary_df.groupby(summary_df.index.map(lambda i: i.split("-")[0]))["E"].apply(lambda x: (x - x.min()) / (x.max() - x.min()))
+
+            e_values = e_values.values.reshape(-1,1).astype(np.float32)
+
 
             nll_values = summary_df["NLL"].values
             # Scale the NLLs to (0-1). The max NLL value in DMS_curated.csv is 4, so 0-1-scaling should be fine
@@ -576,10 +596,13 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
                 nll_values = np.full_like(nll_values, 0.5)
 
             # TODO refactor this block (just always split, as it includes the else-case)
-            if len(e_values) > 50000:
-                n_splits = int(len(e_values) / 50000) + 1
+            if len(e_values) > 50000:
+
+                n_splits = int(len(e_values) / 50000) + 1
+
                 has_valid_partner = set()
-                e_splits = np.array_split(e_values, n_splits)
+                e_splits = np.array_split(e_values, n_splits)
+
                 nll_splits = np.array_split(nll_values, n_splits)
                 total_elements = 0
                 for i in range(len(e_splits)):
@@ -593,7 +616,8 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
                 has_valid_partner = np.fromiter(has_valid_partner, int, len(has_valid_partner))
                 valid_partners = None
             else:
-                e_dists = sp.distance.cdist(e_values, e_values)
+                e_dists = sp.distance.cdist(e_values, e_values)
+
                 nll_avg = (nll_values[:, None] + nll_values) / 2
 
                 valid_pairs = (e_dists - nll_avg) >= 0
