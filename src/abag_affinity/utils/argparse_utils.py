@@ -235,7 +235,7 @@ def parse_args(artifical_args=None) -> Namespace:
         print("Forcing batch_size to 1 for IPA model. Alternatively implement batch_size > 1 for IPA model.")
         args.__dict__["batch_size"] = 1
 
-    args.__dict__["learning_rate"] = args.__dict__["learning_rate"] * args.__dict__["batch_size"]
+    # args.__dict__["learning_rate"] = args.__dict__["learning_rate"] * args.__dict__["batch_size"]
 
     if args.args_file is not None:
         args = read_args_from_file(args)

@@ -235,8 +235,8 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
         else:
             acc = np.nan
 
-        print('all labels', all_labels)
-        print('all predictions', all_predictions)
+        #print('all labels', all_labels)
+        #print('all predictions', all_predictions)
         pearson_corr = stats.pearsonr(all_labels, all_predictions)
         rmse = math.sqrt(np.square(np.subtract(all_labels, all_predictions)).mean())
 
@@ -953,6 +953,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
             "val_loss": val_result["total_val_loss"] / len(val_dataloader),
             "train_loss": total_loss_train / len(train_dataloader),
             "pearson_correlation": val_result["pearson_correlation"],
+            "learning_rate" : optimizer.param_groups[0]['lr']
         }
 
         i = 0
