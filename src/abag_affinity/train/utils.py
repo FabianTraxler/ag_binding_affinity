@@ -76,11 +76,12 @@ def get_label(data: Dict, device: torch.device) -> Dict:
             label_2 = (data["input"][1]["graph"][output_type] > data["input"][0]["graph"][output_type])
             label[f"{output_type}_prob"] = torch.stack((label_1.float(), label_2.float()), dim=-1)
             label[f"{output_type}_stronger_label"] = label_2.long()  # Index of the stronger binding complex
-            label[f"{output_type}"] = data["input"][0]["graph"][output_type].to(device)
-            label[f"{output_type}2"] = data["input"][1]["graph"][output_type].to(device)
+            label[f"{output_type}"] = data["input"][0]["graph"][output_type].to(device).view(-1,1)
+            label[f"{output_type}2"] = data["input"][1]["graph"][output_type].to(device).view(-1,1)
             label[f"{output_type}_difference"] = label[f"{output_type}"] - label[f"{output_type}2"]
         else:
-            label[output_type] = data["input"]["graph"][output_type].to(device)
+            # We add an additional dimension to match the output (Batchsize, N-Channel=1)
+            label[output_type] = data["input"]["graph"][output_type].to(device).view(-1,1)
 
     # TODO Try to return NLL values of data if available!
     return label
@@ -187,7 +188,7 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
                 output_type = "E"
 
             all_predictions.append(output[f"{output_type}"].flatten().detach().cpu().numpy())
-            all_labels.append(label[f"{output_type}"].detach().cpu().numpy())
+            all_labels.append(label[f"{output_type}"].flatten().detach().cpu().numpy())
             if data["relative"]:
                 pdb_ids_1 = [filepath.split("/")[-1].split(".")[0] for filepath in data["input"][0]["filepath"]]
                 pdb_ids_2 = [filepath.split("/")[-1].split(".")[0] for filepath in data["input"][1]["filepath"]]

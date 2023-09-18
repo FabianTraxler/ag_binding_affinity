@@ -223,9 +223,13 @@ class AffinityDataset(Dataset):
             pdb_nll = self.data_df.loc[self.data_df.index == pdb_id, "NLL"].values[0]
             pdb_e = np.array(self.data_df.loc[self.data_df.index == pdb_id, "E"].values[0]).reshape(-1, 1)
 
-            e_values = self.data_df["E"].values.reshape(-1, 1)
+            e_values = self.data_df["E"].values.reshape(-1, 1)
+
+
             nll_values = self.data_df["NLL"].values
-            e_dists = sp.distance.cdist(pdb_e, e_values)[0, :]
+            e_dists = sp.distance.cdist(pdb_e, e_values)[0, :]
+
+
             nll_avg = (pdb_nll + nll_values) / 2
 
             valid_pairs = (e_dists - nll_avg) >= 0
@@ -349,7 +353,8 @@ class AffinityDataset(Dataset):
         if self.interface_hull_size is None or self.interface_hull_size == "" or self.interface_hull_size == "None":
             graph_filepath = os.path.join(self.graph_dir.format(is_relaxed=relaxed), idx + ".pickle")
         else:
-            graph_filepath = os.path.join(self.graph_dir.format(is_relaxed=relaxed), f"interface_hull_{self.interface_hull_size}",
+            graph_filepath = os.path.join(self.graph_dir.format(is_relaxed=relaxed), f"interface_hull_{self.interface_hull_size}",
+
                                           idx + ".pickle")
 
         with open(graph_filepath, 'wb') as f:
@@ -523,12 +528,17 @@ class AffinityDataset(Dataset):
         node_features = self.get_node_features(graph_dict)
         edge_indices, edge_features = self.get_edges(graph_dict)
 
-        neg_log_kd = graph_dict["-log(Kd)"]
-        e_value = graph_dict["E"]
+        neg_log_kd = graph_dict["-log(Kd)"]
 
-        if self.scale_values and not np.isnan(neg_log_kd):
-            neg_log_kd = scale_affinity(neg_log_kd, self.scale_min, self.scale_max)
-        neg_log_kd = np.array(neg_log_kd)
+        e_value = graph_dict["E"]
+
+
+        if self.scale_values and not np.isnan(neg_log_kd):
+
+            neg_log_kd = scale_affinity(neg_log_kd, self.scale_min, self.scale_max)
+
+        neg_log_kd = np.array(neg_log_kd)
+
 
         graph = HeteroData()
 
