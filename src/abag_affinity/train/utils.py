@@ -124,7 +124,7 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
                 if criterion == "relative_ce":
                     output_key = f"{output_type}_logit"
                     label_key = f"{output_type}_stronger_label"
-                elif criterion != "relative_L1" and criterion != "relative_L2":
+                elif criterion == "relative_cdf":
                     output_key = f"{output_type}_prob_cdf"
                     label_key = f"{output_type}_stronger_label"
 
