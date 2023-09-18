@@ -820,7 +820,7 @@ def get_bucket_dataloader(args: Namespace, train_datasets: List[AffinityDataset]
 
     for idx, train_dataset in enumerate(train_datasets):
         if len(train_dataset) >= train_bucket_size[idx]:
-            if train_dataset.dataset_name in args.target_dataset:  # args.target_dataset includes :absolute
+            if train_dataset.full_dataset_name == args.target_dataset.split("#")[0]:  # args.target_dataset includes loss function
                 # always take all data points from the target dataset
                 indices = range(len(train_dataset))
             else:
