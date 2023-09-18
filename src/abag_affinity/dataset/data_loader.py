@@ -722,8 +722,8 @@ class AffinityDataset(Dataset):
         relative_data = input_dicts[0]["relative"]
         assert all([relative_data == input_dict["relative"] for input_dict in input_dicts])
 
-        # This is a list of loss functions
         loss_criterion = input_dicts[0]["loss_criterion"]
+        assert all([loss_criterion == input_dict["loss_criterion"] for input_dict in input_dicts])
 
         data_batch = {
             "relative": relative_data,

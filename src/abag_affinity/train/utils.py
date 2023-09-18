@@ -1,5 +1,5 @@
 import glob
-from typing import Dict, List, Tuple, Union, Optional
+from typing import Dict, List, Tuple, Union, Optional, Callable
 from matplotlib._api import itertools
 import numpy as np
 import math
@@ -69,7 +69,9 @@ def forward_step(model: AffinityGNN, data: Dict, device: torch.device) -> Tuple[
 
 def get_label(data: Dict, device: torch.device) -> Dict:
     # We compute all possible labels, so that we can combine different loss functions
-    label = {}
+    label = {
+        "relative": data["relative"]
+    }
     for output_type in ["E", "-log(Kd)"]:
         if data["relative"]:
             label_1 = (data["input"][0]["graph"][output_type] > data["input"][1]["graph"][output_type])
@@ -92,8 +94,7 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
     loss_types = [x.split("-") for x in loss_functions.split("+")]
     loss_types = [(x[0], float(x[1])) if len(x) == 2 else (x[0], 1.) for x in loss_types]
 
-    losses = []
-    loss_functions = {
+    loss_functions: Dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = {
         "L1": torch.nn.functional.l1_loss,
         "L2": torch.nn.functional.mse_loss,
         "relative_L1": torch.nn.functional.l1_loss,
@@ -102,24 +103,30 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
         "relative_cdf": lambda output, label: torch.nn.functional.nll_loss((output+1e-10).log(), label)
     }
 
+    # Assess which output types should be used
+    output_types = []
+    for output_type in ["E", "-log(Kd)"]:
+        if not label[output_type].isnan().any():  # check that they are all available
+            if not label["relative"] or not label[f"{output_type}2"].isnan().any():  # if relative dataset, make sure they are all available in the pair too
+                output_types.append(output_type)
+    if output_types == []:
+        raise ValueError("No valid output types found in batch.")
+
+    losses = []
     for (criterion, weight) in loss_types:
         loss_fn = loss_functions[criterion]
-        for output_type in ["E", "-log(Kd)"]:
-            valid_indices = ~torch.isnan(label[output_type])
-            if valid_indices.sum() == 0:
-                continue
+
+        for output_type in output_types:
             if criterion in ["L1", "L2"]:
-                losses.append(weight * loss_fn(output[output_type][valid_indices],
-                                               label[output_type][valid_indices]))
+                losses.append(weight * loss_fn(output[output_type],
+                                               label[output_type]))
                 if output["relative"]:
-                    valid_indices = ~torch.isnan(label[f"{output_type}2"])
-                    losses.append(weight * loss_fn(output[f"{output_type}2"][valid_indices],
-                                                   label[f"{output_type}2"][valid_indices]))
+                    losses.append(weight * loss_fn(output[f"{output_type}2"],
+                                                   label[f"{output_type}2"]))
             elif output["relative"] and criterion.startswith("relative"):
                 criterion_types = ["relative_L1", "relative_L2"]
                 output_key = f"{output_type}_difference" if criterion in criterion_types else f"{output_type}_stronger_label"
                 label_key = f"{output_type}_difference"
-                valid_indices = ~torch.isnan(label[output_key])
 
                 if criterion == "relative_ce":
                     output_key = f"{output_type}_logit"
@@ -128,8 +135,8 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
                     output_key = f"{output_type}_prob_cdf"
                     label_key = f"{output_type}_stronger_label"
 
-                losses.append(weight * loss_fn(output[output_key][valid_indices],
-                                               label[label_key][valid_indices]))
+                losses.append(weight * loss_fn(output[output_key],
+                                               label[label_key]))
 
         assert len(losses) > 0, f"No valid lossfunction was given with:{loss_functions} and relative data {output['relative']}"
         return sum(losses)
@@ -818,6 +825,7 @@ def get_bucket_dataloader(args: Namespace, train_datasets: List[AffinityDataset]
                          f"but expected one of [min, geometric_mean]")
     i = 0
 
+    # TODO We might want to modify this code to work on a per-dataset or even per-complex level
     for idx, train_dataset in enumerate(train_datasets):
         if len(train_dataset) >= train_bucket_size[idx]:
             if train_dataset.full_dataset_name == args.target_dataset.split("#")[0]:  # args.target_dataset includes loss function
@@ -939,7 +947,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
     best_model = deepcopy(model)
 
     for epoch in range(args.max_epochs):
-        # create new buckets for each epoch
+        # create new buckets for each epoch (allows shuffling)
         train_dataloader, val_dataloader = get_bucket_dataloader(args, train_datasets, val_datasets)
 
         model, val_results, total_loss_train = train_epoch(model, train_dataloader, [val_dataloader], optimizer, device,
