@@ -1,34 +1,22 @@
 method: 'grid'
-name: 'DMS-Per-Publication-Evaluation-Sweep_complex-layers'
+name: 'DMS-Per-Publication-Evaluation-Sweep_replicate'
 metric:
-  goal: 'minimize'
-  name: 'val0_rmse'
+  goal: 'maximize'
+  name: 'val0_pearson_correlation'
 parameters:
   target_dataset:
     values:
       - "DMS-madan21_mutat_hiv#L1"
       - "DMS-starr21_prosp_covid#L1"
       - "DMS-wu17_in#L1"
-      - "DMS-madan21_mutat_hiv#L2"
-      - "DMS-starr21_prosp_covid#L2"
-      - "DMS-wu17_in#L2"
-      - "DMS-madan21_mutat_hiv#L1+L2"
-      - "DMS-starr21_prosp_covid#L1+L2"
-      - "DMS-wu17_in#L1+L2"
-      # - "DMS-phillips21_bindin:absolute"
-      # - "DMS-taft22_deep_mutat_learn_predic_ace2:absolute"
+      # - "DMS-wu17_in#L2"
+      # - "DMS-wu17_in#relative_L2"
+      # - "DMS-wu17_in#relative_ce"
+      - "DMS-phillips21_bindin#L1"
+      - "DMS-taft22_deep_mutat_learn_predic_ace2#L1"
   aggregation_method:
     values:
       - "interface_sum"
-      - "mean"
-  seed:
-    values:
-      - 1
-      - 2
-      - 3
   dms_output_layer_type:
     values:
       - "regression"
-      - "regression_sigmoid"
-      - "bias_only"
-      - "identity"
