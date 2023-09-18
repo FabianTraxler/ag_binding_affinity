@@ -116,7 +116,7 @@ def run_sweep(args: Namespace, logger):
                 args.batch_size = int(args.batch_size / ATOM_NODES_MULTIPLIKATOR) + 1
 
             # adapt learning rate bases on batch size
-            args.learning_rate = args.learning_rate * args.batch_size
+            # args.learning_rate = args.learning_rate * args.batch_size
 
             args.tqdm_output = False  # disable tqdm output to reduce log syncing
 
