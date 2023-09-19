@@ -106,32 +106,34 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
     for (criterion, weight) in loss_types:
         loss_fn = loss_functions[criterion]
         for output_type in ["E", "-log(Kd)"]:
-            valid_indices = ~torch.isnan(label[output_type])
-            if valid_indices.sum() == 0:
-                continue
+
             if criterion in ["L1", "L2"]:
-                losses.append(weight * loss_fn(output[output_type][valid_indices],
+                valid_indices = ~torch.isnan(label[output_type])
+                if valid_indices.sum() > 0:
+                    losses.append(weight * loss_fn(output[output_type][valid_indices],
                                                label[output_type][valid_indices]))
                 if output["relative"]:
                     valid_indices = ~torch.isnan(label[f"{output_type}2"])
-                    losses.append(weight * loss_fn(output[f"{output_type}2"][valid_indices],
+                    if valid_indices.sum() > 0:
+                        losses.append(weight * loss_fn(output[f"{output_type}2"][valid_indices],
                                                    label[f"{output_type}2"][valid_indices]))
             elif output["relative"] and criterion.startswith("relative"):
-                criterion_types = ["relative_L1", "relative_L2"]
-                output_key = f"{output_type}_difference" if criterion in criterion_types else f"{output_type}_stronger_label"
-                label_key = f"{output_type}_difference"
-                valid_indices = ~torch.isnan(label[output_key])
-
-                if criterion == "relative_ce":
+                if criterion in ["relative_L1", "relative_L2"]:
+                    output_key = f"{output_type}_difference"
+                    label_key = f"{output_type}_difference"
+                elif criterion == "relative_ce":
                     output_key = f"{output_type}_logit"
                     label_key = f"{output_type}_stronger_label"
                 elif criterion != "relative_L1" and criterion != "relative_L2":
                     output_key = f"{output_type}_prob_cdf"
                     label_key = f"{output_type}_stronger_label"
+                valid_indices = ~torch.isnan(label[label_key])
+                if valid_indices.sum() > 0:
+                    losses.append(weight * loss_fn(output[output_key][valid_indices],
+                                                   label[label_key][valid_indices]))
 
-                losses.append(weight * loss_fn(output[output_key][valid_indices],
-                                               label[label_key][valid_indices]))
-
+        if any([torch.isnan(l) for l in losses]):
+            print("Somehow a nan in loss")
         assert len(losses) > 0, f"No valid lossfunction was given with:{loss_functions} and relative data {output['relative']}"
         return sum(losses)
 
@@ -159,7 +161,6 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
         output, label = forward_step(model, data, device)
         loss = get_loss(data["loss_criterion"], label, output)
         total_loss_train += loss.item()
-
         loss.backward()
         optimizer.step()
 
