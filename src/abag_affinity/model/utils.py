@@ -31,6 +31,10 @@ class PositiveLinear(torch.nn.Module):
     def forward(self, input):
         return torch.nn.functional.linear(input, self.log_weight.exp(), bias=self.bias)
 
+    @property
+    def weight(self):
+        return self.log_weight.exp()
+
 class FixedSizeAggregation(torch.nn.Module):
     def forward(self, x: torch.Tensor, batch: torch.Tensor):
         graph_embeddings = []
