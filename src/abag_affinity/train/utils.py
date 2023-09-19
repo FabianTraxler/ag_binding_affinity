@@ -1,5 +1,5 @@
 import glob
-from typing import Dict, List, Tuple, Union, Optional
+from typing import Dict, List, Tuple, Union, Optional, Callable
 from matplotlib._api import itertools
 import numpy as np
 import math
@@ -60,7 +60,7 @@ def forward_step(model: AffinityGNN, data: Dict, device: torch.device) -> Tuple[
             data["input"]["deeprefine_graph"] = data["input"]["deeprefine_graph"].to(device)
 
         output = model(data["input"])
-        output["relative"] = data["relative"]
+    output["relative"] = data["relative"]
 
     label = get_label(data, device)
 
@@ -69,7 +69,9 @@ def forward_step(model: AffinityGNN, data: Dict, device: torch.device) -> Tuple[
 
 def get_label(data: Dict, device: torch.device) -> Dict:
     # We compute all possible labels, so that we can combine different loss functions
-    label = {}
+    label = {
+        "relative": data["relative"]
+    }
     for output_type in ["E", "-log(Kd)"]:
         if data["relative"]:
             label_1 = (data["input"][0]["graph"][output_type] > data["input"][1]["graph"][output_type])
@@ -94,7 +96,7 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
     loss_types = [(x[0], float(x[1])) if len(x) == 2 else (x[0], 1.) for x in loss_types]
 
     losses = []
-    loss_functions = {
+    loss_functions: Dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = {
         "L1": torch.nn.functional.l1_loss,
         "L2": torch.nn.functional.mse_loss,
         "relative_L1": torch.nn.functional.l1_loss,
@@ -818,7 +820,7 @@ def get_bucket_dataloader(args: Namespace, train_datasets: List[AffinityDataset]
         raise ValueError(f"bucket_size_mode argument not supported: Got {args.bucket_size_mode} "
                          f"but expected one of [min, geometric_mean]")
     i = 0
-
+    # TODO We might want to modify this code to work on a per-dataset or even per-complex level
     for idx, train_dataset in enumerate(train_datasets):
         if len(train_dataset) >= train_bucket_size[idx]:
             if train_dataset.dataset_name in args.target_dataset:  # args.target_dataset includes :absolute
@@ -940,7 +942,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
     best_model = deepcopy(model)
 
     for epoch in range(args.max_epochs):
-        # create new buckets for each epoch
+        # create new buckets for each epoch (implements shuffling)
         train_dataloader, val_dataloader = get_bucket_dataloader(args, train_datasets, val_datasets)
 
         model, val_results, total_loss_train = train_epoch(model, train_dataloader, [val_dataloader], optimizer, device,
