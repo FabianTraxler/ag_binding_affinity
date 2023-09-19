@@ -60,7 +60,7 @@ def forward_step(model: AffinityGNN, data: Dict, device: torch.device) -> Tuple[
             data["input"]["deeprefine_graph"] = data["input"]["deeprefine_graph"].to(device)
 
         output = model(data["input"])
-        output["relative"] = data["relative"]
+    output["relative"] = data["relative"]
 
     label = get_label(data, device)
 
@@ -70,7 +70,6 @@ def forward_step(model: AffinityGNN, data: Dict, device: torch.device) -> Tuple[
 def get_label(data: Dict, device: torch.device) -> Dict:
     # We compute all possible labels, so that we can combine different loss functions
     label = {
-        "relative": data["relative"]
     }
     for output_type in ["E", "-log(Kd)"]:
         if data["relative"]:
@@ -107,7 +106,7 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
     output_types = []
     for output_type in ["E", "-log(Kd)"]:
         if not label[output_type].isnan().any():  # check that they are all available
-            if not label["relative"] or not label[f"{output_type}2"].isnan().any():  # if relative dataset, make sure they are all available in the pair too
+            if not output["relative"] or not label[f"{output_type}2"].isnan().any():  # if relative dataset, make sure they are all available in the pair too
                 output_types.append(output_type)
     if output_types == []:
         raise ValueError("No valid output types found in batch.")
