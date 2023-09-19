@@ -16,7 +16,3 @@ parameters:
     values:
       - 1
       - 2
-  batch_size:
-    values:
-      - 1
-      - 64
