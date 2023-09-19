@@ -17,11 +17,11 @@
 --max_edge_distance=3
 --aggregation_method=mean
 -wdb
---wandb_mode=offline
+--wandb_mode=online
 --lr_scheduler=plateau
 --lr_decay_factor=0.5
 --stop_at_learning_rate=0.000001
 --learning_rate=0.00001
---init_sweep
+--sweep_id=h9o9v6sv
 --relaxed_pdbs=False
---sweep_config=src/experiments/DMS_single_prediciton_sweep/sweep_config_with_relative.yaml
+--sweep_config=src/experiments/DMS_single_prediciton_sweep/sweep_config.yaml
