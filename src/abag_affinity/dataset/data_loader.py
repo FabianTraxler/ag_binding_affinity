@@ -380,7 +380,18 @@ class AffinityDataset(Dataset):
             pdb_ids = summary_df.index.tolist()
 
         summary_df = summary_df[~summary_df.index.duplicated(keep='first')]
-        return summary_df.fillna(""), pdb_ids
+
+        if self.load_embeddings:
+            # TEMP remove the ones, for which the precomputed graphs don't exist
+            existing_pdb_ids = summary_df.index.map(lambda df_idx: Path(self.processed_graph_files.format(filestem=df_idx, is_relaxed=self.is_relaxed)).exists())
+            summary_df = summary_df[existing_pdb_ids]
+
+            # TEMP make sure to drop the large ones from wu20!
+            not_large_files = summary_df.index.map(lambda df_idx: not df_idx.startswith("wu20_differ_ha_h3_h1:fi6v3:h3hk68"))
+            summary_df = summary_df[not_large_files]
+
+        pdb_ids = summary_df.index.tolist()
+        return summary_df.fillna(""), pdb_ids  # TODO why fillna("")? :|
 
     def get_edges(self, data_file: Dict) -> Tuple[Dict, Dict]:
         """ Function to extract edge information based on graph dict
