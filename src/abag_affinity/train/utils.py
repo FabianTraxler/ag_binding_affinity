@@ -853,7 +853,8 @@ def get_bucket_dataloader(args: Namespace, train_datasets: List[AffinityDataset]
 
     train_dataloader = DL_torch(train_dataset, num_workers=args.num_workers,
                                 collate_fn=AffinityDataset.collate, batch_sampler=batch_sampler)
-    val_dataloader = DL_torch(ConcatDataset(val_datasets), num_workers=args.num_workers, batch_size=args.batch_size,
+    #TODO batchsize > 1 does not work with relative + absolute datasets
+    val_dataloader = DL_torch(ConcatDataset(val_datasets), num_workers=args.num_workers, batch_size=1,
                               collate_fn=AffinityDataset.collate)
 
     return train_dataloader, val_dataloader
