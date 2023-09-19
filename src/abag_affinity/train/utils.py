@@ -282,7 +282,7 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
     Path(plot_path).mkdir(exist_ok=True, parents=True)
     Path(prediction_path).mkdir(parents=True, exist_ok=True)
 
-    wandb, wdb_config, use_wandb, run = configure(args)
+    wandb_inst, wdb_config, use_wandb, run = configure(args, model)
 
     results = {f"{key}_val{i}": [] for key, i in
                itertools.product(["epoch_loss", "epoch_corr", "epoch_rmse", "epoch_acc"], range(len(val_datasets)))}
@@ -340,8 +340,8 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
 
                 if not np.isnan(val_result["rmse"]):
                     best_data = [[x, y] for (x, y) in zip(all_predictions, all_labels)]
-                    best_table = wandb.Table(data=best_data, columns=["predicted", "true"])
-                    wandb.log({"scatter_plot": wandb.plot.scatter(best_table, "predicted", "true",
+                    best_table = wandb_inst.Table(data=best_data, columns=["predicted", "true"])
+                    wandb_inst.log({"scatter_plot": wandb_inst.plot.scatter(best_table, "predicted", "true",
                                                                 title="Label vs. Predictions")})
 
                     plot_correlation(x=all_labels, y=all_predictions,
@@ -391,7 +391,7 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
                 f"{val_dataset.full_dataset_name}{val_i}_val_rmse": val_result["rmse"]
             }
 
-            wandb.log(wandb_log, commit=True)
+            wandb_inst.log(wandb_log, commit=True)
 
         stop_training = True
 
@@ -423,7 +423,7 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
     results["best_correlation"] = best_pearson_corr
     results["best_rmse"] = best_rmse
 
-    return results, best_model, wandb
+    return results, best_model, wandb_inst
 
 
 def get_optimizer(args: Namespace, model: torch.nn.Module):
@@ -513,7 +513,6 @@ def load_model(num_node_features: int, num_edge_features: int, dataset_names: Li
                         device=device,
                         scaled_output=args.scale_values,  # seems to work worse than if the model learns it on its own
                         dataset_names=complexes_from_dms_datasets(dataset_names, args))
-    
 
     return model
 
@@ -916,7 +915,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
 
     dataset2optimize = args.target_dataset.split("#")[0]
 
-    wandb, wdb_config, use_wandb, run = configure(args)
+    wandb_inst, wdb_config, use_wandb, run = configure(args, model)
 
     use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
@@ -1037,8 +1036,8 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
                          for x, y
                          in zip(dataset_results[dataset2optimize]["all_predictions"],
                                 dataset_results[dataset2optimize]["all_labels"])]
-            best_table = wandb.Table(data=best_data, columns=["predicted", "true"])
-            wandb.log({"scatter_plot": wandb.plot.scatter(best_table, "predicted", "true",
+            best_table = wandb_inst.Table(data=best_data, columns=["predicted", "true"])
+            wandb_inst.log({"scatter_plot": wandb_inst.plot.scatter(best_table, "predicted", "true",
                                                           title="Label vs. Predictions")})
 
             best_model = deepcopy(model)
@@ -1049,7 +1048,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
             f'Epochs: {epoch + 1} | Total-Train-Loss: {total_loss_train / len(train_dataloader) : .3f}'
             f' | Total-Val-Loss: {val_result["total_val_loss"] / len(val_dataloader) : .3f} | Patience: {patience} ')
 
-        wandb.log(wandb_log, commit=True)
+        wandb_inst.log(wandb_log, commit=True)
 
         stop_training = True
 
@@ -1080,7 +1079,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
     results["best_correlation"] = best_pearson_corr
     results["best_rmse"] = best_rmse
 
-    return results, best_model, wandb
+    return results, best_model, wandb_inst
 
 
 def finetune_frozen(model: AffinityGNN, train_dataset: Union[AffinityDataset, List[AffinityDataset]], val_dataset: Union[AffinityDataset, List[AffinityDataset]],
@@ -1109,9 +1108,9 @@ def finetune_frozen(model: AffinityGNN, train_dataset: Union[AffinityDataset, Li
 
     # TODO When finetuning is applied after normal training a new wandb instance is generated?!
     if args.train_strategy in ["bucket_train", "train_transferlearnings_validate_target"]:
-        results, model, wandb = bucket_learning(model, train_dataset, val_dataset, args)
+        results, model, wandb_inst = bucket_learning(model, train_dataset, val_dataset, args)
     else:
-        results, model, wandb = train_loop(model, train_dataset, val_dataset, args)
+        results, model, wandb_inst = train_loop(model, train_dataset, val_dataset, args)
 
     logger.info("Fintuning pretrained model completed")
     logger.debug(results)

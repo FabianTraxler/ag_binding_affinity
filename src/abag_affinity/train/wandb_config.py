@@ -1,10 +1,11 @@
 import wandb
 from argparse import Namespace
-from typing import Tuple
+from torch import nn
+from typing import Tuple, Optional
 import os
 
 
-def configure(args: Namespace) -> Tuple:
+def configure(args: Namespace, model: Optional[nn.Module] = None) -> Tuple:
     """ Configure Weights&Bias with the respective parameters and project
 
     Returns:
@@ -37,5 +38,8 @@ def configure(args: Namespace) -> Tuple:
     update_config["hostname"] = os.popen("hostname").read().strip()
 
     wandb.config.update(update_config, allow_val_change=True)
+
+    if model:
+        wandb.watch(model, log_freq=1000 / args.batch_size)
 
     return wandb, wandb.config, use_wandb, run
