@@ -6,7 +6,7 @@ metric:
 parameters:
   target_dataset:
     values:
-      - "abag_affinity#L1"
+      - "abag_affinity#L1-1"
       # - "abag_affinity#L2"
       # - "abag_affinity#L1+L2"
   transfer_learning_datasets:
