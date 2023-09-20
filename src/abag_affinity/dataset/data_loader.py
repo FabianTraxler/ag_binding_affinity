@@ -219,16 +219,21 @@ class AffinityDataset(Dataset):
             other_mutations = self.data_df[(self.data_df["pdb"] == pdb_file) & (self.data_df.index != pdb_id)]
             possible_partners = other_mutations.index.tolist()
         elif self.affinity_type == "E":
-            # get data point that has distance > avg(NLL) from current data point
-            pdb_nll = self.data_df.loc[self.data_df.index == pdb_id, "NLL"].values[0]
+            # Scale the NLLs to (0-1). The max NLL value in DMS_curated.csv is 4, so 0-1-scaling should be fine
+            nll_values = self.data_df["NLL"].values
+            if np.max(nll_values) > np.min(nll_values):  # test that all values are not the same
+                nll_values = (nll_values - np.min(nll_values)) / (np.max(nll_values) - np.min(nll_values))
+                assert (nll_values < 0.7).sum() > (nll_values > 0.7).sum(), "Many NLL values are 'large'"
+            else:
+                nll_values = np.full_like(nll_values, 0.5)
+
+            # Get data point that has distance > avg(NLL) from current data point
+            pdb_nll = nll_values[self.data_df.index == pdb_id][0]
             pdb_e = np.array(self.data_df.loc[self.data_df.index == pdb_id, "E"].values[0]).reshape(-1, 1)
 
             e_values = self.data_df["E"].values.reshape(-1, 1)
 
-
-            nll_values = self.data_df["NLL"].values
             e_dists = sp.distance.cdist(pdb_e, e_values)[0, :]
-
 
             nll_avg = (pdb_nll + nll_values) / 2
 

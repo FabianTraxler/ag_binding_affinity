@@ -583,6 +583,7 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
         summary_df = summary_df[summary_df.filename.apply(lambda fn: (data_path / fn).exists())]
 
         affinity_type = config["DATASETS"][dataset_name]["affinity_types"][publication_code]
+        # TODO we should refactor/DRY finding pairs here with the function update_pairs/get_compatible_pairs in the AffinityDataset class
         if affinity_type == "E":
             summary_df = summary_df[~summary_df.index.duplicated(keep='first')]
 
@@ -590,7 +591,6 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
             e_values = summary_df.groupby(summary_df.index.map(lambda i: i.split("-")[0]))["E"].apply(lambda x: (x - x.min()) / (x.max() - x.min()))
 
             e_values = e_values.values.reshape(-1,1).astype(np.float32)
-
 
             nll_values = summary_df["NLL"].values
             # Scale the NLLs to (0-1). The max NLL value in DMS_curated.csv is 4, so 0-1-scaling should be fine
