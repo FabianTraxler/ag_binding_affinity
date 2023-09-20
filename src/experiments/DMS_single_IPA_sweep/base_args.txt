@@ -2,11 +2,11 @@
 --embeddings_type=of
 --gnn_type=identity
 --num_workers=10
---patience=15
+--patience=30
 --node_type=residue
 --batch_size=1
 --target_dataset=DMS-madan21_mutat_hiv#L2
---max_epochs=100
+--max_epochs=200
 --nonlinearity=leaky
 --scale_values
 --num_fc_layers=10
@@ -20,10 +20,8 @@
 --aggregation_method=interface_sum
 --wandb_mode=offline
 -wdb
---lr_scheduler=plateau
---lr_decay_factor=0.5
---stop_at_learning_rate=0.0000001
+--lr_scheduler=constant
 --learning_rate=0.00003
 --relaxed_pdbs=False
---sweed_id=w5jtufst
+--sweep_id=vora8zhg
 --sweep_config=src/experiments/DMS_single_IPA_sweep/sweep_config.yaml
