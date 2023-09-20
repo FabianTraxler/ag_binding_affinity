@@ -1,8 +1,8 @@
 method: 'grid'
-name: 'DMS-Per-Publication-Evaluation-Sweep_complex-layers'
+name: 'DMS-Per-Publication-Evaluation-Sweep_replicate'
 metric:
-  goal: 'minimize'
-  name: 'val0_rmse'
+  goal: 'maximize'
+  name: 'val0_pearson_correlation'
 parameters:
   target_dataset:
     values:
