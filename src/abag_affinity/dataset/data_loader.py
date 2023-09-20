@@ -219,13 +219,6 @@ class AffinityDataset(Dataset):
             other_mutations = self.data_df[(self.data_df["pdb"] == pdb_file) & (self.data_df.index != pdb_id)]
             possible_partners = other_mutations.index.tolist()
         elif self.affinity_type == "E":
-            # Scale the NLLs to (0-1). The max NLL value in DMS_curated.csv is 4, so 0-1-scaling should be fine
-            nll_values = self.data_df["NLL"].values
-            if np.max(nll_values) > np.min(nll_values):  # test that all values are not the same
-                nll_values = (nll_values - np.min(nll_values)) / (np.max(nll_values) - np.min(nll_values))
-                assert (nll_values < 0.7).sum() > (nll_values > 0.7).sum(), "Many NLL values are 'large'"
-            else:
-                nll_values = np.full_like(nll_values, 0.5)
 
             # Get data point that has distance > avg(NLL) from current data point
             pdb_nll = nll_values[self.data_df.index == pdb_id][0]
@@ -399,6 +392,16 @@ class AffinityDataset(Dataset):
             # TEMP make sure to drop the large ones from wu20!
             not_large_files = summary_df.index.map(lambda df_idx: not df_idx.startswith("wu20_differ_ha_h3_h1:fi6v3:h3hk68"))
             summary_df = summary_df[not_large_files]
+
+        # Scale the NLLs to (0-1). The max NLL value in DMS_curated.csv is 4, so 0-1-scaling should be fine
+        nll_values = summary_df["NLL"].values
+        if np.max(nll_values) > np.min(nll_values):  # test that all values are not the same
+            nll_values = (nll_values - np.min(nll_values)) / (np.max(nll_values) - np.min(nll_values))
+            assert (nll_values < 0.7).sum() > (nll_values > 0.7).sum(), "Many NLL values are 'large'"
+        else:
+            nll_values = np.full_like(nll_values, 0.5)
+
+        summary_df["NLL"] = nll_values
 
         pdb_ids = summary_df.index.tolist()
         return summary_df.fillna(""), pdb_ids  # TODO why fillna("")? :|
