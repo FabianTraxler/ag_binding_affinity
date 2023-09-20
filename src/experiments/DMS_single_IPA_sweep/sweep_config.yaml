@@ -1,14 +1,23 @@
 method: 'grid'
-name: 'DMS-Per-Publication-IPA-sweep-rel_losses'
+name: 'DMS-Per-Publication-IPA-sweep'
 metric:
-  goal: 'minimize'
-  name: 'val0_rmse'
+  goal: 'maximize'
+  name: 'val0_pearson_correlation'
 parameters:
   target_dataset:
     values:
-      - "DMS-madan21_mutat_hiv#relative_L2"
-      - "DMS-phillips21_bindin#relative_L2"
-      - "DMS-wu20_differ_ha_h3_h1#relative_L2"
-      - "DMS-mason21_optim_therap_antib_by_predic_dms_H#relativeL2"
-      - "DMS-starr21_prosp_covid#L2_relative"
-      - "DMS-starr21_prosp_covid#L2_relative_cdf"
+      - "DMS-starr21_prosp_covid#L1"
+      - "DMS-starr21_prosp_covid#L2"
+      - "DMS-starr21_prosp_covid#relative_L2"
+      - "DMS-wu17_in#L2"
+      # - "DMS-starr21_prosp_covid#relative"
+      # - "DMS-starr21_prosp_covid#relative_cdf"
+      # - "DMS-madan21_mutat_hiv#relative_L2"
+      # - "DMS-wu20_differ_ha_h3_h1#L2"
+  learning_rate:
+    values:
+      - 0.0001
+      - 0.00001
+      - 0.000001
+      - 0.0000001
+

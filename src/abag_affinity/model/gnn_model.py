@@ -59,7 +59,7 @@ class DatasetAdjustment(nn.Module):
         elif self.layer_type in ["positive_regression", "positive_regression_sigmoid"]:
             self.linear = PositiveLinear(1, out_n)
             if dataset_names is not None:
-                log_weights = torch.ones((out_n, 1))
+                log_weights = torch.zeros((out_n, 1))
                 bias = torch.zeros((out_n))
                 # When a dataset is given, we initialize with a precomputed h function if available
                 for i, ds_name in enumerate(dataset_names):
