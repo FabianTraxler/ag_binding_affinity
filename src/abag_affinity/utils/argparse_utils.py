@@ -153,7 +153,7 @@ def parse_args(artifical_args=None) -> Namespace:
                           default=False)
     optional.add_argument("--dms_output_layer_type", choices=["identity", "bias_only", "regression", "regression_sigmoid", "positive_regression","positive_regression_sigmoid","mlp"],
                           help="Architecture of the DMS-specific output layers",
-                          default="positive_regression")
+                          default="bias_only")
 
     # weight and bias arguments
     optional.add_argument("-wdb", "--use_wandb", action=BooleanOptionalAction, help="Use Weight&Bias to log training process",

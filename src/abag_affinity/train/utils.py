@@ -1,5 +1,5 @@
 import glob
-from typing import Dict, List, Tuple, Union, Optional
+from typing import Dict, List, Tuple, Union, Optional, Callable
 from matplotlib._api import itertools
 import numpy as np
 import math
@@ -60,7 +60,7 @@ def forward_step(model: AffinityGNN, data: Dict, device: torch.device) -> Tuple[
             data["input"]["deeprefine_graph"] = data["input"]["deeprefine_graph"].to(device)
 
         output = model(data["input"])
-        output["relative"] = data["relative"]
+    output["relative"] = data["relative"]
 
     label = get_label(data, device)
 
@@ -69,7 +69,9 @@ def forward_step(model: AffinityGNN, data: Dict, device: torch.device) -> Tuple[
 
 def get_label(data: Dict, device: torch.device) -> Dict:
     # We compute all possible labels, so that we can combine different loss functions
-    label = {}
+    label = {
+        "relative": data["relative"]
+    }
     for output_type in ["E", "-log(Kd)"]:
         if data["relative"]:
             label_1 = (data["input"][0]["graph"][output_type] > data["input"][1]["graph"][output_type])
@@ -94,7 +96,7 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
     loss_types = [(x[0], float(x[1])) if len(x) == 2 else (x[0], 1.) for x in loss_types]
 
     losses = []
-    loss_functions = {
+    loss_functions: Dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = {
         "L1": torch.nn.functional.l1_loss,
         "L2": torch.nn.functional.mse_loss,
         "relative_L1": torch.nn.functional.l1_loss,
@@ -282,7 +284,7 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
     Path(plot_path).mkdir(exist_ok=True, parents=True)
     Path(prediction_path).mkdir(parents=True, exist_ok=True)
 
-    wandb, wdb_config, use_wandb, run = configure(args)
+    wandb_inst, wdb_config, use_wandb, run = configure(args, model)
 
     results = {f"{key}_val{i}": [] for key, i in
                itertools.product(["epoch_loss", "epoch_corr", "epoch_rmse", "epoch_acc"], range(len(val_datasets)))}
@@ -340,8 +342,8 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
 
                 if not np.isnan(val_result["rmse"]):
                     best_data = [[x, y] for (x, y) in zip(all_predictions, all_labels)]
-                    best_table = wandb.Table(data=best_data, columns=["predicted", "true"])
-                    wandb.log({"scatter_plot": wandb.plot.scatter(best_table, "predicted", "true",
+                    best_table = wandb_inst.Table(data=best_data, columns=["predicted", "true"])
+                    wandb_inst.log({"scatter_plot": wandb_inst.plot.scatter(best_table, "predicted", "true",
                                                                 title="Label vs. Predictions")})
 
                     plot_correlation(x=all_labels, y=all_predictions,
@@ -391,7 +393,7 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
                 f"{val_dataset.full_dataset_name}{val_i}_val_rmse": val_result["rmse"]
             }
 
-            wandb.log(wandb_log, commit=True)
+            wandb_inst.log(wandb_log, commit=True)
 
         stop_training = True
 
@@ -423,7 +425,7 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
     results["best_correlation"] = best_pearson_corr
     results["best_rmse"] = best_rmse
 
-    return results, best_model, wandb
+    return results, best_model, wandb_inst
 
 
 def get_optimizer(args: Namespace, model: torch.nn.Module):
@@ -513,7 +515,6 @@ def load_model(num_node_features: int, num_edge_features: int, dataset_names: Li
                         device=device,
                         scaled_output=args.scale_values,  # seems to work worse than if the model learns it on its own
                         dataset_names=complexes_from_dms_datasets(dataset_names, args))
-    
 
     return model
 
@@ -582,6 +583,7 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
         summary_df = summary_df[summary_df.filename.apply(lambda fn: (data_path / fn).exists())]
 
         affinity_type = config["DATASETS"][dataset_name]["affinity_types"][publication_code]
+        # TODO we should refactor/DRY finding pairs here with the function update_pairs/get_compatible_pairs in the AffinityDataset class
         if affinity_type == "E":
             summary_df = summary_df[~summary_df.index.duplicated(keep='first')]
 
@@ -589,7 +591,6 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
             e_values = summary_df.groupby(summary_df.index.map(lambda i: i.split("-")[0]))["E"].apply(lambda x: (x - x.min()) / (x.max() - x.min()))
 
             e_values = e_values.values.reshape(-1,1).astype(np.float32)
-
 
             nll_values = summary_df["NLL"].values
             # Scale the NLLs to (0-1). The max NLL value in DMS_curated.csv is 4, so 0-1-scaling should be fine
@@ -819,7 +820,7 @@ def get_bucket_dataloader(args: Namespace, train_datasets: List[AffinityDataset]
         raise ValueError(f"bucket_size_mode argument not supported: Got {args.bucket_size_mode} "
                          f"but expected one of [min, geometric_mean]")
     i = 0
-
+    # TODO We might want to modify this code to work on a per-dataset or even per-complex level
     for idx, train_dataset in enumerate(train_datasets):
         if len(train_dataset) >= train_bucket_size[idx]:
             if train_dataset.dataset_name in args.target_dataset:  # args.target_dataset includes :absolute
@@ -916,7 +917,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
 
     dataset2optimize = args.target_dataset.split("#")[0]
 
-    wandb, wdb_config, use_wandb, run = configure(args)
+    wandb_inst, wdb_config, use_wandb, run = configure(args, model)
 
     use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
@@ -941,7 +942,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
     best_model = deepcopy(model)
 
     for epoch in range(args.max_epochs):
-        # create new buckets for each epoch
+        # create new buckets for each epoch (implements shuffling)
         train_dataloader, val_dataloader = get_bucket_dataloader(args, train_datasets, val_datasets)
 
         model, val_results, total_loss_train = train_epoch(model, train_dataloader, [val_dataloader], optimizer, device,
@@ -1037,8 +1038,8 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
                          for x, y
                          in zip(dataset_results[dataset2optimize]["all_predictions"],
                                 dataset_results[dataset2optimize]["all_labels"])]
-            best_table = wandb.Table(data=best_data, columns=["predicted", "true"])
-            wandb.log({"scatter_plot": wandb.plot.scatter(best_table, "predicted", "true",
+            best_table = wandb_inst.Table(data=best_data, columns=["predicted", "true"])
+            wandb_inst.log({"scatter_plot": wandb_inst.plot.scatter(best_table, "predicted", "true",
                                                           title="Label vs. Predictions")})
 
             best_model = deepcopy(model)
@@ -1049,7 +1050,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
             f'Epochs: {epoch + 1} | Total-Train-Loss: {total_loss_train / len(train_dataloader) : .3f}'
             f' | Total-Val-Loss: {val_result["total_val_loss"] / len(val_dataloader) : .3f} | Patience: {patience} ')
 
-        wandb.log(wandb_log, commit=True)
+        wandb_inst.log(wandb_log, commit=True)
 
         stop_training = True
 
@@ -1080,7 +1081,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
     results["best_correlation"] = best_pearson_corr
     results["best_rmse"] = best_rmse
 
-    return results, best_model, wandb
+    return results, best_model, wandb_inst
 
 
 def finetune_frozen(model: AffinityGNN, train_dataset: Union[AffinityDataset, List[AffinityDataset]], val_dataset: Union[AffinityDataset, List[AffinityDataset]],
@@ -1109,9 +1110,9 @@ def finetune_frozen(model: AffinityGNN, train_dataset: Union[AffinityDataset, Li
 
     # TODO When finetuning is applied after normal training a new wandb instance is generated?!
     if args.train_strategy in ["bucket_train", "train_transferlearnings_validate_target"]:
-        results, model, wandb = bucket_learning(model, train_dataset, val_dataset, args)
+        results, model, wandb_inst = bucket_learning(model, train_dataset, val_dataset, args)
     else:
-        results, model, wandb = train_loop(model, train_dataset, val_dataset, args)
+        results, model, wandb_inst = train_loop(model, train_dataset, val_dataset, args)
 
     logger.info("Fintuning pretrained model completed")
     logger.debug(results)

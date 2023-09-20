@@ -4,7 +4,7 @@
 --batch_size=64
 --layer_type=GCN
 --max_epochs=200
---num_workers=20
+--num_workers=10
 --nonlinearity=leaky
 --scale_values
 --num_fc_layers=10
@@ -23,5 +23,5 @@
 --stop_at_learning_rate=0.000001
 --learning_rate=0.00001
 --relaxed_pdbs=False
---init_sweep
---sweep_config=src/experiments/DMS_single_prediciton_sweep/sweep_config_with_relative.yaml
+--sweep_id=ewihf6qi
+--sweep_config=src/experiments/DMS_single_prediciton_sweep/sweep_config.yaml
