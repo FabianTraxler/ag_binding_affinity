@@ -27,7 +27,7 @@ class TwinWrapper(torch.nn.Module):
         data_2["graph"] = data_2["graph"].to(self.device)
         if "deeprefine_graph" in data_2:
             data_2["deeprefine_graph"] = data_2["deeprefine_graph"].to(self.device)
-        out_2 = self.backbone_net(data_2)
+        out_2 = self.backbone_net(data_2).detach()
 
         output = {"relative": data["relative"]}
 

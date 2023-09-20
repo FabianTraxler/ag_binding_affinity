@@ -114,7 +114,7 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
                 if valid_indices.sum() > 0:
                     losses.append(weight * loss_fn(output[output_type][valid_indices],
                                                label[output_type][valid_indices]))
-                if output["relative"]:
+                if output["relative"] and False:
                     valid_indices = ~torch.isnan(label[f"{output_type}2"])
                     if valid_indices.sum() > 0:
                         losses.append(weight * loss_fn(output[f"{output_type}2"][valid_indices],
