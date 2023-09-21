@@ -22,6 +22,7 @@ from tqdm import tqdm
 from scipy.stats.mstats import gmean
 from sklearn.metrics import accuracy_score
 import scipy.spatial as sp
+from functools import partial
 # import pdb
 
 from ..dataset import AffinityDataset
@@ -96,16 +97,20 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
     loss_types = [(x[0], float(x[1])) if len(x) == 2 else (x[0], 1.) for x in loss_types]
 
     losses = []
+    # Using Mean reduction might weight losses unequally (assume e.g. one batch (size 64) contain 1 E value and 63 -log(Kd) values
+    # Therefore, we should try sum reduction
     loss_functions: Dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = {
-        "L1": torch.nn.functional.l1_loss,
-        "L2": torch.nn.functional.mse_loss,
-        "relative_L1": torch.nn.functional.l1_loss,
-        "relative_L2": torch.nn.functional.mse_loss,
-        "relative_ce": torch.nn.functional.nll_loss,
-        "relative_cdf": lambda output, label: torch.nn.functional.nll_loss((output+1e-10).log(), label)
+        "L1": partial(torch.nn.functional.l1_loss, reduction='sum'),
+        "L2": partial(torch.nn.functional.mse_loss, reduction='sum'),
+        "relative_L1": partial(torch.nn.functional.l1_loss, reduction='sum'),
+        "relative_L2": partial(torch.nn.functional.mse_loss, reduction='sum'),
+        "relative_ce": partial(torch.nn.functional.nll_loss, reduction='sum'),
+        "relative_cdf": lambda output, label: torch.nn.functional.nll_loss((output+1e-10).log(), label, reduction="sum")
     }
 
     for (criterion, weight) in loss_types:
+        # As we use sum reduction but don't want to scale our loss to large, we devide by batchsize
+        weight = weight / output["-log(Kd)"].shape[0]
         loss_fn = loss_functions[criterion]
         for output_type in ["E", "-log(Kd)"]:
 
