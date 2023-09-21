@@ -123,7 +123,8 @@ def run_sweep(args: Namespace, logger):
             logger.info(f"Performing {args.train_strategy}")
 
             seed(args.seed)
-            training[args.train_strategy](args)
+            model, results, wandb_inst = training[args.train_strategy](args)
+            run_and_log_benchmarks(model, args, wandb_inst, logger)
             wandb.finish(0)
         except Exception as e:
             # log errors before finishing job
@@ -192,24 +193,9 @@ def main() -> Dict:
         if args.cross_validation:
             model, results = cross_validation(args)
         else:
-            model, results, wand_inst = training[args.train_strategy](args)
+            model, results, wandb_inst = training[args.train_strategy](args)
+            run_and_log_benchmarks(model, args, wandb_inst, logger)
 
-            # Run benchmarks
-            benchmark_pearson, benchmark_loss, benchmark_df = get_benchmark_score(model, args, tqdm_output=args.tqdm_output)
-            test_skempi_grouped_corrs, test_skempi_score, test_loss_skempi, test_skempi_df = get_skempi_corr(model, args, tqdm_output=args.tqdm_output)
-            abag_test_plot_path = os.path.join(args.config["plot_path"], f"abag_affinity_test_cv{args.validation_set}.png")
-
-            test_pearson, test_loss, test_df = get_abag_test_score(model, args, tqdm_output=args.tqdm_output,
-                                                                   plot_path=abag_test_plot_path,
-                                                                   validation_set=args.validation_set)
-            logger.info(f"Benchmark results >>> {benchmark_pearson}")
-            logger.info(f"SKEMPI testset results >>> {test_skempi_score}")
-            logger.info(f"Mean SKEMPI correlations >>> {np.mean(test_skempi_grouped_corrs)}")
-            
-            wandb_benchmark_log = {"abag_test_pearson": test_pearson, "abag_test_loss": test_loss,
-                                   "skempi_test_pearson": test_skempi_score, "skempi_test_loss": test_loss_skempi,
-                                   "benchmark_test_pearson": benchmark_pearson, "benchmark_test_loss": benchmark_loss}
-            wand_inst.log(wandb_benchmark_log, commit=True)
             # Save model
             if args.model_path is not None:
                 path = Path(args.model_path)
@@ -224,6 +210,24 @@ def main() -> Dict:
             # TODO make sure (when loading) that the model is initialized with the same seed. <- why did I write this comment? If no-one finds a reason, delete the comment
         # return results  (leads to error code in bash)
 
+def run_and_log_benchmarks(model, args, wandb_inst, logger):
+    # Run benchmarks
+    benchmark_pearson, benchmark_loss, benchmark_df = get_benchmark_score(model, args, tqdm_output=args.tqdm_output)
+    test_skempi_grouped_corrs, test_skempi_score, test_loss_skempi, test_skempi_df = get_skempi_corr(model, args,
+                                                                                                     tqdm_output=args.tqdm_output)
+    abag_test_plot_path = os.path.join(args.config["plot_path"], f"abag_affinity_test_cv{args.validation_set}.png")
+
+    test_pearson, test_loss, test_df = get_abag_test_score(model, args, tqdm_output=args.tqdm_output,
+                                                           plot_path=abag_test_plot_path,
+                                                           validation_set=args.validation_set)
+    logger.info(f"Benchmark results >>> {benchmark_pearson}")
+    logger.info(f"SKEMPI testset results >>> {test_skempi_score}")
+    logger.info(f"Mean SKEMPI correlations >>> {np.mean(test_skempi_grouped_corrs)}")
+
+    wandb_benchmark_log = {"abag_test_pearson": test_pearson, "abag_test_loss": test_loss,
+                           "skempi_test_pearson": test_skempi_score, "skempi_test_loss": test_loss_skempi,
+                           "benchmark_test_pearson": benchmark_pearson, "benchmark_test_loss": benchmark_loss}
+    wandb_inst.log(wandb_benchmark_log, commit=True)
 
 if __name__ == "__main__":
     main()
