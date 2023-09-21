@@ -741,8 +741,8 @@ def load_datasets(config: Dict, dataset: str, validation_set: int,
     train_ids, val_ids = train_val_split(config, dataset_name, validation_set, validation_size)
 
     if args.test:
-        train_ids = train_ids[:20]
-        val_ids = val_ids[:5]
+        train_ids = train_ids[:50]
+        val_ids = val_ids[:20]
 
     logger.debug(f"Get dataLoader for {dataset_name}#{loss_types}")
     train_data = AffinityDataset(config, args.relaxed_pdbs, dataset_name, loss_types,

@@ -145,7 +145,7 @@ class AffinityDataset(Dataset):
         # set dataset to load relative or absolute data points
         self.relative_data = relative_data
         if relative_data:
-            self.get = self.get_relative
+            self.get = self.get_relative  # TODO no need to brutally overassign the function. just put the if/else inside def get()
             logger.info(f"Forcing graph preprocessing, in order to avoid race conditions in workers")
             self.preprocess_data = True
             self.update_valid_pairs()  # should not be necessary in theory, but __repr__ calls len(), which requires the pairs
@@ -386,7 +386,7 @@ class AffinityDataset(Dataset):
 
         summary_df = summary_df[~summary_df.index.duplicated(keep='first')]
 
-        if self.load_embeddings:
+        if self.load_embeddings and self.dataset_name == "DMS":
             # TEMP remove the ones, for which the precomputed graphs don't exist
             existing_pdb_ids = summary_df.index.map(lambda df_idx: Path(self.processed_graph_files.format(filestem=df_idx, is_relaxed=self.is_relaxed)).exists())
             summary_df = summary_df[existing_pdb_ids]

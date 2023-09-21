@@ -56,11 +56,11 @@ def model_train(args:Namespace, validation_set: Optional[int] = None) -> Tuple[A
     logger.debug(f"Training with  {dataset_name}")
     logger.debug(f"Training done on GPU: {next(model.parameters()).is_cuda}")
 
-    results, best_model, wandb = train_loop(model, train_data, val_datas, args)
+    results, best_model, wandb_inst = train_loop(model, train_data, val_datas, args)
 
     if args.fine_tune:
         results, best_model = finetune_frozen(best_model, train_data, val_datas, args, lr_reduction=0.2)
-    return best_model, results, wandb
+    return best_model, results, wandb_inst
 
 
 def pretrain_model(args:Namespace) -> Tuple[AffinityGNN, Dict]:
@@ -96,7 +96,7 @@ def pretrain_model(args:Namespace) -> Tuple[AffinityGNN, Dict]:
         logger.debug(f"Training with  {dataset_name}")
         logger.debug(f"Training done on GPU: {next(model.parameters()).is_cuda}")
 
-        results, model, wandb = train_loop(model, train_data, val_datas, args)
+        results, model, wandb_inst = train_loop(model, train_data, val_datas, args)
 
         logger.info("Training with {} completed".format(dataset_name))
         logger.debug(results)
@@ -108,7 +108,7 @@ def pretrain_model(args:Namespace) -> Tuple[AffinityGNN, Dict]:
         results, model = finetune_frozen(model, train_data, val_datas, args, lr_reduction=0.2)
         all_results["finetuning"] = results
 
-    return model, all_results, wandb
+    return model, all_results, wandb_inst
 
 
 def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
@@ -176,16 +176,16 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
 
     logger.info("Training with {}".format(", ".join([dataset.full_dataset_name for dataset in train_datasets])))
     logger.info("Evaluating on {}".format(", ".join([dataset.full_dataset_name for dataset in val_datasets])))
-    results, model, wandb = bucket_learning(model, train_datasets, val_datasets, args)
+    results, model, wandb_inst = bucket_learning(model, train_datasets, val_datasets, args)
 
     logger.info("Training with {} completed".format(datasets))
 
     if args.fine_tune:
-        # TODO here we generate a new wandb instance?!
+        # TODO here we generate a new wandb_inst instance?!
         results, model = finetune_frozen(model, train_datasets, val_datasets, args, lr_reduction=0.2)
 
     logger.debug(results)
-    return model, results, wandb
+    return model, results, wandb_inst
 
 
 def train_transferlearnings_validate_target(args: Namespace):
@@ -215,7 +215,11 @@ def train_transferlearnings_validate_target(args: Namespace):
             train_datasets.append(train_data)
 
     # Load the main validation dataset
-    for val_data in load_datasets(config, args.target_dataset, args.validation_set, args, 1.0)[1]:
+    target_train_spikein_set, target_val_datas = load_datasets(config, args.target_dataset, args.validation_set, args, 1.0-args.training_set_spikein)
+    if len(target_train_spikein_set) > 0:
+        train_datasets.append(target_train_spikein_set)
+
+    for val_data in target_val_datas:
         if len(val_data) > 0:
             val_datasets.append(val_data)
 
@@ -224,14 +228,14 @@ def train_transferlearnings_validate_target(args: Namespace):
 
     logger.info("Training with {}".format(", ".join([dataset.full_dataset_name for dataset in train_datasets])))
     logger.info("Evaluating on {}".format(", ".join([dataset.full_dataset_name for dataset in val_datasets])))
-    results, model = bucket_learning(model, train_datasets, val_datasets, args)
+    results, model, wandb_inst = bucket_learning(model, train_datasets, val_datasets, args)
     logger.info("Training with {} completed".format(training_set_names))
 
     if args.fine_tune:
         results, model = finetune_frozen(model, train_datasets, val_datasets, args, lr_reduction=0.2)
 
     logger.debug(results)
-    return model, results
+    return model, results, wandb_inst
 
 
 def cross_validation(args:Namespace) -> Tuple[None, Dict]:
@@ -275,7 +279,7 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
     for i in range(1, n_splits):
         logger.info("\nValidation on split {} and training with all other splits".format(i))
         args.validation_set = i
-        best_model, results, wandb = training[args.train_strategy](args)
+        best_model, results, wandb_inst = training[args.train_strategy](args)
         torch.save(best_model.state_dict(), os.path.join(args.config["model_path"], f"best_model_val_set_{i}.pt"))
 
         if args.target_dataset in results:
@@ -324,7 +328,7 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
         wandb_benchmark_log = {"abag_test_pearson": test_pearson, "abag_test_loss": test_loss,
                                "skempi_test_pearson": test_skempi_score, "skempi_test_loss": test_loss_skempi,
                                "benchmark_test_pearson": benchmark_pearson, "benchmark_test_loss": benchmark_loss}
-        wandb.log(wandb_benchmark_log, commit=True)
+        wandb_inst.log(wandb_benchmark_log, commit=True)
 
 
     logger.info("Average Loss: {} ({})".format(np.mean(losses), np.std(losses)))
