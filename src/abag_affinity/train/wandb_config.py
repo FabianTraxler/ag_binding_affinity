@@ -13,7 +13,7 @@ def configure(args: Namespace, model: Optional[nn.Module] = None) -> Tuple:
     """
     use_wandb = False
     if args.use_wandb:
-        run = wandb.init(project="abag_binding_affinity", mode=args.wandb_mode)
+        run = wandb.init(project="abag_binding_affinity", mode=args.wandb_mode, settings=wandb.Settings(start_method="fork"))
         if args.wandb_mode == "online":
             wandb.run.name = args.wandb_name
             run_id = (args.wandb_user + "/abag_binding_affinity/{}").format(run.id)

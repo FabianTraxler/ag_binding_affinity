@@ -22,6 +22,7 @@ from tqdm import tqdm
 from scipy.stats.mstats import gmean
 from sklearn.metrics import accuracy_score
 import scipy.spatial as sp
+from functools import partial
 # import pdb
 
 from ..dataset import AffinityDataset
@@ -96,31 +97,37 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
     loss_types = [(x[0], float(x[1])) if len(x) == 2 else (x[0], 1.) for x in loss_types]
 
     losses = []
+    # Using Mean reduction might weight losses unequally (assume e.g. one batch (size 64) contain 1 E value and 63 -log(Kd) values
+    # Therefore, we should try sum reduction
     loss_functions: Dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = {
-        "L1": torch.nn.functional.l1_loss,
-        "L2": torch.nn.functional.mse_loss,
-        "relative_L1": torch.nn.functional.l1_loss,
-        "relative_L2": torch.nn.functional.mse_loss,
-        "relative_ce": torch.nn.functional.nll_loss,
-        "relative_cdf": lambda output, label: torch.nn.functional.nll_loss((output+1e-10).log(), label)
+        "L1": partial(torch.nn.functional.l1_loss, reduction='sum'),
+        "L2": partial(torch.nn.functional.mse_loss, reduction='sum'),
+        "RL2": lambda output, label: torch.sqrt(torch.nn.functional.mse_loss(output, label, reduction='sum') + 1e-10), # We add 1e-10 to avoid nan gradients when mse=0
+        "relative_L1": partial(torch.nn.functional.l1_loss, reduction='sum'),
+        "relative_L2": partial(torch.nn.functional.mse_loss, reduction='sum'),
+        "relative_RL2": lambda output, label: torch.sqrt(torch.nn.functional.mse_loss(output, label, reduction='sum') + 1e-10),
+        "relative_ce": partial(torch.nn.functional.nll_loss, reduction='sum'),
+        "relative_cdf": lambda output, label: torch.nn.functional.nll_loss((output+1e-10).log(), label, reduction="sum")
     }
 
     for (criterion, weight) in loss_types:
+        # As we use sum reduction but don't want to scale our loss to large, we devide by batchsize
+        weight = weight / output["-log(Kd)"].shape[0]
         loss_fn = loss_functions[criterion]
         for output_type in ["E", "-log(Kd)"]:
 
-            if criterion in ["L1", "L2"]:
+            if criterion in ["L1", "L2","RL2"]:
                 valid_indices = ~torch.isnan(label[output_type])
                 if valid_indices.sum() > 0:
                     losses.append(weight * loss_fn(output[output_type][valid_indices],
                                                label[output_type][valid_indices]))
-                if output["relative"]:
+                if output["relative"] and False:
                     valid_indices = ~torch.isnan(label[f"{output_type}2"])
                     if valid_indices.sum() > 0:
                         losses.append(weight * loss_fn(output[f"{output_type}2"][valid_indices],
                                                    label[f"{output_type}2"][valid_indices]))
             elif output["relative"] and criterion.startswith("relative"):
-                if criterion in ["relative_L1", "relative_L2"]:
+                if criterion in ["relative_L1", "relative_L2","relative_RL2"]:
                     output_key = f"{output_type}_difference"
                     label_key = f"{output_type}_difference"
                 elif criterion == "relative_ce":
@@ -800,12 +807,8 @@ def get_bucket_dataloader(args: Namespace, train_datasets: List[AffinityDataset]
     absolute_data_indices = []
     relative_data_indices = []
     relative_E_data_indices = []
-
-    # Reshuffle pairs
-    for idx, train_dataset in enumerate(train_datasets):
-        if train_dataset.relative_data:
-            train_dataset.update_valid_pairs()
-
+    #Data Indices per Loss Function:
+    data_indices = {}
 
     if args.bucket_size_mode == "min":
         train_bucket_size = [min([len(dataset) for dataset in train_datasets])] * len(train_datasets)
@@ -834,12 +837,12 @@ def get_bucket_dataloader(args: Namespace, train_datasets: List[AffinityDataset]
             indices = random.choices(range(len(train_dataset)), k=train_bucket_size[idx])
 
         train_buckets.append(Subset(train_dataset, indices))
-        if train_dataset.relative_data and train_dataset.affinity_type == "E":
-            relative_E_data_indices.extend(list(range(i, i + len(indices))))
-        elif train_dataset.relative_data and train_dataset.affinity_type == "-log(Kd)":
-            relative_data_indices.extend(list(range(i, i + len(indices))))
+        # We split the Indices by loss criterion as 1 Batch cannot contain different loss functions!
+        if train_dataset.loss_criterion in data_indices.keys():
+            data_indices[train_dataset.loss_criterion].extend(list(range(i, i + len(indices))))
         else:
-            absolute_data_indices.extend(list(range(i, i + len(indices))))
+            data_indices[train_dataset.loss_criterion] = list(range(i, i + len(indices)))
+
         i += len(indices)
 
     # shorten relative data for validation because DMS datapoints tend to have a lot of validation data if we use 10% split
@@ -849,7 +852,7 @@ def get_bucket_dataloader(args: Namespace, train_datasets: List[AffinityDataset]
             dataset.relative_pairs = dataset.relative_pairs[:100]
 
     train_dataset = ConcatDataset(train_buckets)
-    batch_sampler = generate_bucket_batch_sampler([absolute_data_indices, relative_data_indices, relative_E_data_indices], args.batch_size,
+    batch_sampler = generate_bucket_batch_sampler(data_indices.values(), args.batch_size,
                                                   shuffle=args.shuffle)
 
     train_dataloader = DL_torch(train_dataset, num_workers=args.num_workers,
@@ -943,6 +946,8 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
 
     for epoch in range(args.max_epochs):
         # create new buckets for each epoch (implements shuffling)
+        # This ensures that different part of the dataset are used when geometric mean is set
+        # Also shuffles the batches as otherwise each bucket dataloader returns the same combination of samples in one batch
         train_dataloader, val_dataloader = get_bucket_dataloader(args, train_datasets, val_datasets)
 
         model, val_results, total_loss_train = train_epoch(model, train_dataloader, [val_dataloader], optimizer, device,

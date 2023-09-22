@@ -179,14 +179,16 @@ class AffinityDataset(Dataset):
         """
         assert self.relative_data, "This function is only available for relative data"
         all_data_points = []
+        n_skipped_pdbs = 0
         for pdb_id in self.pdb_ids:
             other_pdb_ids = self.get_compatible_pairs(pdb_id)
             if other_pdb_ids is None:
                 # do not use this pdb
+                n_skipped_pdbs += 1
                 continue
             all_data_points.append((pdb_id, other_pdb_ids))
 
-        logger.debug(f"There are in total {len(all_data_points)} valid pairs")
+        logger.info(f"There are in total {len(all_data_points)} valid pairs in {self.dataset_name}, we skipped {n_skipped_pdbs} PDBs!")
 
         self.relative_pairs = all_data_points
 
