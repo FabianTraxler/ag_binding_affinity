@@ -40,6 +40,6 @@ def configure(args: Namespace, model: Optional[nn.Module] = None) -> Tuple:
     wandb.config.update(update_config, allow_val_change=True)
 
     if model:
-        wandb.watch(model, log_freq=1000 / args.batch_size)
+        wandb.watch(model, log_freq=1000 / args.batch_size, log="all")
 
     return wandb, wandb.config, use_wandb, run
