@@ -105,7 +105,7 @@ def get_sequence(filepath: str):
     chains = {chain.id: seq1(''.join(residue.resname for residue in chain)) for chain in structure.get_chains()}
     return chains
 
-def antigen_chains_too_long(filepath: str, max_length: int = 350):
+def antigen_chains_too_long(filepath: str, max_length: Optional[int] = None):
     """
     filter out complexes where the antigen chain is too long
     Params:
@@ -114,6 +114,8 @@ def antigen_chains_too_long(filepath: str, max_length: int = 350):
     Returns:
         True if the antigen chain is too long
     """
+    if max_length is None:
+        return False
     antigen_seqs = [seq for key, seq in get_sequence(filepath).items() if key in "ABCDE"]
     return sum(len(seq) for seq in antigen_seqs) > max_length
 

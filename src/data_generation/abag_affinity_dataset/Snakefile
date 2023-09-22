@@ -91,7 +91,7 @@ checkpoint generate_dataset:
         n_val_splits=NUM_VALIDATION_SPLITS,
         test_size=TESTSET_SIZE,
         redundancy_cutoff=REDUNDANCY_CUTOFF,
-        max_antigen_length=350  # should match what we use in diffusion pipeline. excluded because of the lack of OF embeddings..
+        max_antigen_length=None  # should match what we use in diffusion pipeline. excluded because of the lack of OF embeddings..
     conda:
         join(project_root, "envs/generation_environment.yml")
     threads: 10

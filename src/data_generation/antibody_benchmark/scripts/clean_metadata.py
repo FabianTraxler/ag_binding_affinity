@@ -96,7 +96,7 @@ summary_df.index = summary_df["pdb"]
 valid_pdbs = []
 for pdb_id in summary_df.index:
     try:
-        prot = load_protein(Path(snakemake.input["pdb_dir"]).expanduser() / f"{pdb_id.upper()}_1.pdb", max_antigen_length=350)
+        prot = load_protein(Path(snakemake.input["pdb_dir"]).expanduser() / f"{pdb_id.upper()}_1.pdb", max_antigen_length=None)  # allow any size
         if (prot["context_chain_type"] == ENUM_ANTIGEN).any():
             valid_pdbs.append(pdb_id)
     except FileNotFoundError:
