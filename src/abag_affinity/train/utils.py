@@ -102,8 +102,10 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
     loss_functions: Dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = {
         "L1": partial(torch.nn.functional.l1_loss, reduction='sum'),
         "L2": partial(torch.nn.functional.mse_loss, reduction='sum'),
+        "RL2": lambda output, label: torch.sqrt(torch.nn.functional.mse_loss(output, label, reduction='sum') + 1e-10), # We add 1e-10 to avoid nan gradients when mse=0
         "relative_L1": partial(torch.nn.functional.l1_loss, reduction='sum'),
         "relative_L2": partial(torch.nn.functional.mse_loss, reduction='sum'),
+        "relative_RL2": lambda output, label: torch.sqrt(torch.nn.functional.mse_loss(output, label, reduction='sum') + 1e-10),
         "relative_ce": partial(torch.nn.functional.nll_loss, reduction='sum'),
         "relative_cdf": lambda output, label: torch.nn.functional.nll_loss((output+1e-10).log(), label, reduction="sum")
     }
@@ -114,7 +116,7 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
         loss_fn = loss_functions[criterion]
         for output_type in ["E", "-log(Kd)"]:
 
-            if criterion in ["L1", "L2"]:
+            if criterion in ["L1", "L2","RL2"]:
                 valid_indices = ~torch.isnan(label[output_type])
                 if valid_indices.sum() > 0:
                     losses.append(weight * loss_fn(output[output_type][valid_indices],
@@ -125,7 +127,7 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
                         losses.append(weight * loss_fn(output[f"{output_type}2"][valid_indices],
                                                    label[f"{output_type}2"][valid_indices]))
             elif output["relative"] and criterion.startswith("relative"):
-                if criterion in ["relative_L1", "relative_L2"]:
+                if criterion in ["relative_L1", "relative_L2","relative_RL2"]:
                     output_key = f"{output_type}_difference"
                     label_key = f"{output_type}_difference"
                 elif criterion == "relative_ce":
