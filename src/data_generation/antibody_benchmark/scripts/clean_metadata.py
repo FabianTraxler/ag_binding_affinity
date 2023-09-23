@@ -93,17 +93,17 @@ summary_df = summary_df[["pdb", "filename", "-log(Kd)", "Kd (nM)", "delta_g", "c
 summary_df.index = summary_df["pdb"]
 
 # Check for which PDBs we are able to load antigens (only take those for the benchmark set)
-valid_pdbs = []
-for pdb_id in summary_df.index:
-    try:
-        prot = load_protein(Path(snakemake.input["pdb_dir"]).expanduser() / f"{pdb_id.upper()}_1.pdb", max_antigen_length=None)  # allow any size
-        if (prot["context_chain_type"] == ENUM_ANTIGEN).any():
-            valid_pdbs.append(pdb_id)
-    except FileNotFoundError:
-        pass
+# valid_pdbs = []
+# for pdb_id in summary_df.index:
+#     try:
+#         prot = load_protein(Path(snakemake.input["pdb_dir"]).expanduser() / f"{pdb_id.upper()}_1.pdb", max_antigen_length=None)  # allow any size
+#         if (prot["context_chain_type"] == ENUM_ANTIGEN).any():
+#             valid_pdbs.append(pdb_id)
+#     except FileNotFoundError:
+#         pass
 
-print(f"{len(valid_pdbs)} for {len(summary_df)} were valid ((antibody+)antigen could be loaded)")
-summary_df = summary_df.loc[valid_pdbs]
+# print(f"{len(valid_pdbs)} for {len(summary_df)} were valid ((antibody+)antigen could be loaded)")
+# summary_df = summary_df.loc[valid_pdbs]
 
 summary_df.index.name = ""
 summary_df.to_csv(out_path)
