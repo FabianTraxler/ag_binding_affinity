@@ -291,7 +291,7 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
     Path(plot_path).mkdir(exist_ok=True, parents=True)
     Path(prediction_path).mkdir(parents=True, exist_ok=True)
 
-    wandb_inst, wdb_config, use_wandb, run = configure(args, model)
+    wandb_inst, wdb_config, use_wandb, run = configure(args, model.dataset_specific_layer)
 
     results = {f"{key}_val{i}": [] for key, i in
                itertools.product(["epoch_loss", "epoch_corr", "epoch_rmse", "epoch_acc"], range(len(val_datasets)))}
@@ -920,7 +920,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
 
     dataset2optimize = args.target_dataset.split("#")[0]
 
-    wandb_inst, wdb_config, use_wandb, run = configure(args, model)
+    wandb_inst, wdb_config, use_wandb, run = configure(args, model.dataset_specific_layer)
 
     use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
@@ -943,6 +943,12 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
     }
 
     best_model = deepcopy(model)
+    dataset_results = {}
+    n_datasets = len(model.dataset_specific_layer.linear.bias)
+    dataset_specific_column_names = ["Epoch"] + [f"Weight {i}" for i in range(n_datasets)] + [f"Bias {i}" for i in
+                                                                                              range(n_datasets)]
+    table = pd.DataFrame(columns=dataset_specific_column_names)
+    #table = wandb_inst.Table(columns=dataset_specific_column_names)
 
     for epoch in range(args.max_epochs):
         # create new buckets for each epoch (implements shuffling)
@@ -955,13 +961,15 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
         assert len(val_results) == 1, "If more than one val dataset is desired, need to implement another for loop in some way as in `train_loop`"
         val_result = val_results[0]
 
-        dataset_results = {}
+        table.loc[epoch] = (epoch, *model.dataset_specific_layer.linear.weight[:, 0].tolist(), *model.dataset_specific_layer.linear.bias.tolist())
+        #table.add_data(epoch, *model.dataset_specific_layer.linear.weight[:, 0].tolist(), *model.dataset_specific_layer.linear.bias.tolist())
 
         wandb_log = {
             "val_loss": val_result["total_val_loss"] / len(val_dataloader),
             "train_loss": total_loss_train / len(train_dataloader),
             "pearson_correlation": val_result["pearson_correlation"],
-            "learning_rate" : optimizer.param_groups[0]['lr']
+            "learning_rate" : optimizer.param_groups[0]['lr'],
+            "dataset_specific_layer": wandb_inst.Table(dataframe=table)
         }
 
         i = 0
