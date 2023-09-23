@@ -1,4 +1,6 @@
 import os
+import pandas as pd
+
 from os.path import join
 from pathlib import Path
 
@@ -24,12 +26,13 @@ benchmark_pdb_path = join(results_folder, "antibody_benchmark", "pdbs")
 dataset_results_folder = os.path.join(results_folder, DATASET_NAME)
 
 pdb_relaxed_folder = os.path.join(dataset_results_folder, "pdbs_relaxed")
+pdb_unrelaxed_folder = os.path.join(dataset_results_folder, "pdbs")
 
 
 def gather_pdb_ids(wildcards):
-    pdb_dir = checkpoints.generate_dataset.get(**wildcards).output[1]
-    pdb_ids = glob_wildcards(f"{pdb_dir}/{{pdb_id}}.pdb").pdb_id
-    return expand(f"{pdb_relaxed_folder}/{{pdb_id}}.pdb", pdb_id=pdb_ids)
+    df = pd.read_csv(checkpoints.generate_dataset.get(**wildcards).output[0], index_col=0)
+
+    return expand(f"{pdb_relaxed_folder}/{{pdb_id}}.pdb", pdb_id=df.index)
 
 
 rule all:
@@ -83,9 +86,9 @@ checkpoint generate_dataset:
         # redundancy_file=join(resource_folder, "AbDb", redundancy_file),
     output:
         join(dataset_results_folder, "abag_affinity_dataset.csv"),
-        directory(join(dataset_results_folder, pdb_folder_name))
+        directory(pdb_unrelaxed_folder)
     params:
-        pdb_folder=join(dataset_results_folder, pdb_folder_name),
+        pdb_folder=pdb_unrelaxed_folder,
         benchmark_dataset_file=benchmark_dataset_file,
         benchmark_pdb_path=benchmark_pdb_path,
         n_val_splits=NUM_VALIDATION_SPLITS,
@@ -115,9 +118,12 @@ rule relax_structures:
     input:
         ancient(join(dataset_results_folder, "pdbs/{pdb_id}.pdb"))
     output:
-        join(dataset_results_folder, "pdbs_relaxed/{pdb_id}.pdb")
+        pdb=join(dataset_results_folder, "pdbs_relaxed/{pdb_id}.pdb"),
+        pdb_comments=join(dataset_results_folder, "pdbs_relaxed/{pdb_id}.rosetta_comments"),
     conda:
         join(project_root, "envs/generation_environment.yml")
+    resources:
+        mem_mb=10000
     script:
         "../scripts/relax.py"
 

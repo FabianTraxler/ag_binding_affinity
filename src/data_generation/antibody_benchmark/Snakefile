@@ -58,7 +58,7 @@ checkpoint clean_metadata:
     output:
         csv=join(dataset_results_folder, "benchmark.csv")
     conda:
-        "ag_binding_diffusion3"  # conda name env loading requires snakemake >v7.30.1
+        "ag_binding_diffusion3"
     script:
         "scripts/clean_metadata.py"
 
@@ -88,7 +88,10 @@ rule relax_structures:
     input:
         join(pdb_unrelaxed_folder, "{pdb_id}.pdb")
     output:
-        join(pdb_relaxed_folder, "{pdb_id}.pdb")
+        pdb=join(pdb_relaxed_folder, "{pdb_id}.pdb"),
+        pdb_comments=join(pdb_relaxed_folder, "{pdb_id}.rosetta_comments"),
+    resources:
+        mem_mb=10000
     conda:
         join(project_root, "envs/generation_environment.yml")
     script:

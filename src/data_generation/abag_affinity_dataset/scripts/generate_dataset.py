@@ -5,7 +5,7 @@ from Bio import pairwise2
 from Bio.PDB.PDBParser import PDBParser
 import pandas as pd
 import os
-from typing import Dict, Tuple, Set, List, Union
+from typing import Dict, Tuple, Set, List, Union, Optional
 import numpy as np
 from biopandas.pdb import PandasPdb
 from tqdm import tqdm
@@ -122,27 +122,27 @@ def antigen_chains_too_long(filepath: str, max_length: Optional[int] = None):
 
 def is_redundant(filepath: str, val_pdbs: List, pdb_paths, redudancy_cutoff: float = 0.8):
     """
-    filter out complexes where all three chains are below the redundancy cutoff
+    filter out complexes where the three chains are below the redundancy cutoff
     """
     orig_chains = get_sequence(filepath)
     for pdb_id, path in zip(val_pdbs, pdb_paths):
         check_chains = get_sequence(os.path.join(snakemake.params["benchmark_pdb_path"], path))
-        for orig_chain, orig_seq in orig_chains.items():
-            seq1 = Seq(orig_seq)
-
-            for check_chain, check_seq in check_chains.items():
-                seq2 = Seq(check_seq)
-                alignments = pairwise2.align.globalxx(seq1, seq2)
-                for alignment in alignments:
-                    score = alignment.score / (alignment.end - alignment.start)
-                    if score > redudancy_cutoff:
-                        break
+        scores = []
+        for chain in "HLA":  # issue: there might be a mismatch between antigen chain identifier such that redundancy remains undetected here :/
+            if chain not in orig_chains or chain not in check_chains:
+                if chain == "L":
+                    # print(f"Chain {chain} not found in {filepath} or {path}")  # spam
+                    continue
                 else:
-                    # score has been below redundancy cutoff, so we break
-                    break
-            else:
-                # If there has been no break, all chains are above the cutoff, so we return True
-                return True
+                    raise ValueError(f"Chain {chain} not found in {filepath} or {path}")
+
+            seq1 = Seq(orig_chains[chain])
+            seq2 = Seq(check_chains[chain])
+            alignment_score = pairwise2.align.globalxx(seq1, seq2, score_only=True)
+            scores.append(alignment_score / min(len(seq1), len(seq2)))
+
+        if all(score > redudancy_cutoff for score in scores):
+            return True
 
     return False
 
@@ -167,7 +167,6 @@ def add_train_val_test_split(dataset: pd.DataFrame, n_splits: int, test_size: in
 
         dataset.loc[val_idx, "validation"] = i
 
-
     return dataset
 
 
@@ -187,10 +186,9 @@ def copy_files(dataset: pd.DataFrame, pdb_folder: str, new_folder: str):
         pdb_id = row["pdb"]
         shutil.copyfile(os.path.join(pdb_folder, filename), os.path.join(new_folder, pdb_id + ".pdb"))
 
-
 # get datasets
-sabdb_df = pd.read_csv(snakemake.input["sabdab_data"], sep="\t")
-sabdb_df = sabdb_df.set_index("pdb")
+sabdab_df = pd.read_csv(snakemake.input["sabdab_data"], sep="\t")
+sabdab_df = sabdab_df.set_index("pdb")
 abdb_df = get_abdb_dataframe(snakemake.input["cleaned_abdb_folder"])
 
 # get information about original chain IDs (to merge with sabdab)
@@ -218,56 +216,62 @@ chain_mappings = chain_mappings.groupby(["filename"]).apply(lambda group: [{"pdb
 
 chain_mappings = pd.DataFrame.from_records(chain_mappings.explode()).fillna(np.nan)
 
-
 # join datasets
-abag_affintiy_df = sabdb_df.merge(chain_mappings, on=["pdb", "Hchain", "Lchain", "antigen_chain"], how="inner")
-abag_affintiy_df["pdb"] = abag_affintiy_df["pdb_num"]  # the new standard from here on!
-abag_affintiy_df.set_index("pdb", inplace=True, drop=False)
+# TODO this is non-ideal because sabdab sometimes has only one entry for multiple redundant PDBs. AbDb just lists one of the redundant PDBs, so the whole thing fails
+# would be better to start with SabDab and then add AbDb information (e.g. pull the PDBs from there as they are neatly processed)
+abag_affinity_df = sabdab_df.merge(chain_mappings, on=["pdb", "Hchain", "Lchain", "antigen_chain"], how="inner")
+abag_affinity_df["pdb"] = abag_affinity_df["pdb_num"]  # the new standard from here on!
+abag_affinity_df.set_index("pdb", inplace=True, drop=False)
 
-assert abag_affintiy_df["pdb"].is_unique
+assert abag_affinity_df["pdb"].is_unique
 # abag_affintiy_df = abag_affintiy_df.drop_duplicates(subset='pdb', keep='first')
 
 # remove benchmark pdb ids
-abag_affintiy_df = remove_benchmark_test_data(abag_affintiy_df, snakemake.params["benchmark_dataset_file"])
+abag_affinity_df = remove_benchmark_test_data(abag_affinity_df, snakemake.params["benchmark_dataset_file"])
 benchmark_df = pd.read_csv(snakemake.params["benchmark_dataset_file"])
 val_pdbs = benchmark_df["pdb"]
 pdb_paths = benchmark_df["filename"]
 
-# remove pdbs that lead to errors or are redundant
-# remove pdbs that lead to errors
+# Remove pdbs that lead to errors or are redundant
 
-problematic_pdbs = ["1zmy_1", # 1zmy is wrongly annotated by AbDb
-                    # "NZ9_1", "1N8Z_1", "5CUS_1", "5XWD_1", "5W0K_1", "1YY9_1"  # these ones belong to 'test' and have too large antigens (maybe they are filtered implicitly somewhere already)
+problematic_pdbs = ["1zmy_1",  # 1zmy is wrongly annotated by AbDb
+                    "1kxv_1",  # too large.
+                    "2nz9_1",  # too big.  In chain A, one could cut away everything that is smaller than residue 875.
+                    "2nyy_1",  # same as for 2nz9
+                    "5i5k_1"   # Also huge. In chain A, only residues 820-930 would be required
                     ]
-
-for pdb in tqdm(abag_affintiy_df["pdb"].tolist()):
-    filename = abag_affintiy_df[abag_affintiy_df["pdb"] == pdb]['filename'].tolist()[0]
+for pdb in tqdm(abag_affinity_df["pdb"].tolist()):
+    if pdb in problematic_pdbs:
+        continue
+    filename = abag_affinity_df[abag_affinity_df["pdb"] == pdb]['filename'].tolist()[0]
     filepath = os.path.join(snakemake.input["cleaned_abdb_folder"], filename)
     redundant = is_redundant(filepath, val_pdbs, pdb_paths, redudancy_cutoff=snakemake.params["redundancy_cutoff"])
     too_long = antigen_chains_too_long(filepath, snakemake.params["max_antigen_length"])
     if redundant or too_long:
         problematic_pdbs.append(pdb)
-abag_affintiy_df = abag_affintiy_df[~abag_affintiy_df["pdb"].isin(problematic_pdbs)]
+
+print(f"Removed {len(problematic_pdbs)} PDBs from the dataset: {problematic_pdbs}")
+abag_affinity_df = abag_affinity_df[~abag_affinity_df["pdb"].isin(problematic_pdbs)]
 
 # add chain information
-abag_affintiy_df["chains"] = abag_affintiy_df.progress_apply(lambda row: get_chain_ids(row), axis=1)
+abag_affinity_df["chains"] = abag_affinity_df.progress_apply(lambda row: get_chain_ids(row), axis=1)
 
 
 # add -log(Kd)
-abag_affintiy_df["-log(Kd)"] = abag_affintiy_df.apply(lambda row: -np.log10(row["affinity"]), axis=1)
+abag_affinity_df["-log(Kd)"] = abag_affinity_df.apply(lambda row: -np.log10(row["affinity"]), axis=1)
 
 # add validation splits
-abag_affintiy_df = add_train_val_test_split(abag_affintiy_df, n_splits=snakemake.params["n_val_splits"],
+abag_affinity_df = add_train_val_test_split(abag_affinity_df, n_splits=snakemake.params["n_val_splits"],
                                             test_size=snakemake.params["test_size"])
 
-abag_affintiy_df = abag_affintiy_df[["pdb", "filename", "chains", "-log(Kd)", "delta_g", "validation", "test"]]
+abag_affinity_df = abag_affinity_df[["pdb", "filename", "chains", "-log(Kd)", "delta_g", "validation", "test"]]
 # add index
-abag_affintiy_df.index = abag_affintiy_df["pdb"]
-abag_affintiy_df.index.name = ""
+abag_affinity_df.index = abag_affinity_df["pdb"]
+abag_affinity_df.index.name = ""
 
 # copy files to new folder (doesn't make a lot of sense but whatever)
-copy_files(abag_affintiy_df, snakemake.input["cleaned_abdb_folder"], snakemake.params["pdb_folder"])
-abag_affintiy_df["filename"] = abag_affintiy_df["pdb"].apply(lambda x: str(x) + ".pdb")
+copy_files(abag_affinity_df, snakemake.input["cleaned_abdb_folder"], snakemake.params["pdb_folder"])
+abag_affinity_df["filename"] = abag_affinity_df["pdb"].apply(lambda x: str(x) + ".pdb")
 
 # save dataset
-abag_affintiy_df.to_csv(snakemake.output[0])
+abag_affinity_df.to_csv(snakemake.output[0])
