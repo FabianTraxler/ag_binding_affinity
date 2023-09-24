@@ -78,7 +78,6 @@ class AffinityDataset(Dataset):
             preprocess_data: Boolean indicator if data should be processed after class initialization
             num_threads: Number of threads to use for preprocessing
             load_embeddings: Tuple of embeddings type and path to embeddings
-            loss_criterion: A string containing the set of Loss function used for this dataset
             only_neglogkd_samples: Boolean indicator if only samples with -log(Kd) labels should be used
         """
         super(AffinityDataset, self).__init__()
@@ -406,6 +405,14 @@ class AffinityDataset(Dataset):
         else:
             nll_values = 0.5 * np.ones(summary_df.shape[0])
         summary_df["NLL"] = nll_values
+
+        # Note to self: the preprocessed graph labels are not affected by this, which is not a big problem. But there is a mismatch for the time being between the labels here (used for pairing) and in the graphs (used for training/loss)
+        if "E" in summary_df.columns:
+            # Scale the E values to (0-1). They were previously scaled to 0-1 (in preprocessing) but subsequent filtering eliminated some of them
+            e_values = summary_df["E"].values
+            if np.max(e_values) > np.min(e_values):  # test that all values are not the same
+                e_values = (e_values - np.min(e_values)) / (np.max(e_values) - np.min(e_values))
+                summary_df["E"] = e_values
 
         pdb_ids = summary_df.index.tolist()
         return summary_df.fillna(""), pdb_ids  # TODO why fillna("")? :|

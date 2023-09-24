@@ -111,21 +111,21 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
     }
 
     for (criterion, weight) in loss_types:
-        # As we use sum reduction but don't want to scale our loss to large, we devide by batchsize
+        # As we use sum reduction but don't want to scale our loss to large, we divide by the batch size
         weight = weight / output["-log(Kd)"].shape[0]
         loss_fn = loss_functions[criterion]
         for output_type in ["E", "-log(Kd)"]:
 
-            if criterion in ["L1", "L2","RL2"]:
+            if criterion in ["L1", "L2", "RL2"]:
                 valid_indices = ~torch.isnan(label[output_type])
                 if valid_indices.sum() > 0:
                     losses.append(weight * loss_fn(output[output_type][valid_indices],
                                                label[output_type][valid_indices]))
-                if output["relative"] and False:
-                    valid_indices = ~torch.isnan(label[f"{output_type}2"])
-                    if valid_indices.sum() > 0:
-                        losses.append(weight * loss_fn(output[f"{output_type}2"][valid_indices],
-                                                   label[f"{output_type}2"][valid_indices]))
+                # if output["relative"]:  # previously, we also used the second data point for absolute loss
+                #     valid_indices = ~torch.isnan(label[f"{output_type}2"])
+                #     if valid_indices.sum() > 0:
+                #         losses.append(weight * loss_fn(output[f"{output_type}2"][valid_indices],
+                #                                    label[f"{output_type}2"][valid_indices]))
             elif output["relative"] and criterion.startswith("relative"):
                 if criterion in ["relative_L1", "relative_L2","relative_RL2"]:
                     output_key = f"{output_type}_difference"
