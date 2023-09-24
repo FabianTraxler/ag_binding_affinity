@@ -141,10 +141,10 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
                     losses.append(weight * loss_fn(output[output_key][valid_indices],
                                                    label[label_key][valid_indices]))
 
-        if any([torch.isnan(l) for l in losses]):
-            print("Somehow a nan in loss")
-        assert len(losses) > 0, f"No valid lossfunction was given with:{loss_functions} and relative data {output['relative']}"
-        return sum(losses)
+    if any([torch.isnan(l) for l in losses]):
+        logging.error("Somehow a nan in loss")
+    assert len(losses) > 0, f"No valid lossfunction was given with:{loss_functions} and relative data {output['relative']}"
+    return sum(losses)
 
 
 def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloaders: List[DataLoader],

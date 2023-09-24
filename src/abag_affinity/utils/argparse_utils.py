@@ -129,7 +129,7 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--scale_max", type=int, help="The maximal affinity value -> gets mapped to 1",
                           default=14)
     optional.add_argument("--max_edge_distance", type=int, help="Maximal distance of proximity edges", default=3)
-    optional.add_argument("--add_neglogkd_labels_dataset", action=BooleanOptionalAction, help="Include an additional dataset composed of only samples with -log(kd) labels. Only implemented for bucket_learning", default=False)
+    optional.add_argument("--add_neglogkd_labels_dataset", type=str, default=None, help="Include an additional dataset composed of only samples with -log(kd) labels. Only implemented for bucket_learning. Provide a criterion to be used for this dataset")
     # model config arguments
     optional.add_argument("--layer_type", type=str, help="Type of GNN Layer", default="GCN",
                           choices=["GAT", "GCN"] )

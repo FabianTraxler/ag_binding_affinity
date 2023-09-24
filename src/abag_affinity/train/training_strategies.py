@@ -166,7 +166,7 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
             neglogkd_dataset.full_dataset_name = "DMS-neglogkd-mixed"
             neglogkd_dataset.dataset_name = "DMS"
             neglogkd_dataset.relative_data = False
-            neglogkd_dataset.relative_data = False
+            neglogkd_dataset.loss_criterion = args.add_neglogkd_labels_dataset
             train_datasets.append(neglogkd_dataset)
         else:
             train_datasets.extend(neglogkd_datasets)
