@@ -558,7 +558,7 @@ def get_dataloader(args: Namespace, train_dataset: AffinityDataset, val_datasets
     return train_dataloader, val_dataloaders
 
 
-def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[int] = None, validation_size: Optional[float] = 0.2) -> Tuple[List, List]:
+def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[int] = None, dms_validation_size: Optional[float] = 0.2) -> Tuple[List, List]:
     """ Split data in a train and a validation subset
 
     For the abag_affinity datasets, we use the predefined split given in the csv, otherwise use random split
@@ -567,12 +567,12 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
         config: Dict with configuration info
         dataset_name: Name of the dataset
         validation_set: Integer identifier of the validation split (1,2,3). Only required for abag_affinity datasets
-        validation_size: Size of the validation set (proportion (0.0-1.0))
+        dms_validation_size: Size of the validation set (proportion (0.0-1.0)). Only applied to DMS datasets
 
     Returns:
         Tuple: List with indices for train and validation set
     """
-    train_size = 1 - validation_size
+    dms_train_size = 1 - dms_validation_size
 
     if "-" in dataset_name:
         # DMS data
@@ -657,7 +657,7 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
                     data_points_with_valid_partner.discard(other_idx)
                 else:
                     other_idx = pdb_idx
-                if len(train_ids) >= total_valid_data_points * train_size:  # add to val ids
+                if len(train_ids) >= total_valid_data_points * dms_train_size:  # add to val ids
                     val_ids.add(pdb_idx)
                     val_ids.add(other_idx)
                 else:
@@ -667,8 +667,8 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
         elif affinity_type == "-log(Kd)":
             pdb_idx = summary_df.index.values.tolist()
             random.shuffle(pdb_idx)
-            train_ids = pdb_idx[:int(train_size*len(pdb_idx))]
-            val_ids = pdb_idx[int(train_size*len(pdb_idx)):]
+            train_ids = pdb_idx[:int(dms_train_size*len(pdb_idx))]
+            val_ids = pdb_idx[int(dms_train_size*len(pdb_idx)):]
         else:
             raise ValueError(
                 f"Wrong affinity type given - expected one of (-log(Kd), E) but got {affinity_type}")

@@ -75,8 +75,6 @@ class DatasetAdjustment(nn.Module):
             self.linear_mlp.bias.data.fill_(0)
             self.nonlinear = nn.Identity() 
 
-        super().requires_grad_(False)  # Call original version to freeze all parameters
-
     def forward(self, x: torch.Tensor, layer_selector: torch.Tensor):
         """
         Args:
@@ -198,6 +196,8 @@ class AffinityGNN(pl.LightningModule):
         # Dataset-specific output layers
         self.dataset_names = dataset_names
         self.dataset_specific_layer = DatasetAdjustment(args.dms_output_layer_type, len(dataset_names), dataset_names)
+        if False:
+            self.dataset_specific_layer.requires_grad_(False)  # Freeze by default
         self.scaled_output = scaled_output
 
         self.float()

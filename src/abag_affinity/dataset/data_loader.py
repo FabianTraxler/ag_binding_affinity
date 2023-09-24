@@ -188,7 +188,7 @@ class AffinityDataset(Dataset):
                 continue
             all_data_points.append((pdb_id, other_pdb_ids))
 
-        logger.info(f"There are in total {len(all_data_points)} valid pairs in {self.dataset_name}, we skipped {n_skipped_pdbs} PDBs!")
+        logger.info(f"There are in total {len(all_data_points)} valid pairs in {self.full_dataset_name}, we skipped {n_skipped_pdbs} PDBs!")
 
         self.relative_pairs = all_data_points
 
@@ -400,7 +400,7 @@ class AffinityDataset(Dataset):
             nll_values = summary_df["NLL"].values
             if np.max(nll_values) > np.min(nll_values):  # test that all values are not the same
                 nll_values = (nll_values - np.min(nll_values)) / (np.max(nll_values) - np.min(nll_values))
-                assert (nll_values < 0.7).sum() > (nll_values > 0.7).sum(), "Many NLL values are 'large'"
+                assert (nll_values < 0.7).sum() > (nll_values > 0.7).sum(), f"Many NLL values are 'large' in {self.full_dataset_name}"
             else:
                 nll_values = np.full_like(nll_values, 0.5)
         else:
