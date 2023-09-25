@@ -23,7 +23,6 @@ import pickle
 from ..utils.config import get_data_paths
 from .utils import scale_affinity, load_graph_dict, get_hetero_edges, get_pdb_path_and_id, load_deeprefine_graph
 
-logger = logging.getLogger(__name__)
 
 
 class AffinityDataset(Dataset):
@@ -103,7 +102,7 @@ class AffinityDataset(Dataset):
             self.affinity_type = self.config["DATASETS"][dataset_name]["affinity_types"][publication_code]
 
             if self.affinity_type == "E" and not relative_data:
-                logging.warning("Enrichment values are used 'absolutely'")
+                self.logger.warning("Enrichment values are used 'absolutely'")
             self.dataset_name = dataset_name
             self.publication = publication_code
             self.full_dataset_name = dataset_name + "-" + publication_code
@@ -111,6 +110,7 @@ class AffinityDataset(Dataset):
             self.affinity_type = self.config["DATASETS"][dataset_name]["affinity_type"]
             self.publication = None
             self.full_dataset_name = dataset_name
+        self.logger = logging.getLogger(f"AffinityDataset - {self.full_dataset_name}")
 
         # define edge types based on node type
         if node_type == "residue":
@@ -131,7 +131,7 @@ class AffinityDataset(Dataset):
         self.processed_graph_files = os.path.join(self.graph_dir, "{filestem}.npz")  # filestem is being evaluated later (using format)
         # create path for clean pdbs
         self.interface_dir = os.path.join(self.config["interface_pdbs"], ("relaxed" if self.is_relaxed else ""), self.full_dataset_name)
-        logger.debug(f"Saving cleaned pdbs in {self.interface_dir}")
+        self.logger.debug(f"Saving cleaned pdbs in {self.interface_dir}")
         Path(self.interface_dir).mkdir(exist_ok=True, parents=True)
 
         self.force_recomputation = force_recomputation
@@ -145,7 +145,7 @@ class AffinityDataset(Dataset):
         self.relative_data = relative_data
         if relative_data:
             self.get = self.get_relative  # TODO no need to brutally overassign the function. just put the if/else inside def get()
-            logger.info(f"Forcing graph preprocessing, in order to avoid race conditions in workers")
+            self.logger.info(f"Forcing graph preprocessing, in order to avoid race conditions in workers")
             self.preprocess_data = True
             self.update_valid_pairs()  # should not be necessary in theory, but __repr__ calls len(), which requires the pairs
         else:
@@ -155,11 +155,11 @@ class AffinityDataset(Dataset):
 
         if self.save_graphs or preprocess_data:
             for relaxed in {True:[True], False:[False], "both": [True, False]}[self.is_relaxed]:
-                logger.debug(f"Saving processed graphs in {self.graph_dir.format(is_relaxed=relaxed)}")
+                self.logger.debug(f"Saving processed graphs in {self.graph_dir.format(is_relaxed=relaxed)}")
                 Path(self.graph_dir.format(is_relaxed=relaxed)).mkdir(exist_ok=True, parents=True)
 
                 if self.preprocess_data:
-                    logger.debug(f"Preprocessing {node_type}-graphs for {self.full_dataset_name}")
+                    self.logger.debug(f"Preprocessing {node_type}-graphs")
                     self.preprocess(relaxed)
 
     def update_valid_pairs(self):
@@ -187,7 +187,7 @@ class AffinityDataset(Dataset):
                 continue
             all_data_points.append((pdb_id, other_pdb_ids))
 
-        logger.info(f"There are in total {len(all_data_points)} valid pairs in {self.full_dataset_name}, we skipped {n_skipped_pdbs} PDBs!")
+        self.logger.info(f"There are in total {len(all_data_points)} valid pairs in {self.full_dataset_name}, we skipped {n_skipped_pdbs} PDBs!")
 
         self.relative_pairs = all_data_points
 
@@ -301,7 +301,7 @@ class AffinityDataset(Dataset):
                 deeprefine_graphs2process.append((df_idx, pdb_path, row))
 
         # start processing with given threads
-        logger.debug(f"Preprocessing {len(graph_dicts2process)} graph dicts with {self.num_threads} threads")
+        self.logger.debug(f"Preprocessing {len(graph_dicts2process)} graph dicts with {self.num_threads} threads")
 
         def preload_graph_dict(row: pd.Series, out_path: str):
             """ Function to get graph dict and store to disc. Used to parallelize preprocessing
@@ -327,7 +327,7 @@ class AffinityDataset(Dataset):
         submit_jobs(preload_graph_dict, graph_dicts2process, self.num_threads)
 
         if self.pretrained_model == "DeepRefine":
-            logger.debug(
+            self.logger.debug(
                 f"Preprocessing {len(deeprefine_graphs2process)} DeepRefine graphs with {self.num_threads} threads")
             submit_jobs(self.preload_deeprefine_graph, deeprefine_graphs2process, self.num_threads, relaxed=relaxed)
 
@@ -462,7 +462,7 @@ class AffinityDataset(Dataset):
         """
         if self.max_nodes is not None:  # use only the n-closest nodes
             graph_nodes = data_file["closest_residues"][:self.max_nodes].astype(int)
-            logging.warning("Warning: Node order is impacted")
+            self.logger.warning("Warning: Node order is impacted")
         elif self.interface_hull_size is not None:  # use only nodes in interface hull
             adjacency_matrix = data_file["adjacency_tensor"]
             # below interface distance threshold and not in same protein -> interface edge
@@ -473,7 +473,7 @@ class AffinityDataset(Dataset):
 
             interface_hull = np.where(adjacency_matrix[3, interface_nodes, :] < self.interface_hull_size)
             graph_nodes = np.unique(interface_hull[1])
-            logging.warning("Warning: Node order is impacted")
+            self.logger.warning("Warning: Node order is impacted")
         else:  # use all nodes
             graph_nodes = sorted(data_file["closest_residues"].astype(int))
 
