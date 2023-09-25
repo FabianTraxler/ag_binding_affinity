@@ -68,7 +68,7 @@ def run_sweep(args: Namespace, logger):
     import traceback
 
     ATOM_NODES_MULTIPLIKATOR = 5
-
+    ORIGINAL_LEARNINGRATE = args.learning_rate
     def sweep_train():
         run = wandb.init(mode=args.wandb_mode)
         run_dir = run.dir[:-6]
@@ -116,8 +116,8 @@ def run_sweep(args: Namespace, logger):
             if args.node_type == "atom":
                 args.batch_size = int(args.batch_size / ATOM_NODES_MULTIPLIKATOR) + 1
 
-            # adapt learning rate bases on batch size
-            # args.learning_rate = args.learning_rate * args.batch_size
+            # reset learning rate to original value
+            args.learning_rate = ORIGINAL_LEARNINGRATE
 
             args.tqdm_output = False  # disable tqdm output to reduce log syncing
 
