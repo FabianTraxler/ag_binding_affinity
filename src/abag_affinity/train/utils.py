@@ -582,7 +582,7 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
         summary_df = pd.read_csv(summary_path, index_col=0)
 
         if config["DATASETS"][dataset_name]["affinity_types"][publication_code] == "E":  # should be unnecessary
-            summary_df = summary_df[(~summary_df["E"].isna()) &(~summary_df["NLL"].isna())]
+            summary_df = summary_df[(~summary_df["E"].isna())]
         else:
             summary_df = summary_df[~summary_df["-log(Kd)"].isna()]
         # filter datapoints with missing PDB files
@@ -600,6 +600,7 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
             e_values = e_values.values.reshape(-1,1).astype(np.float32)
 
             nll_values = summary_df["NLL"].values
+
             # Scale the NLLs to (0-1). The max NLL value in DMS_curated.csv is 4, so 0-1-scaling should be fine
             if np.max(nll_values) > np.min(nll_values):  # test that all values are not the same
                 nll_values = (nll_values - np.min(nll_values)) / (np.max(nll_values) - np.min(nll_values))
@@ -619,9 +620,13 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
                 total_elements = 0
                 for i in range(len(e_splits)):
                     for j in range(i, len(e_splits)):
+                        # TODO maybe we should have one split function, as currently we do splitting on 4 different places?!
                         split_e_dists = sp.distance.cdist(e_splits[i], e_splits[j])
                         split_nll_avg = (nll_splits[i][:, None] + nll_splits[j]) / 2
-                        valid_pairs = (split_e_dists - split_nll_avg) >= 0
+
+                        # We need to consider the std of the labels to always find relevant pairs
+                        min_dist = split_nll_avg * 2 * e_splits.std()
+                        valid_pairs = (split_e_dists - min_dist) >= 0
                         has_valid_partner_id = np.where(np.sum(valid_pairs, axis=1) > 0)[0] + total_elements
                         has_valid_partner.update(has_valid_partner_id)
                     total_elements += len(e_splits[i])
@@ -629,10 +634,9 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
                 valid_partners = None
             else:
                 e_dists = sp.distance.cdist(e_values, e_values)
-
                 nll_avg = (nll_values[:, None] + nll_values) / 2
-
-                valid_pairs = (e_dists - nll_avg) >= 0
+                min_dist = nll_avg * 2 * e_values.std()
+                valid_pairs = (e_dists - min_dist) >= 0
                 has_valid_partner = np.where(np.sum(valid_pairs, axis=1) > 0)[0]
                 valid_partners = {
                     summary_df.index[idx]: set(summary_df.index[np.where(valid_pairs[idx])[0]].values.tolist()) for idx

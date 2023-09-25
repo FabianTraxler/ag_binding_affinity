@@ -230,8 +230,9 @@ class AffinityDataset(Dataset):
             e_dists = sp.distance.cdist(pdb_e, e_values)[0, :]
 
             nll_avg = (pdb_nll + nll_values) / 2
-
-            valid_pairs = (e_dists - nll_avg) >= 0
+            # We need to consider the std of the labels to always find relevant pairs
+            min_dist = nll_avg * 2 * self.data_df["E"].std()
+            valid_pairs = (e_dists - min_dist) >= 0
             valid_partners = np.where(valid_pairs)[0]
             possible_partners = self.data_df.index[valid_partners].tolist()
 
@@ -405,14 +406,6 @@ class AffinityDataset(Dataset):
         else:
             nll_values = 0.5 * np.ones(summary_df.shape[0])
         summary_df["NLL"] = nll_values
-
-        # Note to self: the preprocessed graph labels are not affected by this, which is not a big problem. But there is a mismatch for the time being between the labels here (used for pairing) and in the graphs (used for training/loss)
-        if "E" in summary_df.columns:
-            # Scale the E values to (0-1). They were previously scaled to 0-1 (in preprocessing) but subsequent filtering eliminated some of them
-            e_values = summary_df["E"].values
-            if np.max(e_values) > np.min(e_values):  # test that all values are not the same
-                e_values = (e_values - np.min(e_values)) / (np.max(e_values) - np.min(e_values))
-                summary_df["E"] = e_values
 
         pdb_ids = summary_df.index.tolist()
         return summary_df.fillna(""), pdb_ids  # TODO why fillna("")? :|
