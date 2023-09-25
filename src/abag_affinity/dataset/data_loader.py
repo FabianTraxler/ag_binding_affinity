@@ -97,6 +97,7 @@ class AffinityDataset(Dataset):
         self.load_embeddings = load_embeddings
         self.loss_criterion = loss_criterion
         self.only_neglogkd_samples = only_neglogkd_samples
+        self.logger = logging.getLogger(f"AffinityDataset-{dataset_name}")
         if "-" in dataset_name: # part of DMS dataset
             dataset_name, publication_code = dataset_name.split("-")
             self.affinity_type = self.config["DATASETS"][dataset_name]["affinity_types"][publication_code]
@@ -110,7 +111,6 @@ class AffinityDataset(Dataset):
             self.affinity_type = self.config["DATASETS"][dataset_name]["affinity_type"]
             self.publication = None
             self.full_dataset_name = dataset_name
-        self.logger = logging.getLogger(f"AffinityDataset - {self.full_dataset_name}")
 
         # define edge types based on node type
         if node_type == "residue":
