@@ -145,7 +145,8 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
         if args.add_neglogkd_labels_dataset and train_data.affinity_type == "E":  # exclude phillips21
             neglogkd_data, _ = load_datasets(config, dataset_name, args.validation_set, args=args,
                                              validation_size=0, only_neglogkd_samples=True)
-            neglogkd_datasets.append(neglogkd_data)
+            if len(neglogkd_data) > 0:
+                neglogkd_datasets.append(neglogkd_data)
 
         data_name, loss_type = dataset_name.split("#")
         if not train_data.relative_data and data_name in double_dataset:
