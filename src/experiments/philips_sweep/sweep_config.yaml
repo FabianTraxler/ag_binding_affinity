@@ -1,0 +1,34 @@
+method: 'grid'
+name: 'Outputlayer Evaluation Sweep'
+metric:
+  goal: 'minimize'
+  name: 'val0_rmse'
+parameters:
+  target_dataset:
+    values:
+      - "abag_affinity#L1-1"
+      # - "abag_affinity#L2"
+      # - "abag_affinity#L1+L2"
+  transfer_learning_datasets:
+    values:
+      - "DMS-phillips21_bindin#L1-1"
+      - - "DMS-phillips21_bindin#L1-0.1"
+        - "abag_affinity#L1-0.1"
+      - - "DMS-phillips21_bindin#relativeL1-1"
+        - "abag_affinity#relativeL1-1"
+      - - "DMS-phillips21_bindin#relative_cdf-1"
+        - "abag_affinity#relative_cdf-1"
+      - - "DMS-phillips21_bindin#relative_ce-1"
+        - "abag_affinity#relative_ce-1"
+
+  aggregation_method:
+    values:
+      - "interface_sum"
+      # - "mean"
+  seed:
+    values:
+      - 3
+      # - 2
+  dms_output_layer_type:
+    values:
+      - "bias_only"
