@@ -23,7 +23,6 @@
 --learning_rate=0.001
 --relaxed_pdbs=False
 --target_dataset=abag_affinity#L1
---dms_output_layer_type=bias_only
 --fine_tune
 --init_sweep
 --sweep_config=../experiments/output_layer_sweep/sweep_config.yaml
