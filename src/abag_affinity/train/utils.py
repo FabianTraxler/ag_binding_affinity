@@ -111,21 +111,21 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
     }
 
     for (criterion, weight) in loss_types:
-        # As we use sum reduction but don't want to scale our loss to large, we devide by batchsize
+        # As we use sum reduction but don't want to scale our loss to large, we divide by the batch size
         weight = weight / output["-log(Kd)"].shape[0]
         loss_fn = loss_functions[criterion]
         for output_type in ["E", "-log(Kd)"]:
 
-            if criterion in ["L1", "L2","RL2"]:
+            if criterion in ["L1", "L2", "RL2"]:
                 valid_indices = ~torch.isnan(label[output_type])
                 if valid_indices.sum() > 0:
                     losses.append(weight * loss_fn(output[output_type][valid_indices],
                                                label[output_type][valid_indices]))
-                if output["relative"] and False:
-                    valid_indices = ~torch.isnan(label[f"{output_type}2"])
-                    if valid_indices.sum() > 0:
-                        losses.append(weight * loss_fn(output[f"{output_type}2"][valid_indices],
-                                                   label[f"{output_type}2"][valid_indices]))
+                # if output["relative"]:  # previously, we also used the second data point for absolute loss
+                #     valid_indices = ~torch.isnan(label[f"{output_type}2"])
+                #     if valid_indices.sum() > 0:
+                #         losses.append(weight * loss_fn(output[f"{output_type}2"][valid_indices],
+                #                                    label[f"{output_type}2"][valid_indices]))
             elif output["relative"] and criterion.startswith("relative"):
                 if criterion in ["relative_L1", "relative_L2","relative_RL2"]:
                     output_key = f"{output_type}_difference"
@@ -141,10 +141,10 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
                     losses.append(weight * loss_fn(output[output_key][valid_indices],
                                                    label[label_key][valid_indices]))
 
-        if any([torch.isnan(l) for l in losses]):
-            print("Somehow a nan in loss")
-        assert len(losses) > 0, f"No valid lossfunction was given with:{loss_functions} and relative data {output['relative']}"
-        return sum(losses)
+    if any([torch.isnan(l) for l in losses]):
+        logging.error("Somehow a nan in loss")
+    assert len(losses) > 0, f"No valid lossfunction was given with:{loss_functions} and relative data {output['relative']}"
+    return sum(losses)
 
 
 def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloaders: List[DataLoader],
@@ -558,7 +558,7 @@ def get_dataloader(args: Namespace, train_dataset: AffinityDataset, val_datasets
     return train_dataloader, val_dataloaders
 
 
-def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[int] = None, validation_size: Optional[float] = 0.2) -> Tuple[List, List]:
+def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[int] = None, dms_validation_size: Optional[float] = 0.2) -> Tuple[List, List]:
     """ Split data in a train and a validation subset
 
     For the abag_affinity datasets, we use the predefined split given in the csv, otherwise use random split
@@ -567,12 +567,12 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
         config: Dict with configuration info
         dataset_name: Name of the dataset
         validation_set: Integer identifier of the validation split (1,2,3). Only required for abag_affinity datasets
-        validation_size: Size of the validation set (proportion (0.0-1.0))
+        dms_validation_size: Size of the validation set (proportion (0.0-1.0)). Only applied to DMS datasets
 
     Returns:
         Tuple: List with indices for train and validation set
     """
-    train_size = 1 - validation_size
+    dms_train_size = 1 - dms_validation_size
 
     if "-" in dataset_name:
         # DMS data
@@ -582,7 +582,7 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
         summary_df = pd.read_csv(summary_path, index_col=0)
 
         if config["DATASETS"][dataset_name]["affinity_types"][publication_code] == "E":  # should be unnecessary
-            summary_df = summary_df[(~summary_df["E"].isna()) &(~summary_df["NLL"].isna())]
+            summary_df = summary_df[(~summary_df["E"].isna())]
         else:
             summary_df = summary_df[~summary_df["-log(Kd)"].isna()]
         # filter datapoints with missing PDB files
@@ -600,6 +600,7 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
             e_values = e_values.values.reshape(-1,1).astype(np.float32)
 
             nll_values = summary_df["NLL"].values
+
             # Scale the NLLs to (0-1). The max NLL value in DMS_curated.csv is 4, so 0-1-scaling should be fine
             if np.max(nll_values) > np.min(nll_values):  # test that all values are not the same
                 nll_values = (nll_values - np.min(nll_values)) / (np.max(nll_values) - np.min(nll_values))
@@ -621,7 +622,10 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
                     for j in range(i, len(e_splits)):
                         split_e_dists = sp.distance.cdist(e_splits[i], e_splits[j])
                         split_nll_avg = (nll_splits[i][:, None] + nll_splits[j]) / 2
-                        valid_pairs = (split_e_dists - split_nll_avg) >= 0
+
+                        # We need to consider the std of the labels to always find relevant pairs
+                        min_dist = split_nll_avg * 2 * e_splits.std()
+                        valid_pairs = (split_e_dists - min_dist) >= 0
                         has_valid_partner_id = np.where(np.sum(valid_pairs, axis=1) > 0)[0] + total_elements
                         has_valid_partner.update(has_valid_partner_id)
                     total_elements += len(e_splits[i])
@@ -629,10 +633,9 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
                 valid_partners = None
             else:
                 e_dists = sp.distance.cdist(e_values, e_values)
-
                 nll_avg = (nll_values[:, None] + nll_values) / 2
-
-                valid_pairs = (e_dists - nll_avg) >= 0
+                min_dist = nll_avg * 2 * e_values.std()
+                valid_pairs = (e_dists - min_dist) >= 0
                 has_valid_partner = np.where(np.sum(valid_pairs, axis=1) > 0)[0]
                 valid_partners = {
                     summary_df.index[idx]: set(summary_df.index[np.where(valid_pairs[idx])[0]].values.tolist()) for idx
@@ -657,7 +660,7 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
                     data_points_with_valid_partner.discard(other_idx)
                 else:
                     other_idx = pdb_idx
-                if len(train_ids) >= total_valid_data_points * train_size:  # add to val ids
+                if len(train_ids) >= total_valid_data_points * dms_train_size:  # add to val ids
                     val_ids.add(pdb_idx)
                     val_ids.add(other_idx)
                 else:
@@ -667,8 +670,8 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
         elif affinity_type == "-log(Kd)":
             pdb_idx = summary_df.index.values.tolist()
             random.shuffle(pdb_idx)
-            train_ids = pdb_idx[:int(train_size*len(pdb_idx))]
-            val_ids = pdb_idx[int(train_size*len(pdb_idx)):]
+            train_ids = pdb_idx[:int(dms_train_size*len(pdb_idx))]
+            val_ids = pdb_idx[int(dms_train_size*len(pdb_idx)):]
         else:
             raise ValueError(
                 f"Wrong affinity type given - expected one of (-log(Kd), E) but got {affinity_type}")
@@ -741,8 +744,8 @@ def load_datasets(config: Dict, dataset: str, validation_set: int,
     train_ids, val_ids = train_val_split(config, dataset_name, validation_set, validation_size)
 
     if args.test:
-        train_ids = train_ids[:20]
-        val_ids = val_ids[:5]
+        train_ids = train_ids[:50]
+        val_ids = val_ids[:20]
 
     logger.debug(f"Get dataLoader for {dataset_name}#{loss_types}")
     train_data = AffinityDataset(config, args.relaxed_pdbs, dataset_name, loss_types,
@@ -1108,7 +1111,6 @@ def finetune_frozen(model: AffinityGNN, train_dataset: Union[AffinityDataset, Li
     # lower learning rate for pretrained model finetuning
     args.learning_rate = args.learning_rate * lr_reduction
     args.stop_at_learning_rate = args.stop_at_learning_rate * lr_reduction
-
     logger.info(f"Fintuning pretrained model with lr={args.learning_rate}")
     model.unfreeze()
 
@@ -1317,3 +1319,23 @@ def get_skempi_corr(model: AffinityGNN, args: Namespace, tqdm_output: bool = Tru
     # results.append(res)
 
     # return np.mean([v[0] for v in results]), np.mean([v[1] for v in results])
+
+
+def run_and_log_benchmarks(model, args, wandb_inst, logger):
+    # Run benchmarks
+    benchmark_pearson, benchmark_loss, benchmark_df = get_benchmark_score(model, args, tqdm_output=args.tqdm_output)
+    test_skempi_grouped_corrs, test_skempi_score, test_loss_skempi, test_skempi_df = get_skempi_corr(model, args,
+                                                                                                     tqdm_output=args.tqdm_output)
+    abag_test_plot_path = os.path.join(args.config["plot_path"], f"abag_affinity_test_cv{args.validation_set}.png")
+
+    test_pearson, test_loss, test_df = get_abag_test_score(model, args, tqdm_output=args.tqdm_output,
+                                                           plot_path=abag_test_plot_path,
+                                                           validation_set=args.validation_set)
+    logger.info(f"Benchmark results >>> {benchmark_pearson}")
+    logger.info(f"SKEMPI testset results >>> {test_skempi_score}")
+    logger.info(f"Mean SKEMPI correlations >>> {np.mean(test_skempi_grouped_corrs)}")
+
+    wandb_benchmark_log = {"abag_test_pearson": test_pearson, "abag_test_loss": test_loss,
+                           "skempi_test_pearson": test_skempi_score, "skempi_test_loss": test_loss_skempi,
+                           "benchmark_test_pearson": benchmark_pearson, "benchmark_test_loss": benchmark_loss}
+    wandb_inst.log(wandb_benchmark_log, commit=True)

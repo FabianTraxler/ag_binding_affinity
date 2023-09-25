@@ -23,7 +23,6 @@ import pickle
 from ..utils.config import get_data_paths
 from .utils import scale_affinity, load_graph_dict, get_hetero_edges, get_pdb_path_and_id, load_deeprefine_graph
 
-logger = logging.getLogger(__name__)
 
 
 class AffinityDataset(Dataset):
@@ -78,7 +77,6 @@ class AffinityDataset(Dataset):
             preprocess_data: Boolean indicator if data should be processed after class initialization
             num_threads: Number of threads to use for preprocessing
             load_embeddings: Tuple of embeddings type and path to embeddings
-            loss_criterion: A string containing the set of Loss function used for this dataset
             only_neglogkd_samples: Boolean indicator if only samples with -log(Kd) labels should be used
         """
         super(AffinityDataset, self).__init__()
@@ -99,12 +97,13 @@ class AffinityDataset(Dataset):
         self.load_embeddings = load_embeddings
         self.loss_criterion = loss_criterion
         self.only_neglogkd_samples = only_neglogkd_samples
+        self.logger = logging.getLogger(f"AffinityDataset-{dataset_name}")
         if "-" in dataset_name: # part of DMS dataset
             dataset_name, publication_code = dataset_name.split("-")
             self.affinity_type = self.config["DATASETS"][dataset_name]["affinity_types"][publication_code]
 
             if self.affinity_type == "E" and not relative_data:
-                logging.warning("Enrichment values are used 'absolutely'")
+                self.logger.warning("Enrichment values are used 'absolutely'")
             self.dataset_name = dataset_name
             self.publication = publication_code
             self.full_dataset_name = dataset_name + "-" + publication_code
@@ -132,7 +131,7 @@ class AffinityDataset(Dataset):
         self.processed_graph_files = os.path.join(self.graph_dir, "{filestem}.npz")  # filestem is being evaluated later (using format)
         # create path for clean pdbs
         self.interface_dir = os.path.join(self.config["interface_pdbs"], ("relaxed" if self.is_relaxed else ""), self.full_dataset_name)
-        logger.debug(f"Saving cleaned pdbs in {self.interface_dir}")
+        self.logger.debug(f"Saving cleaned pdbs in {self.interface_dir}")
         Path(self.interface_dir).mkdir(exist_ok=True, parents=True)
 
         self.force_recomputation = force_recomputation
@@ -145,8 +144,8 @@ class AffinityDataset(Dataset):
         # set dataset to load relative or absolute data points
         self.relative_data = relative_data
         if relative_data:
-            self.get = self.get_relative
-            logger.info(f"Forcing graph preprocessing, in order to avoid race conditions in workers")
+            self.get = self.get_relative  # TODO no need to brutally overassign the function. just put the if/else inside def get()
+            self.logger.info(f"Forcing graph preprocessing, in order to avoid race conditions in workers")
             self.preprocess_data = True
             self.update_valid_pairs()  # should not be necessary in theory, but __repr__ calls len(), which requires the pairs
         else:
@@ -156,11 +155,11 @@ class AffinityDataset(Dataset):
 
         if self.save_graphs or preprocess_data:
             for relaxed in {True:[True], False:[False], "both": [True, False]}[self.is_relaxed]:
-                logger.debug(f"Saving processed graphs in {self.graph_dir.format(is_relaxed=relaxed)}")
+                self.logger.debug(f"Saving processed graphs in {self.graph_dir.format(is_relaxed=relaxed)}")
                 Path(self.graph_dir.format(is_relaxed=relaxed)).mkdir(exist_ok=True, parents=True)
 
                 if self.preprocess_data:
-                    logger.debug(f"Preprocessing {node_type}-graphs for {self.full_dataset_name}")
+                    self.logger.debug(f"Preprocessing {node_type}-graphs")
                     self.preprocess(relaxed)
 
     def update_valid_pairs(self):
@@ -188,7 +187,7 @@ class AffinityDataset(Dataset):
                 continue
             all_data_points.append((pdb_id, other_pdb_ids))
 
-        logger.info(f"There are in total {len(all_data_points)} valid pairs in {self.dataset_name}, we skipped {n_skipped_pdbs} PDBs!")
+        self.logger.info(f"There are in total {len(all_data_points)} valid pairs in {self.full_dataset_name}, we skipped {n_skipped_pdbs} PDBs!")
 
         self.relative_pairs = all_data_points
 
@@ -231,8 +230,9 @@ class AffinityDataset(Dataset):
             e_dists = sp.distance.cdist(pdb_e, e_values)[0, :]
 
             nll_avg = (pdb_nll + nll_values) / 2
-
-            valid_pairs = (e_dists - nll_avg) >= 0
+            # We need to consider the std of the labels to always find relevant pairs
+            min_dist = nll_avg * 2 * self.data_df["E"].std()
+            valid_pairs = (e_dists - min_dist) >= 0
             valid_partners = np.where(valid_pairs)[0]
             possible_partners = self.data_df.index[valid_partners].tolist()
 
@@ -302,7 +302,7 @@ class AffinityDataset(Dataset):
                 deeprefine_graphs2process.append((df_idx, pdb_path, row))
 
         # start processing with given threads
-        logger.debug(f"Preprocessing {len(graph_dicts2process)} graph dicts with {self.num_threads} threads")
+        self.logger.debug(f"Preprocessing {len(graph_dicts2process)} graph dicts with {self.num_threads} threads")
 
         def preload_graph_dict(row: pd.Series, out_path: str):
             """ Function to get graph dict and store to disc. Used to parallelize preprocessing
@@ -328,7 +328,7 @@ class AffinityDataset(Dataset):
         submit_jobs(preload_graph_dict, graph_dicts2process, self.num_threads)
 
         if self.pretrained_model == "DeepRefine":
-            logger.debug(
+            self.logger.debug(
                 f"Preprocessing {len(deeprefine_graphs2process)} DeepRefine graphs with {self.num_threads} threads")
             submit_jobs(self.preload_deeprefine_graph, deeprefine_graphs2process, self.num_threads, relaxed=relaxed)
 
@@ -386,7 +386,7 @@ class AffinityDataset(Dataset):
 
         summary_df = summary_df[~summary_df.index.duplicated(keep='first')]
 
-        if self.load_embeddings:
+        if self.load_embeddings and self.dataset_name == "DMS":
             # TEMP remove the ones, for which the precomputed graphs don't exist
             existing_pdb_ids = summary_df.index.map(lambda df_idx: Path(self.processed_graph_files.format(filestem=df_idx, is_relaxed=self.is_relaxed)).exists())
             summary_df = summary_df[existing_pdb_ids]
@@ -400,7 +400,7 @@ class AffinityDataset(Dataset):
             nll_values = summary_df["NLL"].values
             if np.max(nll_values) > np.min(nll_values):  # test that all values are not the same
                 nll_values = (nll_values - np.min(nll_values)) / (np.max(nll_values) - np.min(nll_values))
-                assert (nll_values < 0.7).sum() > (nll_values > 0.7).sum(), "Many NLL values are 'large'"
+                assert (nll_values < 0.7).sum() > (nll_values > 0.7).sum(), f"Many NLL values are 'large' in {self.full_dataset_name}"
             else:
                 nll_values = np.full_like(nll_values, 0.5)
         else:
@@ -455,7 +455,7 @@ class AffinityDataset(Dataset):
         """
         if self.max_nodes is not None:  # use only the n-closest nodes
             graph_nodes = data_file["closest_residues"][:self.max_nodes].astype(int)
-            logging.warning("Warning: Node order is impacted")
+            self.logger.warning("Warning: Node order is impacted")
         elif self.interface_hull_size is not None:  # use only nodes in interface hull
             adjacency_matrix = data_file["adjacency_tensor"]
             # below interface distance threshold and not in same protein -> interface edge
@@ -466,7 +466,7 @@ class AffinityDataset(Dataset):
 
             interface_hull = np.where(adjacency_matrix[3, interface_nodes, :] < self.interface_hull_size)
             graph_nodes = np.unique(interface_hull[1])
-            logging.warning("Warning: Node order is impacted")
+            self.logger.warning("Warning: Node order is impacted")
         else:  # use all nodes
             graph_nodes = sorted(data_file["closest_residues"].astype(int))
 

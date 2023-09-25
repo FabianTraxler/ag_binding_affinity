@@ -58,51 +58,40 @@ checkpoint clean_metadata:
     output:
         csv=join(dataset_results_folder, "benchmark.csv")
     conda:
-        "ag_binding_diffusion3"  # conda name env loading requires snakemake >v7.30.1
+        "ag_binding_diffusion3"
     script:
         "scripts/clean_metadata.py"
 
 
 rule bind_structures:
     input:
-        # antibody=join(dataset_resource_folder, "pdbs/{pdb_id}_r_b.pdb"),
-        # antigen=join(dataset_resource_folder, "pdbs/{pdb_id}_l_b.pdb"),
-        input_pdb=join(abdb_resource_pdb_folder, "{pdb_id}_1.pdb"),
-        # csv=rules.clean_metadata.output.csv
+        antibody=join(dataset_resource_folder, "pdbs/{pdb_id}_r_b.pdb"),
+        antigen=join(dataset_resource_folder, "pdbs/{pdb_id}_l_b.pdb"),
+        # input_pdb=join(abdb_resource_pdb_folder, "{pdb_id}_1.pdb"),
+        csv=rules.clean_metadata.output.csv
     output:
         join(pdb_unrelaxed_folder, "{pdb_id}.pdb")
+    params:
+        max_h_len=125,  # TODO not as nice as with Chothia/Martin numbering, but ok. same as in DMS generation pipeline
+        max_l_len=115,
     # resources:
     #     mem_mb=40000,
     #     slurm="cpus-per-task=5 gres=gpu:a100:1 qos=a100 partition=gpu"
     conda:
-        "ag_binding_diffusion3"   # conda env loading does not work with "script:"  https://github.com/snakemake/snakemake/issues/1811
-    # conda:
-    #     join(project_root, "envs/generation_environment.yml")
-    shell: """python scripts/clean_pdb.py {input} {output}"""
-    # shell: """
-    #     # just copy from abdb and everybody is happy
-    #     cp {input.input_pdb} {output}
-    # """
-    # run:  Would still require to reduce the antibody to the variable fragment
+        "ag_binding_diffusion3"
+    script:
+        "scripts/clean_pdb.py"
 
-        # import pandas as pd
-
-        # import subprocess
-
-        # df = pd.read_csv(input.csv, index_col="pdb")
-        # chain_infos = eval(df.loc[wildcards.pdb_id.lower(), "chain_infos"])  # only for replacement
-
-        # replace_chain_commands="| ".join([f"pdb_rplchain -{old_chain}:{new_chain}" for old_chain, new_chain in chain_infos.items()])
-        # cmd = f"cat {input.antibody} {input.antigen} | pdb_sort | pdb_tidy | pdb_delhetatm | {replace_chain_commands} > {output}"
-        # print(cmd)
-        # subprocess.run(cmd, shell=True, check=True)
 
 
 rule relax_structures:
     input:
         join(pdb_unrelaxed_folder, "{pdb_id}.pdb")
     output:
-        join(pdb_relaxed_folder, "{pdb_id}.pdb")
+        pdb=join(pdb_relaxed_folder, "{pdb_id}.pdb"),
+        pdb_comments=join(pdb_relaxed_folder, "{pdb_id}.rosetta_comments"),
+    resources:
+        mem_mb=10000
     conda:
         join(project_root, "envs/generation_environment.yml")
     script:
