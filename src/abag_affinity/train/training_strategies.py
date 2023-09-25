@@ -74,7 +74,7 @@ def pretrain_model(args:Namespace) -> Tuple[AffinityGNN, Dict]:
     """
     config = read_config(args.config_file)
 
-    datasets = args.transfer_learning_datasets + [args.target_dataset]
+    dataset_names = args.transfer_learning_datasets + [args.target_dataset]
 
     use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
@@ -84,14 +84,14 @@ def pretrain_model(args:Namespace) -> Tuple[AffinityGNN, Dict]:
 
     logger.debug("Loading Datasets")
 
-    for dataset_name in datasets:
+    for dataset_name in dataset_names:
         logger.info("Training with {} starting ...".format(dataset_name))
         logger.debug(f"Loading  {dataset_name}")
         train_data, val_datas = load_datasets(config, dataset_name, args.validation_set, args)
 
         if model is None: # only load model for first dataset
             logger.debug(f"Loading  Model")
-            model = load_model(train_data.num_features, train_data.num_edge_features, datasets, args, device)
+            model = load_model(train_data.num_features, train_data.num_edge_features, dataset_names, args, device)
             logger.debug(f"Model Memory usage: {torch.cuda.max_memory_allocated()/(1<<20):,.0f} MB")
         logger.debug(f"Training with  {dataset_name}")
         logger.debug(f"Training done on GPU: {next(model.parameters()).is_cuda}")
@@ -104,7 +104,7 @@ def pretrain_model(args:Namespace) -> Tuple[AffinityGNN, Dict]:
 
     if args.fine_tune:
         raise NotImplementedError("We would need to fine-tune on all DMS datasets, e.g. via a for-loop again?")
-        train_data, val_datas = load_datasets(config, datasets[-1], args.validation_set, args)
+        train_data, val_datas = load_datasets(config, dataset_names[-1], args.validation_set, args)
         results, model = finetune_frozen(model, train_data, val_datas, args, lr_reduction=0.2)
         all_results["finetuning"] = results
 
@@ -122,7 +122,7 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
     """
     config = read_config(args.config_file)
 
-    datasets = args.transfer_learning_datasets + [args.target_dataset]
+    dataset_names = args.transfer_learning_datasets + [args.target_dataset]
 
     use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
@@ -131,21 +131,21 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
     val_datasets = []
 
     double_dataset = set() # check if dataset occours in multiple datalaoders (eg. relative and absolute)
-    dataset_counter = Counter([dataset_name.split("#")[0] for dataset_name in datasets])
+    dataset_counter = Counter([dataset_name.split("#")[0] for dataset_name in dataset_names])
     for name, count in dataset_counter.items():
         if count > 1:
             double_dataset.add(name)
 
     neglogkd_datasets = []
-    for dataset_type in datasets:
-        train_data, val_datas = load_datasets(config, dataset_type, args.validation_set, args)
+    for dataset_name in dataset_names:
+        train_data, val_datas = load_datasets(config, dataset_name, args.validation_set, args)
 
-        if args.add_neglogkd_labels_dataset:
-            neglogkd_data, _ = load_datasets(config, dataset_type, args.validation_set, args=args,
+        if args.add_neglogkd_labels_dataset and train_data.affinity_type == "E":  # exclude phillips21
+            neglogkd_data, _ = load_datasets(config, dataset_name, args.validation_set, args=args,
                                              validation_size=0, only_neglogkd_samples=True)
             neglogkd_datasets.append(neglogkd_data)
 
-        data_name, loss_type = dataset_type.split("#")
+        data_name, loss_type = dataset_name.split("#")
         if not train_data.relative_data and data_name in double_dataset:
             # set the force_recomputation to False for absolute dataset because relative loader already preprocesses graphs
             train_data.force_recomputation = False
@@ -171,14 +171,14 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
         else:
             train_datasets.extend(neglogkd_datasets)
 
-    model = load_model(train_datasets[0].num_features, train_datasets[0].num_edge_features, datasets, args, device)
+    model = load_model(train_datasets[0].num_features, train_datasets[0].num_edge_features, dataset_names, args, device)
     logger.debug(f"Training done on GPU = {next(model.parameters()).is_cuda}")
 
     logger.info("Training with {}".format(", ".join([dataset.full_dataset_name for dataset in train_datasets])))
     logger.info("Evaluating on {}".format(", ".join([dataset.full_dataset_name for dataset in val_datasets])))
     results, model, wandb_inst = bucket_learning(model, train_datasets, val_datasets, args)
 
-    logger.info("Training with {} completed".format(datasets))
+    logger.info("Training with {} completed".format(dataset_names))
 
     if args.fine_tune:
         # TODO here we generate a new wandb_inst instance?!
@@ -208,8 +208,8 @@ def train_transferlearnings_validate_target(args: Namespace):
     train_datasets = []
     val_datasets = []
 
-    for dataset_type in training_set_names:
-        train_data, val_datas = load_datasets(config, dataset_type, args.validation_set, args, 0.0)  # For simplicity, we only load training data. (makes the DMS cross-validation sweep simpler)
+    for training_set_name in training_set_names:
+        train_data, val_datas = load_datasets(config, training_set_name, args.validation_set, args, 0.0)  # For simplicity, we only load training data. (makes the DMS cross-validation sweep simpler)
 
         if len(train_data) > 0:
             train_datasets.append(train_data)
