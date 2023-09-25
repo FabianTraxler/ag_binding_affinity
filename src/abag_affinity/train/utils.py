@@ -620,7 +620,6 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
                 total_elements = 0
                 for i in range(len(e_splits)):
                     for j in range(i, len(e_splits)):
-                        # TODO maybe we should have one split function, as currently we do splitting on 4 different places?!
                         split_e_dists = sp.distance.cdist(e_splits[i], e_splits[j])
                         split_nll_avg = (nll_splits[i][:, None] + nll_splits[j]) / 2
 
