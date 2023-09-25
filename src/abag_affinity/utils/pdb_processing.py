@@ -425,7 +425,7 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_fil
         pdb_file_path: Path to the PDB file
         cleaned_file_path: Path to the cleaned PDB file
         fix_insert: Whether to fix insertions
-        rename_chains: Dictionary with chain renaming
+        rename_chains: Dictionary with chain renaming. If the target (dict value) is None, remove the chain
         max_h_len: Maximum length of heavy chain. NOTE: only works if max_l_len is also provided and only applies if PDB contains both L and H
         max_l_len: Maximum length of light chain
 
@@ -460,7 +460,10 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_fil
 
         # assign chains ids from A to Z. I checked that this will not lead to conflicts with the original chain ids (in case of 2 or more antigen chains)
         for chain, new_id in rename_chains.items():
-            rename_fixinsert_command += f" | pdb_rplchain -{chain}:{new_id}"
+            if new_id is None:
+                rename_fixinsert_command += f" | pdb_delchain -{chain}"
+            else:
+                rename_fixinsert_command += f" | pdb_rplchain -{chain}:{new_id}"
 
     if fix_insert:
         rename_fixinsert_command += " | pdb_fixinsert "

@@ -1,5 +1,5 @@
 method: 'grid'
-name: 'DMS-cross-validation-IPA'
+name: 'DMS-cross-validation-IPA_relative_withfinetuning'
 metric:
   goal: 'maximize'
   name: 'pearson_correlation'  # this works because we only use a single validation set
@@ -17,5 +17,6 @@ parameters:
       - "DMS-starr21_prosp_covid#L2"
       - "DMS-b.20_funct_screen_strat_engin_chimer#L2"
       - "DMS-wu17_in#L2"
-  seed:
+  training_set_spikein:
     values:
+      - 0.0
