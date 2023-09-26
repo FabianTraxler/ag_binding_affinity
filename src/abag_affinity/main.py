@@ -124,7 +124,7 @@ def run_sweep(args: Namespace, logger):
             args.tqdm_output = False  # disable tqdm output to reduce log syncing
 
             logger.info(f"Performing {args.train_strategy}")
-            run.name = wandb_name
+            args.wandb_name = wandb_name
             seed(args.seed)
             model, results, wandb_inst = training[args.train_strategy](args)
             run_and_log_benchmarks(model, args, wandb_inst, logger)
