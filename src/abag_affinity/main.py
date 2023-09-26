@@ -75,11 +75,13 @@ def run_sweep(args: Namespace, logger):
 
         try:
             config = wandb.config
+            wandb_name = ""
             for param in config.keys():
                 if config[param] == "None":
                     param_value = None
                 else:
                     param_value = config[param]
+                    wandb_name = wandb_name + str(param)[:5] + str(param_value)
 
                 if param == "max_num_nodes" and param_value is None and "aggregation_method" in config and config[
                     "aggregation_method"] == "fixed_size":
@@ -122,7 +124,7 @@ def run_sweep(args: Namespace, logger):
             args.tqdm_output = False  # disable tqdm output to reduce log syncing
 
             logger.info(f"Performing {args.train_strategy}")
-
+            run.name = wandb_name
             seed(args.seed)
             model, results, wandb_inst = training[args.train_strategy](args)
             run_and_log_benchmarks(model, args, wandb_inst, logger)
