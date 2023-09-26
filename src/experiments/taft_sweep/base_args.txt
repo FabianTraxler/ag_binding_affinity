@@ -26,5 +26,5 @@
 --dms_output_layer_type=bias_only
 --no-fine_tune
 --init_sweep
---sweep_config=../experiments/philips_sweep/sweep_config.yaml
+--sweep_config=../experiments/taft_sweep/sweep_config.yaml
 --no-load_pretrained_weights
