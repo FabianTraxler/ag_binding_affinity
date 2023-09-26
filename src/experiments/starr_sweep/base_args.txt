@@ -20,10 +20,11 @@
 --lr_scheduler=plateau
 --lr_decay_factor=0.8
 --stop_at_learning_rate=0.00001
---learning_rate=0.001
+--learning_rate=0.0008
 --relaxed_pdbs=False
---target_dataset=abag_affinity#L1
---fine_tune
+--target_dataset=abag_affinity#L1-1
+--dms_output_layer_type=bias_only
+--no-fine_tune
 --init_sweep
---sweep_config=../experiments/output_layer_sweep/sweep_config.yaml
+--sweep_config=../experiments/starr_sweep/sweep_config.yaml
 --no-load_pretrained_weights

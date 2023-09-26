@@ -1,0 +1,13 @@
+method: 'grid'
+name: 'Newest Baseline Sweep'
+metric:
+  goal: 'minimize'
+  name: 'val0_rmse'
+parameters:
+  seed:
+    values:
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5

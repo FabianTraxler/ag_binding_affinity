@@ -1,5 +1,5 @@
 method: 'grid'
-name: 'Main Evaluation Sweep'
+name: 'Outputlayer Evaluation Sweep'
 metric:
   goal: 'minimize'
   name: 'val0_rmse'
@@ -21,6 +21,7 @@ parameters:
       #  - "DMS-starr21_prosp_covid#L1-1+relative_L1-2"
       - - "DMS-madan21_mutat_hiv#L1-1"
         - "DMS-starr21_prosp_covid#L1-1"
+        - "DMS-phillips21_bindin#L1-1"
       # - - "DMS-madan21_mutat_hiv#L2-1+relative_cdf-0.5"
       #  - "DMS-starr21_prosp_covid#L2-1+relative_cdf-0.5"
         # DMS-wu17_in L2-1+relative_L2-2 not working
@@ -48,7 +49,8 @@ parameters:
     values:
       - "mlp"
       - "regression"
-      # - "regression_sigmoid"
+      - "regression_sigmoid"
+      - "positive_regression"
       - "bias_only"
       - "identity"
   train_strategy:
@@ -57,7 +59,7 @@ parameters:
   fine_tune:
     values:
       - True
-      - False
+      # - False
   pretrained_model:
     values:
       - ""

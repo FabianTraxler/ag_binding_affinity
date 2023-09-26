@@ -1,0 +1,19 @@
+method: 'grid'
+name: 'Starr Evaluation Sweep'
+metric:
+  goal: 'minimize'
+  name: 'val0_rmse'
+parameters:
+  transfer_learning_datasets:
+    values:
+      - "DMS-starr21_prosp_covid#L1-1"
+      - - "DMS-starr21_prosp_covid#relative_cdf-1"
+        - "abag_affinity#relative_cdf-1"
+      - "DMS-starr21_prosp_covid#relative_cdf-1"
+      - - "DMS-starr21_prosp_covid#relative_L1-1"
+        - "abag_affinity#relative_L1-1"
+
+  seed:
+    values:
+      - 42
+      # - 2
