@@ -68,7 +68,7 @@ rule bind_structures:
         antibody=join(dataset_resource_folder, "pdbs/{pdb_id}_r_b.pdb"),
         antigen=join(dataset_resource_folder, "pdbs/{pdb_id}_l_b.pdb"),
         # input_pdb=join(abdb_resource_pdb_folder, "{pdb_id}_1.pdb"),
-        csv=rules.clean_metadata.output.csv
+        csv=ancient(rules.clean_metadata.output.csv)
     output:
         join(pdb_unrelaxed_folder, "{pdb_id}.pdb")
     params:
@@ -81,7 +81,6 @@ rule bind_structures:
         "ag_binding_diffusion3"
     script:
         "scripts/clean_pdb.py"
-
 
 
 rule relax_structures:

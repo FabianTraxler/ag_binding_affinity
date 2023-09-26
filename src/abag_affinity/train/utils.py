@@ -1344,6 +1344,6 @@ def run_and_log_benchmarks(model, args, wandb_inst, logger):
     logger.info(f"Mean SKEMPI correlations >>> {np.mean(test_skempi_grouped_corrs)}")
 
     wandb_benchmark_log = {"abag_test_pearson": test_pearson, "abag_test_loss": test_loss,
-                           "skempi_test_pearson": test_skempi_score, "skempi_test_loss": test_loss_skempi,
+                           "skempi_test_pearson_grouped_mean": np.mean(test_skempi_grouped_corrs), "skempi_test_pearson": test_skempi_score, "skempi_test_loss": test_loss_skempi,
                            "benchmark_test_pearson": benchmark_pearson, "benchmark_test_loss": benchmark_loss}
     wandb_inst.log(wandb_benchmark_log, commit=True)

@@ -1,5 +1,5 @@
 method: 'grid'
-name: 'DMS-cross-validation-IPA_outputlayer'
+name: 'DMS-IPA_outputlayer'
 metric:
   goal: 'maximize'
   name: 'pearson_correlation'  # this works because we only use a single validation set
