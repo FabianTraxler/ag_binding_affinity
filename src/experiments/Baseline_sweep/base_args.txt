@@ -3,7 +3,7 @@
 --node_type=residue
 --batch_size=64
 --layer_type=GCN
---max_epochs=200
+--max_epochs=400
 --num_workers=8
 --nonlinearity=leaky
 --scale_values
@@ -20,11 +20,11 @@
 --lr_scheduler=plateau
 --lr_decay_factor=0.8
 --stop_at_learning_rate=0.00001
---learning_rate=0.001
+--learning_rate=0.0008
 --relaxed_pdbs=False
---target_dataset=abag_affinity#L1
+--target_dataset=abag_affinity#L1-1
 --dms_output_layer_type=bias_only
---fine_tune
+--no-fine_tune
 --init_sweep
 --sweep_config=../experiments/Baseline_sweep/sweep_config.yaml
 --no-load_pretrained_weights
