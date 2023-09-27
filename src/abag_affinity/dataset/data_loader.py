@@ -98,6 +98,7 @@ class AffinityDataset(Dataset):
         self.loss_criterion = loss_criterion
         self.only_neglogkd_samples = only_neglogkd_samples
         self.logger = logging.getLogger(f"AffinityDataset-{dataset_name}")
+        self.logger.setLevel(logging.INFO)
         if "-" in dataset_name: # part of DMS dataset
             dataset_name, publication_code = dataset_name.split("-")
             self.affinity_type = self.config["DATASETS"][dataset_name]["affinity_types"][publication_code]

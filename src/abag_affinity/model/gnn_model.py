@@ -75,6 +75,9 @@ class DatasetAdjustment(nn.Module):
             self.linear_mlp.bias.data.fill_(0)
             self.nonlinear = nn.Identity() 
 
+        # Making sure that only the correct gradients get updated (e.g. bias only)
+        self._setup_gradients()
+
     def forward(self, x: torch.Tensor, layer_selector: torch.Tensor):
         """
         Args:
@@ -98,10 +101,9 @@ class DatasetAdjustment(nn.Module):
         return x_selected
 
 
-    def unfreeze(self):
-        """
-        Unfreeze weights to enable trainig for different settings
-        """
+    def _setup_gradients(self):
+        self.requires_grad_(False)
+
         if self.layer_type == 'mlp':
             self.nonlinear = nn.SiLU()
 
@@ -111,7 +113,7 @@ class DatasetAdjustment(nn.Module):
         elif self.layer_type == "identity":
             return self
         else:
-            return super().requires_grad_(True)
+            return self.requires_grad_(True)
 
 
 class AffinityGNN(pl.LightningModule):
@@ -197,10 +199,6 @@ class AffinityGNN(pl.LightningModule):
         self.dataset_names = dataset_names
         self.dataset_specific_layer = DatasetAdjustment(args.dms_output_layer_type, len(dataset_names), dataset_names)
 
-        self.dataset_specific_layer.requires_grad_(False)
-        # Making sure that only the correct gradients get updated (e.g. bias only)
-        self.dataset_specific_layer.unfreeze()
-
         self.scaled_output = scaled_output
 
         self.float()
@@ -252,9 +250,6 @@ class AffinityGNN(pl.LightningModule):
         except AttributeError:
             logging.warning("Pretrained model does not have an unfreeze method")
 
-        # unfreeze datasets-specific layers
-        self.dataset_specific_layer.unfreeze()
-        
     def on_save_checkpoint(self, checkpoint):
         """
         Drop frozen parameters (don't save them)

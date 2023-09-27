@@ -59,7 +59,7 @@ def model_train(args:Namespace, validation_set: Optional[int] = None) -> Tuple[A
     results, best_model, wandb_inst = train_loop(model, train_data, val_datas, args)
 
     if args.fine_tune:
-        run_and_log_benchmarks(model, args, wandb_inst, logger)
+        run_and_log_benchmarks(model, args, wandb_inst)
         results, best_model = finetune_frozen(best_model, train_data, val_datas, args, lr_reduction=0.2)
     return best_model, results, wandb_inst
 
@@ -105,7 +105,7 @@ def pretrain_model(args:Namespace) -> Tuple[AffinityGNN, Dict]:
 
     if args.fine_tune:
         raise NotImplementedError("We would need to fine-tune on all DMS datasets, e.g. via a for-loop again?")
-        run_and_log_benchmarks(model, args, wandb_inst, logger)
+        run_and_log_benchmarks(model, args, wandb_inst)
         train_data, val_datas = load_datasets(config, dataset_names[-1], args.validation_set, args)
         results, model = finetune_frozen(model, train_data, val_datas, args, lr_reduction=0.2)
         all_results["finetuning"] = results
@@ -145,7 +145,8 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
         if args.add_neglogkd_labels_dataset and train_data.affinity_type == "E":  # exclude phillips21
             neglogkd_data, _ = load_datasets(config, dataset_name, args.validation_set, args=args,
                                              validation_size=0, only_neglogkd_samples=True)
-            neglogkd_datasets.append(neglogkd_data)
+            if len(neglogkd_data) > 0:
+                neglogkd_datasets.append(neglogkd_data)
 
         data_name, loss_type = dataset_name.split("#")
         if not train_data.relative_data and data_name in double_dataset:
@@ -183,7 +184,7 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
     logger.info("Training with {} completed".format(dataset_names))
 
     if args.fine_tune:
-        run_and_log_benchmarks(model, args, wandb_inst, logger)
+        run_and_log_benchmarks(model, args, wandb_inst)
         # TODO here we generate a new wandb_inst instance?!
         results, model = finetune_frozen(model, train_datasets, val_datasets, args, lr_reduction=0.2)
 
@@ -235,7 +236,7 @@ def train_transferlearnings_validate_target(args: Namespace):
     logger.info("Training with {} completed".format(training_set_names))
 
     if args.fine_tune:
-        run_and_log_benchmarks(model, args, wandb_inst, logger)
+        run_and_log_benchmarks(model, args, wandb_inst)
 
         results, model = finetune_frozen(model, train_datasets, val_datasets, args, lr_reduction=0.2)
 

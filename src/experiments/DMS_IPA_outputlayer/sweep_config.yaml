@@ -1,5 +1,5 @@
 method: 'grid'
-name: 'DMS-cross-validation-IPA_outputlayer'
+name: 'DMS-IPA_outputlayer_longer_L1_5seed'
 metric:
   goal: 'maximize'
   name: 'pearson_correlation'  # this works because we only use a single validation set
@@ -11,3 +11,10 @@ parameters:
       - "regression_sigmoid"
       - "bias_only"
       - "identity"
+  seed:
+    values:
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5

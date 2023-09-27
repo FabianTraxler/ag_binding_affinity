@@ -176,8 +176,8 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--cross_validation", action=BooleanOptionalAction, help="Perform CV on all validation datasets", default=False)
     optional.add_argument("--number_cv_splits", type=int, help='The number of data splits for cross validation',
                           default=10)
-    optional.add_argument("-v", "--validation_set", type=int, help="Which validation set to use", default=1,
-                          choices=[1, 2, 3, 4])
+    optional.add_argument("-v", "--validation_set", type=int, help="Which validation set to use", default=0,
+                          choices=[0, 1, 2, 3, 4])
     optional.add_argument("-c", "--config_file", type=str,
                           help="Path to config file for datasets and training strategies",
                           default=(Path(__file__).resolve().parents[2] / "config.yaml").resolve())
