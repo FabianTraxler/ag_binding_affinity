@@ -70,7 +70,7 @@ def run_sweep(args: Namespace, logger):
     ATOM_NODES_MULTIPLIKATOR = 5
     ORIGINAL_LEARNINGRATE = args.learning_rate
     def sweep_train():
-        run = wandb.init(mode=args.wandb_mode)
+        run = wandb.init(mode=args.wandb_mode, settings=wandb.Settings(start_method="fork"))
         run_dir = run.dir[:-6]
 
         try:
