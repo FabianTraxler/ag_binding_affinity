@@ -1,5 +1,5 @@
 method: 'grid'
-name: 'DMS-IPA_outputlayer_longer_L1_5seed'
+name: 'DMS-IPA_outputlayer_longer_L2_5seed'
 metric:
   goal: 'maximize'
   name: 'pearson_correlation'  # this works because we only use a single validation set

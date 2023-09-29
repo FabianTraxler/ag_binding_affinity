@@ -83,6 +83,9 @@ All datasets have an associated "pdb_path" field (see config.yaml), which points
 
 By convention, this path is appended with a `_relaxed` suffix, when training with relaxed data. I.e. the data_generation pipelines, in accordance, place the relaxed versions of the processed PDBs into the respective `*_relaxed` folders.
 
+## Overlap analysis
+See notebook `analyze_dms_abag_overlap.ipynb` (in guided_protein_diffusion)
+Processing is multiple hours but results CSVs are in ag_binding_affinity/results/{overlaps_2023-09-27.csv overlaps_2023-09-27_processed.csv}
 # Usage
 
 The python script `src/abag_affinity/main.py` provides an interface for training specified geometric deep learning models
