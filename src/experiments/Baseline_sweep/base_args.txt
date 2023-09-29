@@ -9,7 +9,7 @@
 --scale_values
 --num_fc_layers=10
 --num_gnn_layers=5
---validation_set=1
+--validation_set=0
 --train_strategy=bucket_train
 --channel_halving
 --no-fc_size_halving
@@ -21,7 +21,7 @@
 --lr_decay_factor=0.5
 --stop_at_learning_rate=0.00001
 --learning_rate=0.005
---relaxed_pdbs=False
+--relaxed_pdbs=both
 --target_dataset=abag_affinity#L1-1
 --dms_output_layer_type=bias_only
 --no-fine_tune

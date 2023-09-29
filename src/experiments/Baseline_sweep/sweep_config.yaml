@@ -1,5 +1,5 @@
 method: 'grid'
-name: 'Shorter Baseline Sweep'
+name: 'Relaxed Both Baseline Sweep'
 metric:
   goal: 'minimize'
   name: 'val0_rmse'
