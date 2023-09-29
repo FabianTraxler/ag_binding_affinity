@@ -1,7 +1,7 @@
 --gnn_type=guided
 --patience=30
 --node_type=residue
---batch_size=64
+--batch_size=16
 --layer_type=GCN
 --max_epochs=200
 --num_workers=8
@@ -21,7 +21,7 @@
 --lr_decay_factor=0.5
 --stop_at_learning_rate=0.00001
 --learning_rate=0.005
---relaxed_pdbs=both
+--relaxed_pdbs=False
 --target_dataset=abag_affinity#L1-1
 --dms_output_layer_type=bias_only
 --no-fine_tune
