@@ -1,5 +1,7 @@
 import glob
 from typing import Dict, List, Tuple, Union, Optional, Callable
+
+import wandb
 from matplotlib._api import itertools
 import numpy as np
 import math
@@ -1196,12 +1198,13 @@ def evaluate_model(model: AffinityGNN, dataloader: DataLoader, args: Namespace, 
         logging.warning(f"nan in predictions or labels:\n{all_labels}\n{all_predictions}")
         pearson_corr = None
 
+    # scale prediction back to original values
+    if args.scale_values:
+        all_labels = all_labels * (args.scale_max - args.scale_min) + args.scale_min
+        all_predictions = all_predictions * (args.scale_max - args.scale_min) + args.scale_min
+
     # TODO pull out the plotting too
     if plot_path is not None:
-        # scale prediction back to original values
-        if args.scale_values:
-            all_labels = all_labels * (args.scale_max - args.scale_min) + args.scale_min
-            all_predictions = all_predictions * (args.scale_max - args.scale_min) + args.scale_min
 
         Path(plot_path).parent.mkdir(parents=True, exist_ok=True)
         plot_correlation(x=all_labels, y=all_predictions,
@@ -1345,8 +1348,14 @@ def run_and_log_benchmarks(model, args):
     logger.info(f"SKEMPI testset results >>> {test_skempi_score}")
     logger.info(f"Mean SKEMPI correlations >>> {np.mean(test_skempi_grouped_corrs)}")
 
+    benchmark_df["Dataset"] = "benchmark"
+    test_skempi_df["Dataset"] = "skempi"
+    test_df["Dataset"] = "abag_test"
+    full_df = pd.concat([test_df, benchmark_df, test_skempi_df])
+
     wandb_benchmark_log = {"abag_test_pearson": test_pearson, "abag_test_loss": test_loss,
                            "skempi_test_pearson_grouped_mean": np.mean(test_skempi_grouped_corrs), "skempi_test_pearson": test_skempi_score, "skempi_test_loss": test_loss_skempi,
-                           "benchmark_test_pearson": benchmark_pearson, "benchmark_test_loss": benchmark_loss}
+                           "benchmark_test_pearson": benchmark_pearson, "benchmark_test_loss": benchmark_loss, "Full_Predictions": wandb.Table(dataframe=full_df)}
+
     return wandb_benchmark_log
 
