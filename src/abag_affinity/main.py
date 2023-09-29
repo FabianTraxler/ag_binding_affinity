@@ -127,7 +127,7 @@ def run_sweep(args: Namespace, logger):
             args.wandb_name = wandb_name
             seed(args.seed)
             model, results, wandb_inst = training[args.train_strategy](args)
-            run_and_log_benchmarks(model, args, wandb_inst)
+            run_and_log_benchmarks(model, args)
             wandb.finish(0)
         except Exception as e:
             # log errors before finishing job
@@ -197,7 +197,7 @@ def main() -> Dict:
             model, results = cross_validation(args)
         else:
             model, results, wandb_inst = training[args.train_strategy](args)
-            run_and_log_benchmarks(model, args, wandb_inst)
+            run_and_log_benchmarks(model, args)
 
             # Save model
             if args.model_path is not None:
