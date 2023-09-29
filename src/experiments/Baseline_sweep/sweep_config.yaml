@@ -1,5 +1,5 @@
 method: 'grid'
-name: 'Relaxed Both Baseline Sweep'
+name: 'OF Embedding Baseline Sweep'
 metric:
   goal: 'minimize'
   name: 'val0_rmse'
@@ -13,5 +13,4 @@ parameters:
       - 5
   embeddings_type:
     values:
-      - ""
       - "of"
