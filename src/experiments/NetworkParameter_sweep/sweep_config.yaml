@@ -1,0 +1,29 @@
+method: 'grid'
+name: 'Testing Networkparams Sweep'
+metric:
+  goal: 'minimize'
+  name: 'val0_rmse'
+parameters:
+  seed:
+    values:
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+  scale_values:
+    values:
+      - True
+      - False
+  channel_halving:
+    values:
+      - True
+      - False
+  channel_doubling:
+    values:
+      - True
+      - False
+  fc_size_halving:
+    values:
+      - True
+      - False
