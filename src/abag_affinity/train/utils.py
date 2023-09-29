@@ -1066,7 +1066,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
             f'Epochs: {epoch + 1} | Total-Train-Loss: {total_loss_train / len(train_dataloader) : .3f}'
             f' | Total-Val-Loss: {val_result["total_val_loss"] / len(val_dataloader) : .3f} | Patience: {patience} ')
 
-        if epoch %5:
+        if epoch %5 == 0:
             benchmark_results = run_and_log_benchmarks(model, args)
             wandb_log.update(benchmark_results)
         wandb_inst.log(wandb_log, commit=True)
