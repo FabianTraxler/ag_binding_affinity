@@ -118,8 +118,9 @@ def run_sweep(args: Namespace, logger):
             if args.node_type == "atom":
                 args.batch_size = int(args.batch_size / ATOM_NODES_MULTIPLIKATOR) + 1
 
-            # reset learning rate to original value
-            args.learning_rate = ORIGINAL_LEARNINGRATE
+            if "learning_rate" not in config.keys():
+                # reset learning rate to original value
+                args.learning_rate = ORIGINAL_LEARNINGRATE
 
             args.tqdm_output = False  # disable tqdm output to reduce log syncing
 

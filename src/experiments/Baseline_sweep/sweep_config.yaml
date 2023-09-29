@@ -14,3 +14,4 @@ parameters:
   embeddings_type:
     values:
       - "of"
+      - ""
