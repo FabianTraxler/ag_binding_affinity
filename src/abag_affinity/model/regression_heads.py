@@ -125,7 +125,7 @@ class RegressionHead(torch.nn.Module):
 
         batch = get_node_batches(data).to(self.device)
 
-        if self.aggregation_method == "interface_sum":
+        if self.aggregation_method in ["interface_sum", "interface_mean"]:
             # get interface edges
             interface_node_indices = data["node", "interface", "node"].edge_index.view(-1).unique()
             batch = batch[interface_node_indices]

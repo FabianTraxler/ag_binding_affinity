@@ -1,5 +1,5 @@
 method: 'grid'
-name: 'Weight Decay Baseline Sweep'
+name: 'Aggregation Baseline Sweep'
 metric:
   goal: 'minimize'
   name: 'val0_rmse'
@@ -14,14 +14,7 @@ parameters:
   weight_decay:
     values:
       - 0.000001
-  num_gnn_layers:
+  aggregation_method:
     values:
-      - 5
-      - 8
-      - 10
-  num_fc_layers:
-    values:
-      - 5
-      - 8
-      - 10
-      - 15
+      - interface_mean
+      - attention
