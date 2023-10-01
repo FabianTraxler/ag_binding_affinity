@@ -1,5 +1,5 @@
 --gnn_type=guided
---patience=20
+--patience=40
 --node_type=residue
 --batch_size=16
 --layer_type=GCN
@@ -18,7 +18,7 @@
 -wdb
 --wandb_mode=online
 --lr_scheduler=plateau
---lr_decay_factor=0.5
+--lr_decay_factor=0.6
 --stop_at_learning_rate=0.00001
 --learning_rate=0.001
 --relaxed_pdbs=False
