@@ -1,5 +1,5 @@
 method: 'grid'
-name: 'OF Embedding Baseline Sweep'
+name: 'Weight Decay Baseline Sweep'
 metric:
   goal: 'minimize'
   name: 'val0_rmse'
@@ -11,7 +11,11 @@ parameters:
       - 3
       - 4
       - 5
-  embeddings_type:
+  weight_decay:
     values:
-      - "of"
-      - ""
+      - 0.001
+      - 0.0001
+      - 0.00001
+      - 0.000001
+      - 0.0000001
+      - 0.00000001

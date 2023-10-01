@@ -210,6 +210,7 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--embeddings_type", type=str, default="", choices=["", "rf", "of"], help="Type of embeddings to use.")
     optional.add_argument("--seed", type=int, default=42, help="Seed for random number generator")
     optional.add_argument("--debug", action=BooleanOptionalAction, default=False, help="Start debugger on a free port starting from 5678")
+    optional.add_argument("--weight_decay", type=float, default=0, help="Weight Decay for Parameters")
 
     args = parser.parse_args(artifical_args)
     args.config = read_config(args.config_file)

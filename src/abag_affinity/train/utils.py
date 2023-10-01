@@ -438,7 +438,7 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
 
 
 def get_optimizer(args: Namespace, model: torch.nn.Module):
-    optimizer = Adam(model.parameters(), lr=args.learning_rate)
+    optimizer = Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
 
     if args.lr_scheduler == "exponential":
         scheduler = torch.optim.lr_scheduler.ExponentialLR(
