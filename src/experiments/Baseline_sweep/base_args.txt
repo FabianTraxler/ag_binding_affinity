@@ -7,7 +7,7 @@
 --num_workers=8
 --nonlinearity=leaky
 --scale_values
---num_fc_layers=10
+--num_fc_layers=5
 --num_gnn_layers=5
 --validation_set=0
 --train_strategy=bucket_train
@@ -15,6 +15,7 @@
 --no-fc_size_halving
 --max_edge_distance=3
 --aggregation_method=interface_sum
+--weight_decay=0.0000001
 -wdb
 --wandb_mode=online
 --lr_scheduler=plateau
