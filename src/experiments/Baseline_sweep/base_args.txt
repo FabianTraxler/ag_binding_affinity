@@ -30,4 +30,3 @@
 --no-fine_tune
 --init_sweep
 --sweep_config=../experiments/Baseline_sweep/sweep_config.yaml
---no-load_pretrained_weights
