@@ -1,7 +1,9 @@
---gnn_type=guided
+--pretrained_model=IPA
+--embeddings_type=of
+--gnn_type=identity
 --patience=40
 --node_type=residue
---batch_size=16
+--batch_size=1
 --layer_type=GCN
 --max_epochs=300
 --num_workers=8
