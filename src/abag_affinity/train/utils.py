@@ -1324,10 +1324,11 @@ def get_skempi_corr(model: AffinityGNN, args: Namespace, tqdm_output: bool = Tru
     res_df["pdb"] = res_df["pdb"].apply(lambda v: v.split("-")[0])
     # split results by PDBs and compute separate correlations
     grouped_correlations = res_df.groupby("pdb").apply(lambda group: stats.pearsonr(group.labels, group.prediction)[0])
+    grouped_correlations_weighted_mean = np.sum(res_df.groupby("pdb").apply(lambda group: stats.pearsonr(group.labels, group.prediction)[0] * len(group))) / len(res_df)
 
     res_df["grouped_correlations"] = res_df["pdb"].apply(grouped_correlations.get)
 
-    return np.mean(grouped_correlations), pearson_corr, val_loss, res_df
+    return grouped_correlations_weighted_mean, pearson_corr, val_loss, res_df
 
     # results.append(res)
 
