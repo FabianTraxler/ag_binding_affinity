@@ -11,8 +11,12 @@ parameters:
       - 3
       - 4
       - 5
-      - 6
-      - 7
+  num_gnn_layers:
+    values:
       - 8
-      - 9
       - 10
+      - 15
+  layer_type:
+    values:
+      - "GAT"
+      - "GCN"

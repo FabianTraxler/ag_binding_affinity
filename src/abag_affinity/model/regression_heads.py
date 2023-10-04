@@ -131,9 +131,15 @@ class RegressionHead(torch.nn.Module):
             batch = batch[interface_node_indices]
             x = x[interface_node_indices]
         if self.aggregation_method == "interface_size":
-            interface_edges = data["node", "interface", "node"].edge_index
+            # Calculate the average edge values for each node
             interface_distances = data["node", "interface", "node"].edge_attr.unsqueeze(1)
-
+            node_sum = torch.zeros(interface_node_indices.max() + 1)
+            node_count = torch.zeros(interface_node_indices.max() + 1)
+            node_sum.scatter_add_(0, data["node", "interface", "node"].edge_index[0], interface_distances[:, 0])
+            node_count.scatter_add_(0, data["node", "interface", "node"].edge_index[0],
+                                    torch.ones_like(interface_distances[:, 0]))
+            average_edge_values = node_sum / node_count.float()
+            return self.aggregation((1. / average_edge_values[interface_node_indices])[:, None] + x[:, :1] - x[:, :1].detach(), batch)
         if len(x) == 0:
             logging.warning("No interface. Returning 0")
             return torch.zeros((batch.unique().shape[0],1)).to(x)

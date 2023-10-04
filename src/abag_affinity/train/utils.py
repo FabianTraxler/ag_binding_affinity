@@ -1256,6 +1256,8 @@ def get_abag_test_score(model: AffinityGNN, args: Namespace, tqdm_output: bool =
     summary_df = pd.read_csv(summary_path, index_col=0)
     if validation_set is None:
         summary_df = summary_df[summary_df["test"]]
+    elif validation_set == -1:
+        summary_df = summary_df[summary_df["validation"] != 0]
     else:
         summary_df = summary_df[summary_df["validation"] == validation_set]
 
@@ -1345,6 +1347,13 @@ def run_and_log_benchmarks(model, args):
     test_pearson, test_loss, test_df = get_abag_test_score(model, args, tqdm_output=args.tqdm_output,
                                                            plot_path=abag_test_plot_path,
                                                            validation_set=args.validation_set)
+
+
+    train_pearson, train_loss, train_df = get_abag_test_score(model, args, tqdm_output=args.tqdm_output,
+                                                           plot_path=abag_test_plot_path,
+                                                           validation_set=-1)
+    logger.info(f"ABAG Train results >>> {train_pearson}")
+    logger.info(f"ABAG Test results >>> {test_pearson}")
     logger.info(f"Benchmark results >>> {benchmark_pearson}")
     logger.info(f"SKEMPI testset results >>> {test_skempi_score}")
     logger.info(f"Mean SKEMPI correlations >>> {np.mean(test_skempi_grouped_corrs)}")
@@ -1352,11 +1361,12 @@ def run_and_log_benchmarks(model, args):
     benchmark_df["Dataset"] = "benchmark"
     test_skempi_df["Dataset"] = "skempi"
     test_df["Dataset"] = "abag_test"
-    full_df = pd.concat([test_df, benchmark_df, test_skempi_df])
+    train_df["Dataset"] = "abag_train"
+    full_df = pd.concat([test_df, benchmark_df, test_skempi_df, train_df])
 
     wandb_benchmark_log = {"abag_test_pearson": test_pearson, "abag_test_loss": test_loss,
+                           "abag_train_pearson": train_pearson, "abag_train_loss": train_loss,
                            "skempi_test_pearson_grouped_mean": np.mean(test_skempi_grouped_corrs), "skempi_test_pearson": test_skempi_score, "skempi_test_loss": test_loss_skempi,
                            "benchmark_test_pearson": benchmark_pearson, "benchmark_test_loss": benchmark_loss, "Full_Predictions": wandb.Table(dataframe=full_df)}
 
     return wandb_benchmark_log
-
