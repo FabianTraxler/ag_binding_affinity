@@ -18,5 +18,4 @@ parameters:
       - 15
   layer_type:
     values:
-      - "GAT"
       - "GCN"
