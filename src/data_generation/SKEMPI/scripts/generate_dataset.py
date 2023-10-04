@@ -90,6 +90,11 @@ def get_chain_info(row):
         del info["H"]
     for chain, new in zip(chain2, string.ascii_uppercase):
         info[chain] = new
+    if pdb in ["4GXU_ABCDEF_MN", "4NM8_ABCDEF_HL"]:  # CDEF are large and unnecessary. 4GXU is also (trimmed) in antibody_benchmark
+        info["C"] = None
+        info["D"] = None
+        info["E"] = None
+        info["F"] = None
 
     def order_substitutions(substitutions):
         """
@@ -244,8 +249,9 @@ for i in range(1, num_splits + 1):
 if snakemake.params.only_abs:
     selected_pdbs = skempi_df.loc[skempi_df["Hold_out_type"] == "AB/AG", "#Pdb"].drop_duplicates()
     selected_pdbs = selected_pdbs.apply(lambda v: v.split("_")[0].lower()).drop_duplicates()
-    # These PDBs have more than 11000 lines and their antigens have >= 350 residues, so we filter them for simplicity
-    blacklist_pdbs = "4KRP 3W2D 2VIR 2VIS 4KRO 1NCA 3NGB 3SE8 3SE9 5C6T 1N8Z 3N85 1YY9 2NZ9 2NYY 4NM8 4GXU".lower().split(" ")
-    clean_skempi = clean_skempi[clean_skempi["pdb"].isin(selected_pdbs.values) & ~(clean_skempi["pdb"].isin(blacklist_pdbs))]
+# These PDBs have more than 11000 lines and their antigens have >= 350 residues, so we filter them for simplicity
+blacklist_pdbs = "2NZ9 2NYY".lower().split(" ")  # these two have massive antigens. Also filtered in abag_affinity
+# previous blacklist: 4KRP 3W2D 2VIR 2VIS 4KRO 1NCA 3NGB 3SE8 3SE9 5C6T 1N8Z 3N85 1YY9 4NM8 4GXU
+clean_skempi = clean_skempi[clean_skempi["pdb"].isin(selected_pdbs.values)& ~(clean_skempi["pdb"].isin(blacklist_pdbs))]
 
 clean_skempi.to_csv(out_path)

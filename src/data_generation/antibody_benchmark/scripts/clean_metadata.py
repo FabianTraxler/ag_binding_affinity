@@ -105,6 +105,9 @@ for complex_id in ["4FQI_HL:ABEFCD", "4GXU_MN:ABEFCD"]:
     summary_df.loc[idx, "chain_infos"]["E"] = None
     summary_df.loc[idx, "chain_infos"]["F"] = None
 
+# drop two PDB IDs because they interfere with many DMS training data
+summary_df = summary_df[~summary_df.pdb.isin(["2fjg", "4fp8"])]
+
 summary_df["validation"] = 0
 summary_df["test"] = True
 

@@ -236,10 +236,10 @@ pdb_paths = benchmark_df["filename"]
 
 problematic_pdbs = ["1zmy_1",  # 1zmy is wrongly annotated by AbDb
                     "1kxv_1",  # too large.
-                    "2nz9_1",  # too big.  In chain A, one could cut away everything that is smaller than residue 875.
+                    "2nz9_1",  # too big.  In chain A, one could cut away everything that is smaller than residue 875. also filtered in SKEMPI
                     "2nyy_1",  # same as for 2nz9
                     "5i5k_1"   # Also huge. In chain A, only residues 820-930 would be required
-                    ]
+                    ] + "1jrh_1 1bj1_1 2jel_1 2bdn_1 2b2x_1 4u6h_1 4jpk_1 3a6c_1 3a6b_1 3a67_1 1nma_1 1nby_1 1cz8_1 2b2x_1".split(" ")  # overlapping with SKEMPI
 for pdb in tqdm(abag_affinity_df["pdb"].tolist()):
     if pdb in problematic_pdbs:
         continue
