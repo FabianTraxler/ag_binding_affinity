@@ -125,15 +125,18 @@ class RegressionHead(torch.nn.Module):
 
         batch = get_node_batches(data).to(self.device)
 
-        if self.aggregation_method in ["interface_sum", "interface_mean"]:
+        if self.aggregation_method in ["interface_sum", "interface_mean", "interface_size"]:
             # get interface edges
             interface_node_indices = data["node", "interface", "node"].edge_index.view(-1).unique()
             batch = batch[interface_node_indices]
             x = x[interface_node_indices]
+        if self.aggregation_method == "interface_size":
+            interface_edges = data["node", "interface", "node"].edge_index
+            interface_distances = data["node", "interface", "node"].edge_attr.unsqueeze(1)
 
         if len(x) == 0:
             logging.warning("No interface. Returning 0")
-            return torch.tensor([0.0]).to(x)
+            return torch.zeros((batch.unique().shape[0],1)).to(x)
 
         # compute node-wise affinity contribution from graph embedding
         for fc_layer in self.fc_layers[:-1]:

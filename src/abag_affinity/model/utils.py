@@ -53,6 +53,7 @@ aggregation_methods = {
     "edge": lambda x: x,
     "interface_sum": global_add_pool,
     "interface_mean": global_mean_pool,
+    "interface_size": lambda x, batch: torch.bincount(batch)[:,None]/100. + global_mean_pool(x, batch) - global_mean_pool(x, batch).detach(),
 }
 
 layer_types = {

@@ -1,5 +1,5 @@
 method: 'grid'
-name: 'IPA Baseline Sweep'
+name: 'Proximity Baseline Sweep'
 metric:
   goal: 'minimize'
   name: 'val0_rmse'

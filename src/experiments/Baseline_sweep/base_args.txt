@@ -1,6 +1,4 @@
---pretrained_model=IPA
---embeddings_type=of
---gnn_type=identity
+--gnn_type=proximity
 --patience=40
 --node_type=residue
 --batch_size=1
@@ -15,7 +13,7 @@
 --train_strategy=bucket_train
 --channel_halving
 --no-fc_size_halving
---max_edge_distance=3
+--max_edge_distance=5
 --aggregation_method=interface_sum
 --weight_decay=0.0000001
 -wdb
