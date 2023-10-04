@@ -1,4 +1,6 @@
---gnn_type=proximity
+--pretrained_model=IPA
+--embeddings_type=of
+--gnn_type=identity
 --patience=40
 --node_type=residue
 --batch_size=1
@@ -25,6 +27,5 @@
 --relaxed_pdbs=False
 --target_dataset=abag_affinity#L1-1
 --dms_output_layer_type=bias_only
---no-fine_tune
 --init_sweep
 --sweep_config=../experiments/Baseline_sweep/sweep_config.yaml
