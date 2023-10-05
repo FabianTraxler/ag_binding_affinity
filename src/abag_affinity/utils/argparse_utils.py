@@ -3,6 +3,7 @@ import sys
 from argparse import Namespace, ArgumentParser, Action, ArgumentTypeError
 import re
 from pathlib import Path
+import logging
 
 from .config import read_config
 
@@ -232,7 +233,7 @@ def parse_args(artifical_args=None) -> Namespace:
     if args.pretrained_model in enforced_node_type and args.pretrained_model != enforced_node_type[args.pretrained_model]:
         args.__dict__["node_type"] = enforced_node_type[args.pretrained_model]
     if args.pretrained_model in ["IPA", "Diffusion"]:
-        print("Forcing batch_size to 1 for IPA model. Alternatively implement batch_size > 1 for IPA model. Also forcing GNN type to 'identity' and fine_tuning")
+        logging.warning("Forcing batch_size to 1 for IPA model (learning-rate is reduced proportionally). Also forcing GNN type to 'identity' and fine_tuning.")
         args.__dict__["gnn_type"] = "identity"  # we could also test combination of IPA and GNN, but it adds combplexity
 
         # Adjusting learning rate for the reduced batch size
