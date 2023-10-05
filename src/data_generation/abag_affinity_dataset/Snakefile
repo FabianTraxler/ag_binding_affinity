@@ -7,7 +7,7 @@ from pathlib import Path
 DATASET_NAME = "abag_affinity_dataset"
 NUM_VALIDATION_SPLITS = 10
 TESTSET_SIZE = 50
-REDUNDANCY_CUTOFF = 0.8
+REDUNDANCY_CUTOFF = 0.8  # TODO should be 0.9 to be the same as the other analysis
 
 # link changes every day - please copy link for "summary file" from  http://opig.stats.ox.ac.uk/webapps/newsabdab/sabdab/search/?ABtype=All&method=All&species=All&resolution=&rfactor=&antigen=All&ltype=All&constantregion=All&affinity=True&isin_covabdab=All&isin_therasabdab=All&chothiapos=&restype=ALA&field_0=Antigens&keyword_0=#downloads
 sabdab_link = "https://opig.stats.ox.ac.uk/webapps/newsabdab/sabdab/summary/20230508_0647843/"
