@@ -186,7 +186,7 @@ def load_graph_dict(row: pd.Series, dataset_name: str, config: Dict, interface_f
     else:
         embeddings = None
 
-    graph_dict =  get_graph_dict(pdb_id, pdb_file_path, embeddings, node_type, neg_log_kd, e_value, distance_cutoff=max_edge_distance)
+    graph_dict = get_graph_dict(pdb_id, pdb_file_path, embeddings, node_type, neg_log_kd, e_value, distance_cutoff=max_edge_distance)
 
     graph_dict.pop("atom_names", None)  # remove unnecessary information that takes lot of storage
     assert len(graph_dict["node_features"]) == len(graph_dict["closest_residues"])
@@ -285,13 +285,14 @@ def get_hetero_edges(graph_dict: Dict, edge_names: List[str], max_interface_edge
     edge_attributes = {}
 
     proximity_idx = edge_names.index("distance")
+    # TODO the proximity is NOT 1/distance BUT a prescaled distance after distance cutof during graph generation
     distance_idx = -1
     same_protein_idx = edge_names.index("same_protein")
 
     for idx, edge_name in enumerate(edge_names):
         edge_type = ("node", edge_name, "node")
         if edge_name == "distance":
-            edges = np.where(adjacency_matrix[idx, :, :] > 0.001)
+            edges = np.where(adjacency_matrix[distance_idx, :, :] < max_edge_distance)
         elif edge_name == "same_protein": # same protein and < distance_cutoff
             edges = np.where((adjacency_matrix[idx, :, :] == 1) & (adjacency_matrix[distance_idx, :, :] < max_edge_distance))
         else:
@@ -300,7 +301,8 @@ def get_hetero_edges(graph_dict: Dict, edge_names: List[str], max_interface_edge
         all_edges[edge_type] = torch.tensor(edges).long()
 
         proximity = adjacency_matrix[proximity_idx, edges[0], edges[1]]
-        edge_attributes[edge_type] = torch.tensor(proximity)
+        distance = adjacency_matrix[distance_idx, edges[0], edges[1]]
+        edge_attributes[edge_type] = torch.tensor(distance) / max_edge_distance
 
     interface_edges = np.where((adjacency_matrix[same_protein_idx, :, :] != 1) & (adjacency_matrix[distance_idx, :, :] < max_interface_distance))
 
@@ -318,13 +320,13 @@ def get_hetero_edges(graph_dict: Dict, edge_names: List[str], max_interface_edge
         interface_edges = interface_edges[:, sorted_edge_idx]
         distance = adjacency_matrix[distance_idx, interface_edges[0], interface_edges[1]]
 
-    interface_distance = distance # 1 / (distance + 1)
+    interface_distance = distance / max_edge_distance #  We scale by cutof to obtain 0-1 tensor
 
     all_edges[("node", "interface", "node")] = torch.tensor(interface_edges).long()
     edge_attributes[("node", "interface", "node")] = torch.tensor(interface_distance)
 
-    full_edges = np.where(adjacency_matrix[0, :, :] > 0.001)
-    full_edge_featutes = np.vstack([adjacency_matrix[0, full_edges[0], full_edges[1]],
+    full_edges = np.where(adjacency_matrix[distance_idx, :, :] < max_edge_distance) # Same edge as distance
+    full_edge_featutes = np.vstack([adjacency_matrix[distance_idx, full_edges[0], full_edges[1]] / max_edge_distance,
                                adjacency_matrix[1, full_edges[0], full_edges[1]],
                                adjacency_matrix[2, full_edges[0], full_edges[1]]]).T
 

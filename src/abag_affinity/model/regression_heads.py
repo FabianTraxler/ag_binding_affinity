@@ -125,15 +125,24 @@ class RegressionHead(torch.nn.Module):
 
         batch = get_node_batches(data).to(self.device)
 
-        if self.aggregation_method == "interface_sum":
+        if self.aggregation_method in ["interface_sum", "interface_mean", "interface_size"]:
             # get interface edges
             interface_node_indices = data["node", "interface", "node"].edge_index.view(-1).unique()
             batch = batch[interface_node_indices]
             x = x[interface_node_indices]
-
+        if self.aggregation_method == "interface_size":
+            # Calculate the average edge values for each node
+            interface_distances = data["node", "interface", "node"].edge_attr.unsqueeze(1)
+            node_sum = torch.zeros(interface_node_indices.max() + 1)
+            node_count = torch.zeros(interface_node_indices.max() + 1)
+            node_sum.scatter_add_(0, data["node", "interface", "node"].edge_index[0], interface_distances[:, 0])
+            node_count.scatter_add_(0, data["node", "interface", "node"].edge_index[0],
+                                    torch.ones_like(interface_distances[:, 0]))
+            average_edge_values = node_sum / node_count.float()
+            return self.aggregation((1. / average_edge_values[interface_node_indices])[:, None] + x[:, :1] - x[:, :1].detach(), batch)
         if len(x) == 0:
             logging.warning("No interface. Returning 0")
-            return torch.tensor([0.0]).to(x)
+            return torch.zeros((batch.unique().shape[0],1)).to(x)
 
         # compute node-wise affinity contribution from graph embedding
         for fc_layer in self.fc_layers[:-1]:

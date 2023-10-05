@@ -438,7 +438,7 @@ def train_loop(model: AffinityGNN, train_dataset: AffinityDataset, val_datasets:
 
 
 def get_optimizer(args: Namespace, model: torch.nn.Module):
-    optimizer = Adam(model.parameters(), lr=args.learning_rate)
+    optimizer = Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
 
     if args.lr_scheduler == "exponential":
         scheduler = torch.optim.lr_scheduler.ExponentialLR(
@@ -688,10 +688,10 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
         summary_path, _ = get_data_paths(config, dataset_name)
         summary_df = pd.read_csv(summary_path, index_col=0)
 
-        summary_df["validation"] = summary_df["validation"].fillna("").astype("str")
+        summary_df["validation"] = summary_df["validation"].fillna("")
 
-        val_pdbs = summary_df.loc[summary_df["validation"].str.contains(str(validation_set)), "pdb"]
-        train_pdbs = summary_df.loc[(~summary_df["validation"].str.contains(str(validation_set))) & (~summary_df["test"]), "pdb"]
+        val_pdbs = summary_df.loc[summary_df["validation"] == validation_set, "pdb"]
+        train_pdbs = summary_df.loc[(summary_df["validation"] != validation_set) & (~summary_df["test"]), "pdb"]
 
         if "mutated_pdb_path" in config["DATASETS"][dataset_name]:  # only use files that were generated
             data_path = os.path.join(config["DATASETS"]["path"],
@@ -1256,6 +1256,8 @@ def get_abag_test_score(model: AffinityGNN, args: Namespace, tqdm_output: bool =
     summary_df = pd.read_csv(summary_path, index_col=0)
     if validation_set is None:
         summary_df = summary_df[summary_df["test"]]
+    elif validation_set < 0:
+        summary_df = summary_df[summary_df["validation"] != ((-1*validation_set) - 1)]
     else:
         summary_df = summary_df[summary_df["validation"] == validation_set]
 
@@ -1345,6 +1347,15 @@ def run_and_log_benchmarks(model, args):
     test_pearson, test_loss, test_df = get_abag_test_score(model, args, tqdm_output=args.tqdm_output,
                                                            plot_path=abag_test_plot_path,
                                                            validation_set=args.validation_set)
+
+    # When a negative validation set is provided, we use all but the corresponding set.
+    # As we have to deal with the case validation_set==0 we first add 1 before flipping the sign
+    train_set_indicator = (args.validation_set+1)*-1 if args.validation_set is not None else -1
+    train_pearson, train_loss, train_df = get_abag_test_score(model, args, tqdm_output=args.tqdm_output,
+                                                           plot_path=abag_test_plot_path,
+                                                           validation_set=train_set_indicator)
+    logger.info(f"ABAG Train results >>> {train_pearson}")
+    logger.info(f"ABAG Test results >>> {test_pearson}")
     logger.info(f"Benchmark results >>> {benchmark_pearson}")
     logger.info(f"SKEMPI testset results >>> {test_skempi_score}")
     logger.info(f"Mean SKEMPI correlations >>> {np.mean(test_skempi_grouped_corrs)}")
@@ -1352,11 +1363,12 @@ def run_and_log_benchmarks(model, args):
     benchmark_df["Dataset"] = "benchmark"
     test_skempi_df["Dataset"] = "skempi"
     test_df["Dataset"] = "abag_test"
-    full_df = pd.concat([test_df, benchmark_df, test_skempi_df])
+    train_df["Dataset"] = "abag_train"
+    full_df = pd.concat([test_df, benchmark_df, test_skempi_df, train_df])
 
     wandb_benchmark_log = {"abag_test_pearson": test_pearson, "abag_test_loss": test_loss,
+                           "abag_train_pearson": train_pearson, "abag_train_loss": train_loss,
                            "skempi_test_pearson_grouped_mean": np.mean(test_skempi_grouped_corrs), "skempi_test_pearson": test_skempi_score, "skempi_test_loss": test_loss_skempi,
                            "benchmark_test_pearson": benchmark_pearson, "benchmark_test_loss": benchmark_loss, "Full_Predictions": wandb.Table(dataframe=full_df)}
 
     return wandb_benchmark_log
-

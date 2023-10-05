@@ -129,7 +129,7 @@ def parse_args(artifical_args=None) -> Namespace:
                           default=5)
     optional.add_argument("--scale_max", type=int, help="The maximal affinity value -> gets mapped to 1",
                           default=14)
-    optional.add_argument("--max_edge_distance", type=int, help="Maximal distance of proximity edges", default=3)
+    optional.add_argument("--max_edge_distance", type=int, help="Maximal distance of proximity edges", default=5)
     optional.add_argument("--add_neglogkd_labels_dataset", type=str, default=None, help="Include an additional dataset composed of only samples with -log(kd) labels. Only implemented for bucket_learning. Provide a criterion to be used for this dataset")
     # model config arguments
     optional.add_argument("--layer_type", type=str, help="Type of GNN Layer", default="GCN",
@@ -144,7 +144,7 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--channel_doubling", action=BooleanOptionalAction,
                           help="Indicator if after every layer the embedding size should be doubled", default=False)
     optional.add_argument("--aggregation_method", type=str, help="Type aggregation method to get graph embeddings",
-                          default="interface_sum",  choices=["max", "sum", "mean", "attention", "fixed_size", "edge", "interface_sum"])
+                          default="interface_sum",  choices=["max", "sum", "mean", "attention", "fixed_size", "edge", "interface_sum", "interface_mean","interface_size"])
     optional.add_argument("--nonlinearity", type=str, help="Type of activation function", default="leaky",
                           choices=["relu", "leaky", "gelu", "silu"])
     optional.add_argument("--num_fc_layers", type=int, help="Number of FullyConnected Layers in regression head",
@@ -211,6 +211,7 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--embeddings_type", type=str, default="", choices=["", "rf", "of"], help="Type of embeddings to use.")
     optional.add_argument("--seed", type=int, default=42, help="Seed for random number generator")
     optional.add_argument("--debug", action=BooleanOptionalAction, default=False, help="Start debugger on a free port starting from 5678")
+    optional.add_argument("--weight_decay", type=float, default=0, help="Weight Decay for Parameters")
 
     args = parser.parse_args(artifical_args)
     args.config = read_config(args.config_file)
