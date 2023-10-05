@@ -90,7 +90,7 @@ def get_chain_info(row):
         del info["H"]
     for chain, new in zip(chain2, string.ascii_uppercase):
         info[chain] = new
-    if pdb in ["4GXU_ABCDEF_MN", "4NM8_ABCDEF_HL"]:  # CDEF are large and unnecessary. 4GXU is also (trimmed) in antibody_benchmark
+    if pdb in ["4GXU", "4NM8"]:  # CDEF are large and unnecessary. 4GXU is also (trimmed) in antibody_benchmark
         info["C"] = None
         info["D"] = None
         info["E"] = None
