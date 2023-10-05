@@ -1,5 +1,5 @@
 method: 'grid'
-name: 'OF Embedding Baseline Sweep'
+name: 'Baseline Sweep'
 metric:
   goal: 'minimize'
   name: 'val0_rmse'
@@ -14,4 +14,8 @@ parameters:
   embeddings_type:
     values:
       - "of"
+      - ""
+  pretrained_model:
+    values:
+      - "IPA"
       - ""
