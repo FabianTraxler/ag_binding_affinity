@@ -1,5 +1,5 @@
 method: 'grid'
-name: 'IPA Baseline Sweep'
+name: 'Proximity Baseline Sweep Higher Batchsize'
 metric:
   goal: 'minimize'
   name: 'val0_rmse'
@@ -11,3 +11,7 @@ parameters:
       - 3
       - 4
       - 5
+  num_gnn_layers:
+    values:
+      - 5
+      - 10

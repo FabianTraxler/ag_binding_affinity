@@ -1,11 +1,9 @@
---pretrained_model=IPA
---embeddings_type=of
---gnn_type=identity
+--gnn_type=proximity
 --patience=40
 --node_type=residue
---batch_size=1
+--batch_size=64
 --layer_type=GCN
---max_epochs=300
+--max_epochs=800
 --num_workers=8
 --nonlinearity=leaky
 --scale_values
@@ -21,7 +19,7 @@
 -wdb
 --wandb_mode=online
 --lr_scheduler=plateau
---lr_decay_factor=0.6
+--lr_decay_factor=0.8
 --stop_at_learning_rate=0.00001
 --learning_rate=0.001
 --relaxed_pdbs=False
