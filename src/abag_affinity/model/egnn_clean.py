@@ -145,12 +145,18 @@ class EGNN(nn.Module):
                                                 normalize=normalize, tanh=tanh))
         self.to(self.device)
 
-    def forward(self, h, x, edges, edge_attr):
+    def forward(self, data):
+        h = data["node"].x
+        x = data["node"].coords
+        edges = data["node", "edge", "node"].edge_index
+        edge_attr = data["node", "edge", "node"].edge_attr
+
         h = self.embedding_in(h)
         for i in range(0, self.n_layers):
-            h, x, _ = self._modules["gcl_%d" % i](h, edges, x, edge_attr=edge_attr)
+            h, _, _ = self._modules["gcl_%d" % i](h, edges, x, edge_attr=edge_attr)
         h = self.embedding_out(h)
-        return h, x
+        data["node"].x = h
+        return data
 
 
 def unsorted_segment_sum(data, segment_ids, num_segments):

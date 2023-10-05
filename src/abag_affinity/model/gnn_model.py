@@ -12,7 +12,7 @@ from .regression_heads import EdgeRegressionHead, RegressionHead
 from .graph_conv_layers import NaiveGraphConv, GuidedGraphConv
 import pytorch_lightning as pl
 from collections import defaultdict
-
+from .egnn_clean import EGNN
 # We compute the default values for the dataset specific outputlayer using linear regression on available paired data
 # More details can be found in data_analysis/Finding_Optimal_h_function.ipynb
 DATASET_WEIGHT_BIAS_DICT = defaultdict(lambda: (0.87047189, 0.34777069727887455))
@@ -181,6 +181,10 @@ class AffinityGNN(pl.LightningModule):
                                              num_gnn_layers=num_gnn_layers,
                                              channel_halving=channel_halving, channel_doubling=channel_doubling,
                                              nonlinearity=nonlinearity)
+        elif "egnn" in gnn_type:
+            self.graph_conv = EGNN(in_node_nf=node_feat_dim, hidden_nf=64, out_node_nf=64, in_edge_nf=edge_feat_dim,
+                                    device=device, n_layers=num_gnn_layers)
+            setattr(self.graph_conv, "embedding_dim", 64)
         elif gnn_type == "identity":
             self.graph_conv = nn.Identity()
             setattr(self.graph_conv, "embedding_dim", node_feat_dim)

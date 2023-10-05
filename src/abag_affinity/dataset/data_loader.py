@@ -569,7 +569,7 @@ class AffinityDataset(Dataset):
         graph["node"].x = torch.Tensor(node_features).float()
         graph["node"].chain_id = torch.tensor([ord(residue_info["chain_id"]) for residue_info in graph_dict["residue_infos"]])
         graph["node"].residue_id = torch.tensor([residue_info["residue_id"] for residue_info in graph_dict["residue_infos"]])  # this is the pdb residue_id
-
+        graph["node"].coords = torch.tensor([residue_info["all_atom_coordinates"][1] for residue_info in graph_dict["residue_infos"]])
         try:
             graph["node"].positions = torch.stack([residue_info["matched_position"] for residue_info in graph_dict["residue_infos"]])
             graph["node"].orientations = torch.stack([residue_info["matched_orientation"] for residue_info in graph_dict["residue_infos"]])

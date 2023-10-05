@@ -135,7 +135,7 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--layer_type", type=str, help="Type of GNN Layer", default="GCN",
                           choices=["GAT", "GCN"] )
     optional.add_argument("--gnn_type", type=str, help="Type of GNN Layer", default="guided",
-                          choices=["proximity", "guided", "identity"])
+                          choices=["proximity", "guided", "identity", "egnn"])
     optional.add_argument("--num_gnn_layers", type=int, help="Number of GNN Layers", default=5)
     optional.add_argument("--attention_heads", type=int, help="Number of attention heads for GAT layer type",
                           default=5)
