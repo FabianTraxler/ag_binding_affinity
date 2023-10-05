@@ -690,8 +690,8 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
 
         summary_df["validation"] = summary_df["validation"].fillna("").astype("str")
 
-        val_pdbs = summary_df.loc[summary_df["validation"].str.contains(str(validation_set)), "pdb"]
-        train_pdbs = summary_df.loc[(~summary_df["validation"].str.contains(str(validation_set))) & (~summary_df["test"]), "pdb"]
+        val_pdbs = summary_df.loc[summary_df["validation"] == validation_set, "pdb"]
+        train_pdbs = summary_df.loc[(summary_df["validation"] != validation_set) & (~summary_df["test"]), "pdb"]
 
         if "mutated_pdb_path" in config["DATASETS"][dataset_name]:  # only use files that were generated
             data_path = os.path.join(config["DATASETS"]["path"],
@@ -1256,8 +1256,8 @@ def get_abag_test_score(model: AffinityGNN, args: Namespace, tqdm_output: bool =
     summary_df = pd.read_csv(summary_path, index_col=0)
     if validation_set is None:
         summary_df = summary_df[summary_df["test"]]
-    elif validation_set == -1:
-        summary_df = summary_df[summary_df["validation"] != 0]
+    elif validation_set < 0:
+        summary_df = summary_df[summary_df["validation"] != ((-1*validation_set) - 1)]
     else:
         summary_df = summary_df[summary_df["validation"] == validation_set]
 
@@ -1348,10 +1348,12 @@ def run_and_log_benchmarks(model, args):
                                                            plot_path=abag_test_plot_path,
                                                            validation_set=args.validation_set)
 
-
+    # When a negative validation set is provided, we use all but the corresponding set.
+    # As we have to deal with the case validation_set==0 we first add 1 before flipping the sign
+    train_set_indicator = (args.validation_set+1)*-1 if args.validation_set is not None else -1
     train_pearson, train_loss, train_df = get_abag_test_score(model, args, tqdm_output=args.tqdm_output,
                                                            plot_path=abag_test_plot_path,
-                                                           validation_set=-1)
+                                                           validation_set=train_set_indicator)
     logger.info(f"ABAG Train results >>> {train_pearson}")
     logger.info(f"ABAG Test results >>> {test_pearson}")
     logger.info(f"Benchmark results >>> {benchmark_pearson}")
