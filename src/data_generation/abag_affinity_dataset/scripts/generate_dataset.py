@@ -120,7 +120,7 @@ def antigen_chains_too_long(filepath: str, max_length: Optional[int] = None):
     return sum(len(seq) for seq in antigen_seqs) > max_length
 
 
-def is_redundant(filepath: str, val_pdbs: List, pdb_paths, redudancy_cutoff: float = 0.8):
+def is_redundant(filepath: str, val_pdbs: List, pdb_paths, redundancy_cutoff: float):
     """
     filter out complexes where the three chains are below the redundancy cutoff
     """
@@ -141,7 +141,8 @@ def is_redundant(filepath: str, val_pdbs: List, pdb_paths, redudancy_cutoff: flo
             alignment_score = pairwise2.align.globalxx(seq1, seq2, score_only=True)
             scores.append(alignment_score / min(len(seq1), len(seq2)))
 
-        if all(score > redudancy_cutoff for score in scores):
+        if all(score > redundancy_cutoff for score in scores):
+        # if np.mean(scores) > redundancy_cutoff:  # TODO this should be used with `redundancy_cutoff=0.9` to stick to the other redundancy analysis
             return True
 
     return False
