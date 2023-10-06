@@ -1,5 +1,5 @@
 method: 'grid'
-name: 'Phillips Evaluation Sweep'
+name: 'Phillips EGNN Evaluation Sweep'
 metric:
   goal: 'minimize'
   name: 'val0_rmse'

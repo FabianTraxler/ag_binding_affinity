@@ -88,7 +88,7 @@ def parse_args(artifical_args=None) -> Namespace:
     # -train strategy
     optional.add_argument("-t", "--train_strategy", type=str, help='The training strategy to use',
                           choices=["bucket_train", "pretrain_model", "model_train", "train_transferlearnings_validate_target"],
-                          default="model_train")
+                          default="bucket_train")
     optional.add_argument("--bucket_size_mode", type=str, help="Mode to determine the size of the training buckets",
                           default="geometric_mean", choices=["min", "geometric_mean", "double_geometric_mean"])
     optional.add_argument("-m", "--pretrained_model", type=str,
