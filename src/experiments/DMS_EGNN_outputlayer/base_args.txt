@@ -18,10 +18,9 @@
 --stop_at_learning_rate=0.000005
 --learning_rate=0.0005
 --relaxed_pdbs=False
---sweep_config=src/experiments/DMS_EGNN_outputlayer/sweep_config.yaml
+--sweep_config=../experiments/DMS_EGNN_outputlayer/sweep_config.yaml
 --init_sweep
 --bucket_size_mode=geometric_mean
---add_neglogkd_labels_dataset=L1
 --transfer_learning_dataset
 DMS-madan21_mutat_hiv#L1
 DMS-wu20_differ_ha_h3_h1#L1

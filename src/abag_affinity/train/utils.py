@@ -604,7 +604,9 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
             nll_values = summary_df["NLL"].values
 
             # Scale the NLLs to (0-1). The max NLL value in DMS_curated.csv is 4, so 0-1-scaling should be fine
-            if np.max(nll_values) > np.min(nll_values):  # test that all values are not the same
+            if nll_values.shape[0] == 0:
+                nll_values = np.full_like(nll_values, 0.5)
+            elif np.max(nll_values) > np.min(nll_values):  # test that all values are not the same
                 nll_values = (nll_values - np.min(nll_values)) / (np.max(nll_values) - np.min(nll_values))
                 assert (nll_values < 0.7).sum() > (nll_values > 0.7).sum(), "Many NLL values are 'large'"
             else:
