@@ -406,6 +406,7 @@ class AffinityDataset(Dataset):
                 nll_values = np.full_like(nll_values, 0.5)
         elif summary_df.shape[0]==0:
             logging.warning(f"Somehow, we have and empty dataset {self.dataset_name} {self.publication}")
+            nll_values = 0.5 * np.ones(summary_df.shape[0])
         else:
             nll_values = 0.5 * np.ones(summary_df.shape[0])
         summary_df["NLL"] = nll_values
