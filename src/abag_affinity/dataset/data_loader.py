@@ -48,7 +48,9 @@ class AffinityDataset(Dataset):
                  scale_values: bool = True, scale_min: int = 0, scale_max: int = 16,
                  relative_data: bool = False,
                  save_graphs: bool = False, force_recomputation: bool = False,
-                 preprocess_data: bool = False, num_threads: int = 1,
+                 preprocess_data: bool = False,
+                 preprocessed_to_scratch: Optional[str] = None,
+                 num_threads: int = 1,
                  load_embeddings: Optional[Tuple[str, str]] = None,
                  only_neglogkd_samples: bool = False,
                  ):
@@ -162,6 +164,23 @@ class AffinityDataset(Dataset):
                 if self.preprocess_data:
                     self.logger.debug(f"Preprocessing {node_type}-graphs")
                     self.preprocess(relaxed)
+
+                # Copy embeddings to fast scratch space
+                if preprocessed_to_scratch:
+                    target_dir = os.path.join(preprocessed_to_scratch, self.full_dataset_name, self.node_type,
+                                                self.pretrained_model if self.pretrained_model in ["DeepRefine", "Binding_DDG"] else "")
+
+                    self.logger.info(f"Copying preprocessed graphs from {self.graph_dir.format(is_relaxed=relaxed)} to {target_dir}")
+                    os.system(f"mkdir -p {target_dir}")
+                    os.system(f"rsync -av --progress {self.graph_dir.format(is_relaxed=relaxed)} {target_dir}")
+
+            # Update graph_dir and processed_graph_files to point to the fast scratch space
+            if preprocessed_to_scratch:
+                self.graph_dir = os.path.join(preprocessed_to_scratch, self.full_dataset_name, self.node_type,
+                                            self.pretrained_model if self.pretrained_model in ["DeepRefine", "Binding_DDG"] else "",
+                                            f"embeddings_{(self.load_embeddings[0] if self.load_embeddings else False)}_relaxed_{{is_relaxed}}")  # is_relaxed is being evaluated later (using format)
+                self.processed_graph_files = os.path.join(self.graph_dir, "{filestem}.npz")  # filestem is being evaluated later (using format)
+
 
     def update_valid_pairs(self):
         """ Find for each data point a valid partner
@@ -332,7 +351,6 @@ class AffinityDataset(Dataset):
             self.logger.debug(
                 f"Preprocessing {len(deeprefine_graphs2process)} DeepRefine graphs with {self.num_threads} threads")
             submit_jobs(self.preload_deeprefine_graph, deeprefine_graphs2process, self.num_threads, relaxed=relaxed)
-
 
     def preload_deeprefine_graph(self, idx: str, pdb_filepath: str, row: pd.Series, relaxed: bool):
         """ Function to get graph dict of Deeprefine graphs and store to disc
