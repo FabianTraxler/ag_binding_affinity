@@ -172,7 +172,7 @@ class AffinityDataset(Dataset):
 
                     self.logger.info(f"Copying preprocessed graphs from {self.graph_dir.format(is_relaxed=relaxed)} to {target_dir}")
                     os.system(f"mkdir -p {target_dir}")
-                    os.system(f"rsync -av --progress {self.graph_dir.format(is_relaxed=relaxed)} {target_dir}")
+                    os.system(f"rsync -a --stats  {self.graph_dir.format(is_relaxed=relaxed)} {target_dir}")
 
             # Update graph_dir and processed_graph_files to point to the fast scratch space
             if preprocessed_to_scratch:
