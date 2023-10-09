@@ -185,8 +185,10 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--verbose", action=BooleanOptionalAction, help="Print verbose logging statements",
                           default=False)
     optional.add_argument("--preprocess_graph", action=BooleanOptionalAction,
-                          help="Compute graphs beforehand to speedup training (especially for DeepRefine",
-                          default=False)
+                          help="Compute graphs beforehand to speedup training (especially for DeepRefine).",
+                          default=True)
+    optional.add_argument("--preprocessed_to_scratch", type=str, default=None,
+                          help="Provide target path to copy preprocessed files to a scratch space for minimized/optimized cluster network access.")
     optional.add_argument("--save_graphs", action=BooleanOptionalAction,
                           help="Saves computed graphs to speed up training in later epochs", default=True)
     optional.add_argument("--force_recomputation", action=BooleanOptionalAction,
@@ -245,6 +247,10 @@ def parse_args(artifical_args=None) -> Namespace:
         if not args.__dict__["fine_tune"]:
             args.__dict__["fine_tune"] = True
             args.__dict__["max_epochs"] /= 2  # account for the duplication of epochs
+
+    if args.preprocessed_to_scratch and not args.preprocess_graph:
+        logging.warning("preprocessed_to_scratch only works with --preprocess_graph activated. Enabling forcefully...")
+        args.__dict__["preprocess_graph"] = True
 
     if args.args_file is not None:
         args = read_args_from_file(args)

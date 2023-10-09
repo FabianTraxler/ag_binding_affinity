@@ -767,6 +767,7 @@ def load_datasets(config: Dict, dataset: str, validation_set: int,
                                  save_graphs=args.save_graphs,
                                  force_recomputation=args.force_recomputation,
                                  preprocess_data=args.preprocess_graph,
+                                 preprocessed_to_scratch=args.preprocessed_to_scratch,
                                  num_threads=args.num_workers,
                                  load_embeddings=None if not args.embeddings_type else (args.embeddings_type, args.embeddings_path),
                                  only_neglogkd_samples=only_neglogkd_samples,
@@ -787,6 +788,7 @@ def load_datasets(config: Dict, dataset: str, validation_set: int,
                                  save_graphs=args.save_graphs,
                                  force_recomputation=args.force_recomputation,
                                  preprocess_data=args.preprocess_graph,
+                                 preprocessed_to_scratch=args.preprocessed_to_scratch,
                                  num_threads=args.num_workers,
                                  load_embeddings=None if not args.embeddings_type else (args.embeddings_type, args.embeddings_path),
                                  only_neglogkd_samples=only_neglogkd_samples,
@@ -1236,6 +1238,7 @@ def get_benchmark_score(model: AffinityGNN, args: Namespace, tqdm_output: bool =
                               save_graphs=args.save_graphs,
                               force_recomputation=args.force_recomputation,
                               preprocess_data=args.preprocess_graph,
+                              preprocessed_to_scratch=args.preprocessed_to_scratch,
                               num_threads=args.num_workers,
                               load_embeddings=None if not args.embeddings_type else (args.embeddings_type, args.embeddings_path)
                               )
@@ -1279,6 +1282,7 @@ def get_abag_test_score(model: AffinityGNN, args: Namespace, tqdm_output: bool =
                               save_graphs=args.save_graphs,
                               force_recomputation=args.force_recomputation,
                               preprocess_data=args.preprocess_graph,
+                              preprocessed_to_scratch=args.preprocessed_to_scratch,
                               num_threads=args.num_workers,
                               load_embeddings=None if not args.embeddings_type else (args.embeddings_type, args.embeddings_path)
                               )
@@ -1311,6 +1315,7 @@ def get_skempi_corr(model: AffinityGNN, args: Namespace, tqdm_output: bool = Tru
                               save_graphs=args.save_graphs,
                               force_recomputation=args.force_recomputation,
                               preprocess_data=args.preprocess_graph,
+                              preprocessed_to_scratch=args.preprocessed_to_scratch,
                               num_threads=args.num_workers,
                               load_embeddings=None if not args.embeddings_type else (args.embeddings_type, args.embeddings_path)
                               )
