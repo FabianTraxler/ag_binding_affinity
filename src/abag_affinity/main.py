@@ -135,14 +135,14 @@ def run_sweep(args: Namespace, logger):
                 # Enforce fine-tuning
                 if not sweep_args.__dict__["fine_tune"]:
                     sweep_args.__dict__["fine_tune"] = True
-                    sweep_args.__dict__["max_epochs"] /= 2  # account for the duplication of epochs
+                    sweep_args.__dict__["max_epochs"] = sweep_args.__dict__["max_epochs"] / 2  # account for the duplication of epochs
 
             sweep_args.tqdm_output = False  # disable tqdm output to reduce log syncing
             logger.info(f"Performing {sweep_args.train_strategy}")
             sweep_args.wandb_name = wandb_name
             seed(sweep_args.seed)
-            model, results, wandb_inst = training[sweep_args.train_strategy](args)
-            run_and_log_benchmarks(model, args)
+            model, results, wandb_inst = training[sweep_args.train_strategy](sweep_args)
+            run_and_log_benchmarks(model, sweep_args)
             wandb.finish(0)
         except Exception as e:
             # log errors before finishing job
