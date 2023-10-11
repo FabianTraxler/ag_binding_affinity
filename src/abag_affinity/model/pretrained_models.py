@@ -142,7 +142,7 @@ class IPABindingEmbedder(torch.nn.Module):
         self.embedding_size = c_s
         self.c_z = c_z
         # Layer to inject GNN features into IPA. Initialize with low values to not interfere with pretrained weights
-        self.z_linear = torch.nn.Linear(3, self.c_z)
+        self.z_linear = torch.nn.Linear(4, self.c_z)
         torch.nn.init.uniform_(self.z_linear.weight, -0.1, 0.1)
         torch.nn.init.uniform_(self.z_linear.bias, -0.1, 0.1)
         self.pairwise_rel_pos = PairwiseRelPos(c_z=self.c_z, relpos_k=relpos_k)  # AF2
@@ -162,8 +162,8 @@ class IPABindingEmbedder(torch.nn.Module):
 
         # the normal z is built from pairwise_rel_pos + the sum of embeddings of the two nodes. we ignore these embeddings for now, as we will later use the original z. instead, we
 
-        A = torch.zeros(nodes.x.shape[0], nodes.x.shape[0], 3, device=nodes.x.device)
-        A[edges.edge_index[0], edges.edge_index[1]] = edges.edge_attr.to(torch.float32)[:,:3]  # for some reason, edge_attr is float64
+        A = torch.zeros(nodes.x.shape[0], nodes.x.shape[0], 4, device=nodes.x.device)
+        A[edges.edge_index[0], edges.edge_index[1]] = edges.edge_attr.to(torch.float32)  # for some reason, edge_attr is float64
         try:
             z = data_dict["z"]
         except KeyError:

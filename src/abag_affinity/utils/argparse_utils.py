@@ -238,7 +238,6 @@ def parse_args(artifical_args=None) -> Namespace:
     if args.pretrained_model in ["IPA", "Diffusion"]:
         logging.warning("Forcing batch_size to 1 for IPA model (learning-rate is reduced proportionally). Also forcing GNN type to 'identity' and fine_tuning.")
         args.__dict__["gnn_type"] = "identity"  # we could also test combination of IPA and GNN, but it adds combplexity
-
         # Adjusting learning rate for the reduced batch size
         args.__dict__["learning_rate"] = args.__dict__["learning_rate"] / args.__dict__["batch_size"]
         args.__dict__["batch_size"] = 1

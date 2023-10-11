@@ -70,7 +70,8 @@ def run_sweep(args: Namespace, logger):
     ATOM_NODES_MULTIPLIKATOR = 5
     ORIGINAL_LEARNINGRATE = args.learning_rate
     def sweep_train():
-        run = wandb.init(mode=args.wandb_mode, settings=wandb.Settings(start_method="fork"))
+        sweep_args = Namespace(**vars(args))
+        run = wandb.init(mode=sweep_args.wandb_mode, settings=wandb.Settings(start_method="fork"))
         run_dir = run.dir[:-6]
 
         try:
@@ -91,43 +92,56 @@ def run_sweep(args: Namespace, logger):
                     continue  # ignore since it is manually overwritten below
                 if param == "transfer_learning_datasets" and isinstance(param_value, str):
                     if ";" in param_value:
-                        args.__dict__[param] = param_value.split(";")
+                        sweep_args.__dict__[param] = param_value.split(";")
                     else:
-                        args.__dict__[param] = [param_value]
+                        sweep_args.__dict__[param] = [param_value]
                     continue
 
-                args.__dict__[param] = param_value
+                sweep_args.__dict__[param] = param_value
                 if param == "pretrained_model":
                     if config[param] in enforced_node_type:
-                        args.__dict__["node_type"] = enforced_node_type[config[param]]
+                        sweep_args.__dict__["node_type"] = enforced_node_type[config[param]]
                         config["node_type"] = enforced_node_type[config[param]]
 
                 if param == 'aggregation_method':
                     if param_value == "fixed_size" and "max_num_nodes" in config and config["max_num_nodes"] == "None":
                         max_num_nodes_values = [int(value) for value in
-                                                args.config["HYPERPARAMETER_SEARCH"]["parameters"]["max_num_nodes"][
+                                                sweep_args.config["HYPERPARAMETER_SEARCH"]["parameters"]["max_num_nodes"][
                                                     "values"] if value != "None"]
-                        args.max_num_nodes = random.choice(max_num_nodes_values)
-                        config["max_num_nodes"] = args.max_num_nodes
+                        sweep_args.max_num_nodes = random.choice(max_num_nodes_values)
+                        config["max_num_nodes"] = sweep_args.max_num_nodes
 
             # adapt hyperparameter based on node type
-            if args.node_type == "atom" and args.max_num_nodes is not None:
-                args.max_num_nodes = int(args.max_num_nodes * ATOM_NODES_MULTIPLIKATOR)
+            if sweep_args.node_type == "atom" and sweep_args.max_num_nodes is not None:
+                sweep_args.max_num_nodes = int(sweep_args.max_num_nodes * ATOM_NODES_MULTIPLIKATOR)
 
             # adapt batch size bases on node type
-            if args.node_type == "atom":
-                args.batch_size = int(args.batch_size / ATOM_NODES_MULTIPLIKATOR) + 1
+            if sweep_args.node_type == "atom":
+                sweep_args.batch_size = int(sweep_args.batch_size / ATOM_NODES_MULTIPLIKATOR) + 1
 
             if "learning_rate" not in config.keys():
                 # reset learning rate to original value
-                args.learning_rate = ORIGINAL_LEARNINGRATE
+                sweep_args.learning_rate = ORIGINAL_LEARNINGRATE
 
-            args.tqdm_output = False  # disable tqdm output to reduce log syncing
+            if sweep_args.pretrained_model in ["IPA", "Diffusion"]:
+                logging.warning(
+                    "Forcing batch_size to 1 for IPA model (learning-rate is reduced proportionally). Also forcing GNN type to 'identity' and fine_tuning.")
+                sweep_args.__dict__[
+                    "gnn_type"] = "identity"  # we could also test combination of IPA and GNN, but it adds combplexity
+                # Adjusting learning rate for the reduced batch size
+                sweep_args.__dict__["learning_rate"] = sweep_args.__dict__["learning_rate"] / sweep_args.__dict__["batch_size"]
+                sweep_args.__dict__["batch_size"] = 1
 
-            logger.info(f"Performing {args.train_strategy}")
-            args.wandb_name = wandb_name
-            seed(args.seed)
-            model, results, wandb_inst = training[args.train_strategy](args)
+                # Enforce fine-tuning
+                if not sweep_args.__dict__["fine_tune"]:
+                    sweep_args.__dict__["fine_tune"] = True
+                    sweep_args.__dict__["max_epochs"] /= 2  # account for the duplication of epochs
+
+            sweep_args.tqdm_output = False  # disable tqdm output to reduce log syncing
+            logger.info(f"Performing {sweep_args.train_strategy}")
+            sweep_args.wandb_name = wandb_name
+            seed(sweep_args.seed)
+            model, results, wandb_inst = training[sweep_args.train_strategy](args)
             run_and_log_benchmarks(model, args)
             wandb.finish(0)
         except Exception as e:
@@ -136,7 +150,7 @@ def run_sweep(args: Namespace, logger):
             logger.error(traceback.print_exc())
             wandb.finish(-1)
 
-        if args.wandb_mode == "offline":
+        if sweep_args.wandb_mode == "offline":
             command = f'wandb sync --id {run.id} {run_dir}'
             subprocess.run(command, shell=True)
             time.sleep(10)
