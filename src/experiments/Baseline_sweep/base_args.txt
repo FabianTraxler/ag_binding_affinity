@@ -3,7 +3,7 @@
 --node_type=residue
 --batch_size=16
 --max_epochs=400
---num_workers=8
+--num_workers=0
 --nonlinearity=leaky
 --scale_values
 --num_fc_layers=2
