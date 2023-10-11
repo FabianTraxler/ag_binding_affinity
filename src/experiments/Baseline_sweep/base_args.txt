@@ -10,7 +10,7 @@
 --validation_set=0
 --preprocessed_to_scratch=/tmp
 --train_strategy=bucket_train
-#-max_edge_distance=5
+--max_edge_distance=5
 --aggregation_method=interface_sum
 --weight_decay=0.0000001
 -wdb
