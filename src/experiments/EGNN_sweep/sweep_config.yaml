@@ -1,0 +1,21 @@
+method: 'grid'
+name: 'EGNN Test Sweep'
+metric:
+  goal: 'minimize'
+  name: 'val0_rmse'
+parameters:
+  seed:
+    values:
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+      - 6
+      - 7
+      - 8
+  num_gnn_layers:
+    values:
+      - 3
+      - 4
+      - 5

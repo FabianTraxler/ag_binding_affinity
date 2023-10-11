@@ -414,7 +414,7 @@ class AffinityDataset(Dataset):
             not_large_files = summary_df.index.map(lambda df_idx: not df_idx.startswith("wu20_differ_ha_h3_h1:fi6v3:h3hk68"))
             summary_df = summary_df[not_large_files]
 
-        if "NLL" in summary_df.columns:
+        if "NLL" in summary_df.columns and summary_df.shape[0]>0:
             # Scale the NLLs to (0-1). The max NLL value in DMS_curated.csv is 4, so 0-1-scaling should be fine
             nll_values = summary_df["NLL"].values
             if np.max(nll_values) > np.min(nll_values):  # test that all values are not the same
@@ -422,6 +422,9 @@ class AffinityDataset(Dataset):
                 assert (nll_values < 0.7).sum() > (nll_values > 0.7).sum(), f"Many NLL values are 'large' in {self.full_dataset_name}"
             else:
                 nll_values = np.full_like(nll_values, 0.5)
+        elif summary_df.shape[0]==0:
+            logging.warning(f"Somehow, we have and empty dataset {self.dataset_name} {self.publication}")
+            nll_values = 0.5 * np.ones(summary_df.shape[0])
         else:
             nll_values = 0.5 * np.ones(summary_df.shape[0])
         summary_df["NLL"] = nll_values
@@ -587,7 +590,7 @@ class AffinityDataset(Dataset):
         graph["node"].x = torch.Tensor(node_features).float()
         graph["node"].chain_id = torch.tensor([ord(residue_info["chain_id"]) for residue_info in graph_dict["residue_infos"]])
         graph["node"].residue_id = torch.tensor([residue_info["residue_id"] for residue_info in graph_dict["residue_infos"]])  # this is the pdb residue_id
-
+        graph["node"].coords = torch.tensor([residue_info["all_atom_coordinates"][1] for residue_info in graph_dict["residue_infos"]])
         try:
             graph["node"].positions = torch.stack([residue_info["matched_position"] for residue_info in graph_dict["residue_infos"]])
             graph["node"].orientations = torch.stack([residue_info["matched_orientation"] for residue_info in graph_dict["residue_infos"]])

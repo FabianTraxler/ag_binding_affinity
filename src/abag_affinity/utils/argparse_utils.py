@@ -88,7 +88,7 @@ def parse_args(artifical_args=None) -> Namespace:
     # -train strategy
     optional.add_argument("-t", "--train_strategy", type=str, help='The training strategy to use',
                           choices=["bucket_train", "pretrain_model", "model_train", "train_transferlearnings_validate_target"],
-                          default="model_train")
+                          default="bucket_train")
     optional.add_argument("--bucket_size_mode", type=str, help="Mode to determine the size of the training buckets",
                           default="geometric_mean", choices=["min", "geometric_mean", "double_geometric_mean"])
     optional.add_argument("-m", "--pretrained_model", type=str,
@@ -96,15 +96,15 @@ def parse_args(artifical_args=None) -> Namespace:
                           choices=["", "DeepRefine", "Binding_DDG", "IPA", "Diffusion"], default="")
     optional.add_argument("--fine_tune",
                           help='Fine-tune model components that have been frozen at the start of training (e.g. published/pretrained models or dataset-specific layers)',
-                          action=BooleanOptionalAction, default=True)
+                          action=BooleanOptionalAction, default=False)
     optional.add_argument('--load_pretrained_weights', action=BooleanOptionalAction, help="Load pretrained weights for the pretrained model", default=True)
     optional.add_argument("--training_set_spikein", type=float,
                           help="Proportion of target_dataset to spike into training set, in mode `train_transferlearnings_validate_target`",
                           default=0.0)
     # -train config
     optional.add_argument("-b", "--batch_size", type=int, help="Batch size used for training", default=1)
-    optional.add_argument("-e", "--max_epochs", type=int, help="Max number of training epochs", default=200)
-    optional.add_argument("-lr", "--learning_rate", type=float, help="Initial learning rate", default=1e-5)
+    optional.add_argument("-e", "--max_epochs", type=int, help="Max number of training epochs", default=400)
+    optional.add_argument("-lr", "--learning_rate", type=float, help="Initial learning rate", default=1e-3)
     optional.add_argument("-p", "--patience", type=int,
                           help="Number of epochs with no improvement until end of training",
                           default=30)  # this needs to be different from None if plateau is the default LR scheduling method
@@ -134,8 +134,8 @@ def parse_args(artifical_args=None) -> Namespace:
     # model config arguments
     optional.add_argument("--layer_type", type=str, help="Type of GNN Layer", default="GCN",
                           choices=["GAT", "GCN"] )
-    optional.add_argument("--gnn_type", type=str, help="Type of GNN Layer", default="guided",
-                          choices=["proximity", "guided", "identity"])
+    optional.add_argument("--gnn_type", type=str, help="Type of GNN Layer", default="egnn",
+                          choices=["proximity", "guided", "identity", "egnn"])
     optional.add_argument("--num_gnn_layers", type=int, help="Number of GNN Layers", default=5)
     optional.add_argument("--attention_heads", type=int, help="Number of attention heads for GAT layer type",
                           default=5)
@@ -148,10 +148,10 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--nonlinearity", type=str, help="Type of activation function", default="leaky",
                           choices=["relu", "leaky", "gelu", "silu"])
     optional.add_argument("--num_fc_layers", type=int, help="Number of FullyConnected Layers in regression head",
-                          default=10)
+                          default=2)
     optional.add_argument("--fc_size_halving", action=BooleanOptionalAction,
                           help="Indicator if after every FC layer the embedding sizeshould be halved",
-                          default=False)
+                          default=True)
     optional.add_argument("--dms_output_layer_type", choices=["identity", "bias_only", "regression", "regression_sigmoid", "positive_regression","positive_regression_sigmoid","mlp"],
                           help="Architecture of the DMS-specific output layers",
                           default="bias_only")

@@ -328,7 +328,8 @@ def get_hetero_edges(graph_dict: Dict, edge_names: List[str], max_interface_edge
     full_edges = np.where(adjacency_matrix[distance_idx, :, :] < max_edge_distance) # Same edge as distance
     full_edge_featutes = np.vstack([adjacency_matrix[distance_idx, full_edges[0], full_edges[1]] / max_edge_distance,
                                adjacency_matrix[1, full_edges[0], full_edges[1]],
-                               adjacency_matrix[2, full_edges[0], full_edges[1]]]).T
+                               adjacency_matrix[2, full_edges[0], full_edges[1]],
+                               1.-adjacency_matrix[2, full_edges[0], full_edges[1]]]).T
 
     all_edges[("node", "edge", "node")] = torch.tensor(full_edges).long()
     edge_attributes[("node", "edge", "node")] = torch.tensor(full_edge_featutes)
