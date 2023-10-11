@@ -135,7 +135,7 @@ def run_sweep(args: Namespace, logger):
                 # Enforce fine-tuning
                 if not sweep_args.__dict__["fine_tune"]:
                     sweep_args.__dict__["fine_tune"] = True
-                    sweep_args.__dict__["max_epochs"] = sweep_args.__dict__["max_epochs"] / 2  # account for the duplication of epochs
+                    sweep_args.__dict__["max_epochs"] = sweep_args.__dict__["max_epochs"] // 2  # account for the duplication of epochs
 
             sweep_args.tqdm_output = False  # disable tqdm output to reduce log syncing
             logger.info(f"Performing {sweep_args.train_strategy}")
