@@ -181,7 +181,8 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
 
     logger.info("Training with {}".format(", ".join([dataset.full_dataset_name for dataset in train_datasets])))
     logger.info("Evaluating on {}".format(", ".join([dataset.full_dataset_name for dataset in val_datasets])))
-    results, model, wandb_inst = bucket_learning(model, train_datasets, val_datasets, args)
+    pretrain_epochs = args.fine_tune if isinstance(args.fine_tune, int) else args.max_epochs
+    results, model, wandb_inst = bucket_learning(model, train_datasets, val_datasets, pretrain_epochs, args)
 
     logger.info("Training with {} completed".format(dataset_names))
 
