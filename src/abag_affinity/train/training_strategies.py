@@ -39,6 +39,7 @@ def model_train(args:Namespace, validation_set: Optional[int] = None) -> Tuple[A
         Tuple: Trained model and Dict with results and statistics of training
     """
 
+    logging.warning("deprecated. please use bucket_learn")
     dataset_name = args.target_dataset
 
     if validation_set is None:
@@ -74,6 +75,7 @@ def pretrain_model(args:Namespace) -> Tuple[AffinityGNN, Dict]:
     Returns:
         Tuple: Trained model and Dict with results and statistics of training
     """
+    logging.warning("deprecated. please use bucket_learn")
     config = read_config(args.config_file)
 
     dataset_names = args.transfer_learning_datasets + [args.target_dataset]

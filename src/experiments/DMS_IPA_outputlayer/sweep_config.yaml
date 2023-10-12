@@ -1,5 +1,5 @@
 method: 'grid'
-name: 'DMS-IPA_outputlayer_longer_L1only_5seed'
+name: 'DMS-IPA_outputlayer_2regressionheadlayers'
 metric:
   goal: 'maximize'
   name: 'pearson_correlation'  # this works because we only use a single validation set
@@ -8,7 +8,6 @@ parameters:
     values:
       - "mlp"
       - "regression_sigmoid"
-      - "bias_only"
   seed:
     values:
       - 1
