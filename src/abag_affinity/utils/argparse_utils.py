@@ -95,8 +95,8 @@ def parse_args(artifical_args=None) -> Namespace:
                           help='Name of the published/pretrained model to use for node embeddings',
                           choices=["", "DeepRefine", "Binding_DDG", "IPA", "Diffusion"], default="")
     optional.add_argument("--fine_tune",
-                          help='Fine-tune model components that have been frozen at the start of training (e.g. published/pretrained models or dataset-specific layers)',
-                          action=BooleanOptionalAction, default=False)
+                          help='Fine-tune model components that have been frozen at the start of training (e.g. published/pretrained models or dataset-specific layers). Provide an integer to indicate the number of pre-training epochs',
+                          type=int, default=None)
     optional.add_argument('--load_pretrained_weights', action=BooleanOptionalAction, help="Load pretrained weights for the pretrained model", default=True)
     optional.add_argument("--training_set_spikein", type=float,
                           help="Proportion of target_dataset to spike into training set, in mode `train_transferlearnings_validate_target`",

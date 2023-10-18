@@ -8,7 +8,6 @@
 --num_fc_layers=2
 --validation_set=0
 --train_strategy=bucket_train
---fine_tune
 --max_edge_distance=5
 -wdb
 --aggregation_method=interface_sum

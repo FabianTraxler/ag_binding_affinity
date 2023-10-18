@@ -14,6 +14,7 @@
 --validation_set=1
 --train_strategy=model_train
 --fine_tune
+10
 --channel_halving
 --no-fc_size_halving
 --max_edge_distance=3

@@ -907,7 +907,7 @@ def generate_bucket_batch_sampler(data_indices_list: List, batch_size: int, shuf
     return all_batches
 
 
-def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], val_datasets: List[AffinityDataset],
+def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], val_datasets: List[AffinityDataset], num_epochs: int,
                     args: Namespace) -> Tuple[Dict, AffinityGNN]:
     """ Train a model using the bucket (multitask) learning approach
 
@@ -959,7 +959,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
     table = pd.DataFrame(columns=dataset_specific_column_names)
     #table = wandb_inst.Table(columns=dataset_specific_column_names)
 
-    for epoch in range(args.max_epochs):
+    for epoch in range(num_epochs):
         # create new buckets for each epoch (implements shuffling)
         # This ensures that different part of the dataset are used when geometric mean is set
         # Also shuffles the batches as otherwise each bucket dataloader returns the same combination of samples in one batch
@@ -1133,7 +1133,7 @@ def finetune_frozen(model: AffinityGNN, train_dataset: Union[AffinityDataset, Li
 
     # TODO When finetuning is applied after normal training a new wandb instance is generated?!
     if args.train_strategy in ["bucket_train", "train_transferlearnings_validate_target"]:
-        results, model, wandb_inst = bucket_learning(model, train_dataset, val_dataset, args)
+        results, model, wandb_inst = bucket_learning(model, train_dataset, val_dataset, args.max_epochs, args)
     else:
         results, model, wandb_inst = train_loop(model, train_dataset, val_dataset, args)
 
