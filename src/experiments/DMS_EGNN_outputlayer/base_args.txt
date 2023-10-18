@@ -17,7 +17,7 @@
 --lr_decay_factor=0.5
 --stop_at_learning_rate=0.000005
 --learning_rate=0.0005
---preprocessed_to_scratch=\tmp
+--preprocessed_to_scratch=/tmp
 --relaxed_pdbs=False
 --sweep_config=../experiments/DMS_EGNN_outputlayer/sweep_config.yaml
 --init_sweep

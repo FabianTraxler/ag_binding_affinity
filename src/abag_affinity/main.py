@@ -17,7 +17,7 @@ import subprocess
 import yaml
 import pytorch_lightning as pl
 
-from abag_affinity.utils.argparse_utils import parse_args, enforced_node_type
+from abag_affinity.utils.argparse_utils import parse_args, enforced_node_type, combine_args_with_sweep_config
 from abag_affinity.train import (bucket_train, cross_validation, model_train,
                                  pretrain_model, train_transferlearnings_validate_target)
 
@@ -67,68 +67,18 @@ def seed(num):
 def run_sweep(args: Namespace, logger):
     import traceback
 
-    ATOM_NODES_MULTIPLIKATOR = 5
-    ORIGINAL_LEARNINGRATE = args.learning_rate
+
     def sweep_train():
+
         run = wandb.init(mode=args.wandb_mode, settings=wandb.Settings(start_method="fork"))
         run_dir = run.dir[:-6]
 
         try:
-            config = wandb.config
-            wandb_name = ""
-            for param in config.keys():
-                if config[param] == "None":
-                    param_value = None
-                else:
-                    param_value = config[param]
-                    wandb_name = wandb_name + str(param)[:5] + str(param_value)
-
-                if param == "max_num_nodes" and param_value is None and "aggregation_method" in config and config[
-                    "aggregation_method"] == "fixed_size":
-                    continue  # ignore since it is manually overwritten below
-                if param == "node_type" and "pretrained_model" in config and config[
-                    "pretrained_model"] in enforced_node_type:
-                    continue  # ignore since it is manually overwritten below
-                if param == "transfer_learning_datasets" and isinstance(param_value, str):
-                    if ";" in param_value:
-                        args.__dict__[param] = param_value.split(";")
-                    else:
-                        args.__dict__[param] = [param_value]
-                    continue
-
-                args.__dict__[param] = param_value
-                if param == "pretrained_model":
-                    if config[param] in enforced_node_type:
-                        args.__dict__["node_type"] = enforced_node_type[config[param]]
-                        config["node_type"] = enforced_node_type[config[param]]
-
-                if param == 'aggregation_method':
-                    if param_value == "fixed_size" and "max_num_nodes" in config and config["max_num_nodes"] == "None":
-                        max_num_nodes_values = [int(value) for value in
-                                                args.config["HYPERPARAMETER_SEARCH"]["parameters"]["max_num_nodes"][
-                                                    "values"] if value != "None"]
-                        args.max_num_nodes = random.choice(max_num_nodes_values)
-                        config["max_num_nodes"] = args.max_num_nodes
-
-            # adapt hyperparameter based on node type
-            if args.node_type == "atom" and args.max_num_nodes is not None:
-                args.max_num_nodes = int(args.max_num_nodes * ATOM_NODES_MULTIPLIKATOR)
-
-            # adapt batch size bases on node type
-            if args.node_type == "atom":
-                args.batch_size = int(args.batch_size / ATOM_NODES_MULTIPLIKATOR) + 1
-
-            if "learning_rate" not in config.keys():
-                # reset learning rate to original value
-                args.learning_rate = ORIGINAL_LEARNINGRATE
-
-            args.tqdm_output = False  # disable tqdm output to reduce log syncing
-
-            logger.info(f"Performing {args.train_strategy}")
-            args.wandb_name = wandb_name
-            seed(args.seed)
-            model, results, wandb_inst = training[args.train_strategy](args)
-            run_and_log_benchmarks(model, args)
+            sweep_args = combine_args_with_sweep_config(args, wandb.config)
+            logger.info(f"Performing {sweep_args.train_strategy}")
+            seed(sweep_args.seed)
+            model, results, wandb_inst = training[sweep_args.train_strategy](sweep_args)
+            run_and_log_benchmarks(model, sweep_args)
             wandb.finish(0)
         except Exception as e:
             # log errors before finishing job
@@ -136,7 +86,7 @@ def run_sweep(args: Namespace, logger):
             logger.error(traceback.print_exc())
             wandb.finish(-1)
 
-        if args.wandb_mode == "offline":
+        if sweep_args.wandb_mode == "offline":
             command = f'wandb sync --id {run.id} {run_dir}'
             subprocess.run(command, shell=True)
             time.sleep(10)
