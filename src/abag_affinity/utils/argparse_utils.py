@@ -4,7 +4,7 @@ from argparse import Namespace, ArgumentParser, Action, ArgumentTypeError
 import re
 from pathlib import Path
 import logging
-
+import random
 from .config import read_config
 
 enforced_node_type = {
@@ -276,3 +276,69 @@ def read_args_from_file(args: Namespace) -> Namespace:
                 continue
 
     return args
+
+def combine_args_with_sweep_config(args: Namespace, config: dict) -> Namespace:
+    ATOM_NODES_MULTIPLIKATOR = 5
+
+    sweep_args = Namespace(**vars(args))
+    wandb_name = ""
+    for param in config.keys():
+        if config[param] == "None":
+            param_value = None
+        else:
+            param_value = config[param]
+            wandb_name = wandb_name + str(param)[:5] + str(param_value)
+
+        if param == "max_num_nodes" and param_value is None and "aggregation_method" in config and config[
+            "aggregation_method"] == "fixed_size":
+            continue  # ignore since it is manually overwritten below
+        if param == "node_type" and "pretrained_model" in config and config[
+            "pretrained_model"] in enforced_node_type:
+            continue  # ignore since it is manually overwritten below
+        if param == "transfer_learning_datasets" and isinstance(param_value, str):
+            if ";" in param_value:
+                sweep_args.__dict__[param] = param_value.split(";")
+            else:
+                sweep_args.__dict__[param] = [param_value]
+            continue
+
+        sweep_args.__dict__[param] = param_value
+        if param == "pretrained_model":
+            if config[param] in enforced_node_type:
+                sweep_args.__dict__["node_type"] = enforced_node_type[config[param]]
+                config["node_type"] = enforced_node_type[config[param]]
+
+        if param == 'aggregation_method':
+            if param_value == "fixed_size" and "max_num_nodes" in config and config["max_num_nodes"] == "None":
+                max_num_nodes_values = [int(value) for value in
+                                        sweep_args.config["HYPERPARAMETER_SEARCH"]["parameters"]["max_num_nodes"][
+                                            "values"] if value != "None"]
+                sweep_args.max_num_nodes = random.choice(max_num_nodes_values)
+                config["max_num_nodes"] = sweep_args.max_num_nodes
+
+    # adapt hyperparameter based on node type
+    if sweep_args.node_type == "atom" and sweep_args.max_num_nodes is not None:
+        sweep_args.max_num_nodes = int(sweep_args.max_num_nodes * ATOM_NODES_MULTIPLIKATOR)
+
+    # adapt batch size bases on node type
+    if sweep_args.node_type == "atom":
+        sweep_args.batch_size = int(sweep_args.batch_size / ATOM_NODES_MULTIPLIKATOR) + 1
+
+    if sweep_args.pretrained_model in ["IPA", "Diffusion"]:
+        logging.warning(
+            "Forcing batch_size to 1 for IPA model (learning-rate is reduced proportionally). Also forcing GNN type to 'identity' and fine_tuning.")
+        sweep_args.__dict__[
+            "gnn_type"] = "identity"  # we could also test combination of IPA and GNN, but it adds combplexity
+        # Adjusting learning rate for the reduced batch size
+        sweep_args.__dict__["learning_rate"] = sweep_args.__dict__["learning_rate"] / sweep_args.__dict__["batch_size"]
+        sweep_args.__dict__["batch_size"] = 1
+
+        # Enforce fine-tuning
+        if not sweep_args.__dict__["fine_tune"]:
+            sweep_args.__dict__["fine_tune"] = True
+            sweep_args.__dict__["max_epochs"] = sweep_args.__dict__[
+                                                    "max_epochs"] // 2  # account for the duplication of epochs
+
+    sweep_args.tqdm_output = False  # disable tqdm output to reduce log syncing
+    sweep_args.wandb_name = wandb_name
+    return sweep_args
