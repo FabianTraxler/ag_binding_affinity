@@ -232,9 +232,9 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader, val_dataloader
         # TODO maybe this is never used? Also we change the length of all_pdbs, make it longer than others
         if len(all_pdbs) > 0 and not isinstance(all_pdbs[0], np.ndarray):
             all_pdbs = [np.array([pdb]) for pdb in all_pdbs]
-      
+
         all_pdbs = np.concatenate(np.array(all_pdbs)) if len(all_pdbs) > 0 else np.array([])
-        
+
         all_binary_predictions = np.concatenate(all_binary_predictions) if len(all_binary_predictions) > 0 else np.array([])
         all_binary_labels = np.concatenate(all_binary_labels) if len(all_binary_labels) > 0 else np.array([])
         try:
