@@ -69,8 +69,8 @@ def run_sweep(args: Namespace, logger):
 
 
     def sweep_train():
-        sweep_args = Namespace(**vars(args))
-        run = wandb.init(mode=sweep_args.wandb_mode, settings=wandb.Settings(start_method="fork"))
+
+        run = wandb.init(mode=args.wandb_mode, settings=wandb.Settings(start_method="fork"))
         run_dir = run.dir[:-6]
         try:
             sweep_args = combine_args_with_sweep_config(args, wandb.config)
