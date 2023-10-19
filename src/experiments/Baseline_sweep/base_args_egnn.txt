@@ -23,7 +23,7 @@
 --target_dataset=abag_affinity#L1-1
 --init_sweep
 --no-fine_tune
---sweep_config=../experiments/Baseline_sweep/sweep_config.yaml
+--sweep_config=src/experiments/Baseline_sweep/sweep_config_egnn.yaml
 --transfer_learning_dataset
 DMS-madan21_mutat_hiv#L1
 DMS-wu20_differ_ha_h3_h1#L1

@@ -1,0 +1,22 @@
+method: 'grid'
+name: 'IPA Baseline Sweep'
+metric:
+  goal: 'minimize'
+  name: 'val0_rmse'
+parameters:
+  seed:
+    values:
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+      - 6
+      - 7
+      - 8
+  embeddings_type:
+    values:
+      - "of"
+  pretrained_model:
+    values:
+      - "IPA"
