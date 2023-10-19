@@ -1,5 +1,5 @@
 method: 'grid'
-name: 'DMS-IPA_outputlayer_2regressionheadlayers'
+name: 'DMS-IPA_outputlayer_madanwutaft_relative'
 metric:
   goal: 'maximize'
   name: 'pearson_correlation'  # this works because we only use a single validation set
@@ -15,3 +15,6 @@ parameters:
       - 3
       - 4
       - 5
+      - 6
+      - 7
+      - 8

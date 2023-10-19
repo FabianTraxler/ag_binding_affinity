@@ -21,5 +21,4 @@
 --relaxed_pdbs=False
 --target_dataset=abag_affinity#L1-1
 --init_sweep
---no-fine_tune
 --sweep_config=../experiments/EGNN_sweep/sweep_config.yaml

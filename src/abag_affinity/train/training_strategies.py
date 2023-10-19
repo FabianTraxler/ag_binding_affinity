@@ -39,6 +39,7 @@ def model_train(args:Namespace, validation_set: Optional[int] = None) -> Tuple[A
         Tuple: Trained model and Dict with results and statistics of training
     """
 
+    logging.warning("deprecated. please use bucket_learn")
     dataset_name = args.target_dataset
 
     if validation_set is None:
@@ -74,6 +75,7 @@ def pretrain_model(args:Namespace) -> Tuple[AffinityGNN, Dict]:
     Returns:
         Tuple: Trained model and Dict with results and statistics of training
     """
+    logging.warning("deprecated. please use bucket_learn")
     config = read_config(args.config_file)
 
     dataset_names = args.transfer_learning_datasets + [args.target_dataset]
@@ -181,7 +183,8 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
 
     logger.info("Training with {}".format(", ".join([dataset.full_dataset_name for dataset in train_datasets])))
     logger.info("Evaluating on {}".format(", ".join([dataset.full_dataset_name for dataset in val_datasets])))
-    results, model, wandb_inst = bucket_learning(model, train_datasets, val_datasets, args)
+    pretrain_epochs = args.fine_tune if isinstance(args.fine_tune, int) else args.max_epochs
+    results, model, wandb_inst = bucket_learning(model, train_datasets, val_datasets, pretrain_epochs, args)
 
     logger.info("Training with {} completed".format(dataset_names))
 
