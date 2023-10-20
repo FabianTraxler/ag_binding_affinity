@@ -323,19 +323,17 @@ def combine_args_with_sweep_config(args: Namespace, config: dict) -> Namespace:
         args.__dict__["node_type"] = enforced_node_type[args.pretrained_model]
 
     if sweep_args.pretrained_model in ["IPA", "Diffusion"]:
-        logging.warning(
-            "Forcing batch_size to 1 for IPA model (learning-rate is reduced proportionally). Also forcing GNN type to 'identity' and fine_tuning.")
+        logging.warning("Forcing batch_size to 1 for IPA model (learning-rate is reduced proportionally). Also forcing GNN type to 'identity', embeddings_type to 'of' and fine_tuning.")
         sweep_args.__dict__[
             "gnn_type"] = "identity"  # we could also test combination of IPA and GNN, but it adds combplexity
         # Adjusting learning rate for the reduced batch size
         sweep_args.__dict__["learning_rate"] = sweep_args.__dict__["learning_rate"] / sweep_args.__dict__["batch_size"]
         sweep_args.__dict__["batch_size"] = 1
+        sweep_args.__dict__["embeddings_type"] = "of"
 
         # Enforce fine-tuning
         if not sweep_args.__dict__["fine_tune"]:
-            sweep_args.__dict__["fine_tune"] = True
-            sweep_args.__dict__["max_epochs"] = sweep_args.__dict__[
-                                                    "max_epochs"] // 2  # account for the duplication of epochs
+            sweep_args.__dict__["fine_tune"] = sweep_args.__dict__["max_epochs"] // 10
 
     if args.preprocessed_to_scratch and not args.preprocess_graph:
         logging.warning("preprocessed_to_scratch only works with --preprocess_graph activated. Enabling forcefully...")
