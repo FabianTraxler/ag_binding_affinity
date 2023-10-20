@@ -237,7 +237,7 @@ def parse_args(artifical_args=None) -> Namespace:
         args = read_args_from_file(args)
 
     # Modify args that are incompatible
-    args = combine_args_with_sweep_config(args, {})
+    args = check_and_complement_args(args, {})
 
     return args
 
@@ -262,8 +262,9 @@ def read_args_from_file(args: Namespace) -> Namespace:
 
     return args
 
-def combine_args_with_sweep_config(args: Namespace, config: dict) -> Namespace:
+def check_and_complement_args(args: Namespace, args_dict: dict) -> Namespace:
     """
+    Check args, enforcing specific constraints. Optionally integrate additional args (e.g. from a sweep)
 
     Args:
         args: Args to be modified
@@ -274,73 +275,73 @@ def combine_args_with_sweep_config(args: Namespace, config: dict) -> Namespace:
     """
     ATOM_NODES_MULTIPLIKATOR = 5
 
-    sweep_args = Namespace(**vars(args))
+    new_args = Namespace(**vars(args))
     wandb_name = ""
-    for param in config.keys():
-        if config[param] == "None":
+    for param in args_dict.keys():
+        if args_dict[param] == "None":
             param_value = None
         else:
-            param_value = config[param]
+            param_value = args_dict[param]
             wandb_name = wandb_name + str(param)[:5] + str(param_value)
 
-        if param == "max_num_nodes" and param_value is None and "aggregation_method" in config and config[
+        if param == "max_num_nodes" and param_value is None and "aggregation_method" in args_dict and args_dict[
             "aggregation_method"] == "fixed_size":
             continue  # ignore since it is manually overwritten below
-        if param == "node_type" and "pretrained_model" in config and config[
+        if param == "node_type" and "pretrained_model" in args_dict and args_dict[
             "pretrained_model"] in enforced_node_type:
             continue  # ignore since it is manually overwritten below
         if param == "transfer_learning_datasets" and isinstance(param_value, str):
             if ";" in param_value:
-                sweep_args.__dict__[param] = param_value.split(";")
+                new_args.__dict__[param] = param_value.split(";")
             else:
-                sweep_args.__dict__[param] = [param_value]
+                new_args.__dict__[param] = [param_value]
             continue
 
-        sweep_args.__dict__[param] = param_value
+        new_args.__dict__[param] = param_value
         if param == "pretrained_model":
-            if config[param] in enforced_node_type:
-                sweep_args.__dict__["node_type"] = enforced_node_type[config[param]]
-                config["node_type"] = enforced_node_type[config[param]]
+            if args_dict[param] in enforced_node_type:
+                new_args.__dict__["node_type"] = enforced_node_type[args_dict[param]]
+                args_dict["node_type"] = enforced_node_type[args_dict[param]]
 
         if param == 'aggregation_method':
-            if param_value == "fixed_size" and "max_num_nodes" in config and config["max_num_nodes"] == "None":
+            if param_value == "fixed_size" and "max_num_nodes" in args_dict and args_dict["max_num_nodes"] == "None":
                 max_num_nodes_values = [int(value) for value in
-                                        sweep_args.config["HYPERPARAMETER_SEARCH"]["parameters"]["max_num_nodes"][
+                                        new_args.config["HYPERPARAMETER_SEARCH"]["parameters"]["max_num_nodes"][
                                             "values"] if value != "None"]
-                sweep_args.max_num_nodes = random.choice(max_num_nodes_values)
-                config["max_num_nodes"] = sweep_args.max_num_nodes
+                new_args.max_num_nodes = random.choice(max_num_nodes_values)
+                args_dict["max_num_nodes"] = new_args.max_num_nodes
 
     # adapt hyperparameter based on node type
-    if sweep_args.node_type == "atom" and sweep_args.max_num_nodes is not None:
-        sweep_args.max_num_nodes = int(sweep_args.max_num_nodes * ATOM_NODES_MULTIPLIKATOR)
+    if new_args.node_type == "atom" and new_args.max_num_nodes is not None:
+        new_args.max_num_nodes = int(new_args.max_num_nodes * ATOM_NODES_MULTIPLIKATOR)
 
     # adapt batch size bases on node type
-    if sweep_args.node_type == "atom":
-        sweep_args.batch_size = int(sweep_args.batch_size / ATOM_NODES_MULTIPLIKATOR) + 1
+    if new_args.node_type == "atom":
+        new_args.batch_size = int(new_args.batch_size / ATOM_NODES_MULTIPLIKATOR) + 1
     # check arguments
     if args.pretrained_model in enforced_node_type and args.pretrained_model != enforced_node_type[
         args.pretrained_model]:
         args.__dict__["node_type"] = enforced_node_type[args.pretrained_model]
 
-    if sweep_args.pretrained_model in ["IPA", "Diffusion"]:
+    if new_args.pretrained_model in ["IPA", "Diffusion"]:
         logging.warning("Forcing batch_size to 1 for IPA model (learning-rate is reduced proportionally). Also forcing GNN type to 'identity', embeddings_type to 'of' and fine_tuning.")
-        sweep_args.__dict__[
+        new_args.__dict__[
             "gnn_type"] = "identity"  # we could also test combination of IPA and GNN, but it adds combplexity
         # Adjusting learning rate for the reduced batch size
-        sweep_args.__dict__["learning_rate"] = sweep_args.__dict__["learning_rate"] / sweep_args.__dict__["batch_size"]
-        sweep_args.__dict__["batch_size"] = 1
-        sweep_args.__dict__["embeddings_type"] = "of"
+        new_args.__dict__["learning_rate"] = new_args.__dict__["learning_rate"] / new_args.__dict__["batch_size"]
+        new_args.__dict__["batch_size"] = 1
+        new_args.__dict__["embeddings_type"] = "of"
 
         # Enforce fine-tuning
-        if not sweep_args.__dict__["fine_tune"]:
-            sweep_args.__dict__["fine_tune"] = sweep_args.__dict__["max_epochs"] // 10
+        if not new_args.__dict__["fine_tune"]:
+            new_args.__dict__["fine_tune"] = new_args.__dict__["max_epochs"] // 10
 
     if args.preprocessed_to_scratch and not args.preprocess_graph:
         logging.warning("preprocessed_to_scratch only works with --preprocess_graph activated. Enabling forcefully...")
         args.__dict__["preprocess_graph"] = True
 
-    sweep_args.tqdm_output = False  # disable tqdm output to reduce log syncing
+    new_args.tqdm_output = False  # disable tqdm output to reduce log syncing
     if wandb_name:
         # In a sweep, we update the config and thereby set the name to the updated config entries
-        sweep_args.wandb_name = wandb_name
-    return sweep_args
+        new_args.wandb_name = wandb_name
+    return new_args
