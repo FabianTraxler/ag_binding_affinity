@@ -4,10 +4,6 @@ metric:
   goal: 'maximize'
   name: 'pearson_correlation'  # this works because we only use a single validation set
 parameters:
-  embeddings_type:
-    values:
-      - "of"
-      - ""
   pretrained_model:
     values:
       - "IPA"
