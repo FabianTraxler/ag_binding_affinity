@@ -17,7 +17,7 @@ import subprocess
 import yaml
 import pytorch_lightning as pl
 
-from abag_affinity.utils.argparse_utils import parse_args, enforced_node_type, combine_args_with_sweep_config
+from abag_affinity.utils.argparse_utils import parse_args, enforced_node_type, check_and_complement_args
 from abag_affinity.train import (bucket_train, cross_validation, model_train,
                                  pretrain_model, train_transferlearnings_validate_target)
 
@@ -72,7 +72,7 @@ def run_sweep(args: Namespace, logger):
         run = wandb.init(mode=args.wandb_mode, settings=wandb.Settings(start_method="fork"))
         run_dir = run.dir[:-6]
         try:
-            sweep_args = combine_args_with_sweep_config(args, wandb.config)
+            sweep_args = check_and_complement_args(args, wandb.config)
             logger.info(f"Performing {sweep_args.train_strategy}")
             seed(sweep_args.seed)
             model, results, wandb_inst = training[sweep_args.train_strategy](sweep_args)
