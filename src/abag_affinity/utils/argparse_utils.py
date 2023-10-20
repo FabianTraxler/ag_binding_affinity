@@ -232,27 +232,12 @@ def parse_args(artifical_args=None) -> Namespace:
     if args.stop_at_learning_rate is None:
         args.stop_at_learning_rate = args.learning_rate / 100
 
-    # check arguments
-    if args.pretrained_model in enforced_node_type and args.pretrained_model != enforced_node_type[args.pretrained_model]:
-        args.__dict__["node_type"] = enforced_node_type[args.pretrained_model]
-    if args.pretrained_model in ["IPA", "Diffusion"]:
-        logging.warning("Forcing batch_size to 1 for IPA model (learning-rate is reduced proportionally). Also forcing GNN type to 'identity' and fine_tuning.")
-        args.__dict__["gnn_type"] = "identity"  # we could also test combination of IPA and GNN, but it adds combplexity
-        # Adjusting learning rate for the reduced batch size
-        args.__dict__["learning_rate"] = args.__dict__["learning_rate"] / args.__dict__["batch_size"]
-        args.__dict__["batch_size"] = 1
-
-        # Enforce fine-tuning
-        if not args.__dict__["fine_tune"]:
-            args.__dict__["fine_tune"] = True
-            args.__dict__["max_epochs"] /= 2  # account for the duplication of epochs
-
-    if args.preprocessed_to_scratch and not args.preprocess_graph:
-        logging.warning("preprocessed_to_scratch only works with --preprocess_graph activated. Enabling forcefully...")
-        args.__dict__["preprocess_graph"] = True
 
     if args.args_file is not None:
         args = read_args_from_file(args)
+
+    # Modify args that are incompatible
+    args = combine_args_with_sweep_config(args, {})
 
     return args
 
@@ -278,6 +263,15 @@ def read_args_from_file(args: Namespace) -> Namespace:
     return args
 
 def combine_args_with_sweep_config(args: Namespace, config: dict) -> Namespace:
+    """
+
+    Args:
+        args: Args to be modified
+        config: Config to update args
+
+    Returns:
+    Cleaned and modified args
+    """
     ATOM_NODES_MULTIPLIKATOR = 5
 
     sweep_args = Namespace(**vars(args))
@@ -323,6 +317,10 @@ def combine_args_with_sweep_config(args: Namespace, config: dict) -> Namespace:
     # adapt batch size bases on node type
     if sweep_args.node_type == "atom":
         sweep_args.batch_size = int(sweep_args.batch_size / ATOM_NODES_MULTIPLIKATOR) + 1
+    # check arguments
+    if args.pretrained_model in enforced_node_type and args.pretrained_model != enforced_node_type[
+        args.pretrained_model]:
+        args.__dict__["node_type"] = enforced_node_type[args.pretrained_model]
 
     if sweep_args.pretrained_model in ["IPA", "Diffusion"]:
         logging.warning(
@@ -339,6 +337,12 @@ def combine_args_with_sweep_config(args: Namespace, config: dict) -> Namespace:
             sweep_args.__dict__["max_epochs"] = sweep_args.__dict__[
                                                     "max_epochs"] // 2  # account for the duplication of epochs
 
+    if args.preprocessed_to_scratch and not args.preprocess_graph:
+        logging.warning("preprocessed_to_scratch only works with --preprocess_graph activated. Enabling forcefully...")
+        args.__dict__["preprocess_graph"] = True
+
     sweep_args.tqdm_output = False  # disable tqdm output to reduce log syncing
-    sweep_args.wandb_name = wandb_name
+    if wandb_name:
+        # In a sweep, we update the config and thereby set the name to the updated config entries
+        sweep_args.wandb_name = wandb_name
     return sweep_args
