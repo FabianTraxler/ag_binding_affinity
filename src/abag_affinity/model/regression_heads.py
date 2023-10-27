@@ -133,8 +133,8 @@ class RegressionHead(torch.nn.Module):
         if self.aggregation_method == "interface_size":
             # Calculate the average edge values for each node
             interface_distances = data["node", "interface", "node"].edge_attr.unsqueeze(1)
-            node_sum = torch.zeros(interface_node_indices.max() + 1)
-            node_count = torch.zeros(interface_node_indices.max() + 1)
+            node_sum = torch.zeros(interface_node_indices.max() + 1).to(self.device)
+            node_count = torch.zeros(interface_node_indices.max() + 1).to(self.device)
             node_sum.scatter_add_(0, data["node", "interface", "node"].edge_index[0], interface_distances[:, 0])
             node_count.scatter_add_(0, data["node", "interface", "node"].edge_index[0],
                                     torch.ones_like(interface_distances[:, 0]))
