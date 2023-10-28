@@ -64,6 +64,16 @@ def seed(num):
     np.random.seed(num)
     torch.manual_seed(num)
 
+def save_model(model, path):
+    # Minor hack to exploit PyTorch Lightnings model+argument-saving mechanism
+    # TODO make sure (when loading) that the model is initialized with the same seed. <- why did I write this comment? If no-one finds a reason, delete the comment
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Minor hack to exploit PyTorch Lightnings model+argument-saving mechanism
+    trainer = pl.Trainer()
+    trainer.fit(model, DataLoader([]))
+    trainer.save_checkpoint(path)
+
 def run_sweep(args: Namespace, logger):
     import traceback
 
@@ -77,6 +87,10 @@ def run_sweep(args: Namespace, logger):
             seed(sweep_args.seed)
             model, results, wandb_inst = training[sweep_args.train_strategy](sweep_args)
             run_and_log_benchmarks(model, sweep_args, wandb_inst)
+            # save the model
+            path = Path(args.config["model_path"]) / "sweep" / args.sweep_id / f"{run.id}_{sweep_args.wandb_name}" / "model.pt"
+            save_model(model, path)
+
             wandb.finish(0)
         except Exception as e:
             # log errors before finishing job
@@ -153,13 +167,7 @@ def main() -> Dict:
                 path = Path(args.model_path)
             else:
                 path = Path(args.config["model_path"]) / (datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + "_" + args.wandb_name.replace(" ", "")) / "model.pt"
-            path.parent.mkdir(parents=True, exist_ok=True)
-
-            # Minor hack to exploit PyTorch Lightnings model+argument-saving mechanism
-            trainer = pl.Trainer()
-            trainer.fit(model, DataLoader([]))
-            trainer.save_checkpoint(path)
-            # TODO make sure (when loading) that the model is initialized with the same seed. <- why did I write this comment? If no-one finds a reason, delete the comment
+            save_model(model, path)
         # return results  (leads to error code in bash)
 
 
