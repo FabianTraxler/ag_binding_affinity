@@ -26,11 +26,12 @@ parser.add_argument("--wandb", help="name of wandb job", type=wandb_init)
 
 args = parser.parse_args()
 
-aff_pred_net = _load_affinity_model(args.model_path)
+aff_pred_net, _ = _load_affinity_model(args.model_path)
 
 train_args = aff_pred_net.hparams.args
+aff_pred_net.eval().to("cuda" if train_args.cuda else "cpu")
 
-results = run_and_log_benchmarks(aff_pred_net, train_args, args.wandb_inst)
+results = run_and_log_benchmarks(aff_pred_net, train_args, args.wandb)
 
 if args.output_path is not None:
     pd.Series(results).to_csv(args.output_path)
