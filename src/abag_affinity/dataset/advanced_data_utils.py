@@ -13,9 +13,9 @@ from scipy.stats import gmean
 from torch.utils.data import DataLoader as DL_torch, Subset, ConcatDataset
 from torch_geometric.data import DataLoader
 
-from modules.ag_binding_affinity.src.abag_affinity.dataset import AffinityDataset
-from modules.ag_binding_affinity.src.abag_affinity.dataset.utils import logger
-from modules.ag_binding_affinity.src.abag_affinity.utils.config import get_data_paths
+from abag_affinity.dataset import AffinityDataset
+from abag_affinity.dataset.utils import logger
+from abag_affinity.utils.config import get_data_paths
 
 
 def complexes_from_dms_datasets(dataset_names: List, args) -> List:
