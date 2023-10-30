@@ -1,5 +1,5 @@
 method: 'grid'
-name: 'Phillips EGNN Evaluation Sweep'
+name: 'Phillips EGNN Sweep'
 metric:
   goal: 'minimize'
   name: 'val0_rmse'
@@ -18,8 +18,6 @@ parameters:
       - 2
       - 3
       - 4
-      - 5
   bucket_size_mode:
     values:
       - "geometric_mean"
-      - "double_geometric_mean"
