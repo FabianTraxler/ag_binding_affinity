@@ -23,12 +23,16 @@ def wandb_init(name):
 parser.add_argument("model_path", type=str)
 parser.add_argument("--output_path", type=Path)
 parser.add_argument("--wandb", help="name of wandb job", type=wandb_init)
+parser.add_argument("--benchmark_csv", default=None, type=str)
 
 args = parser.parse_args()
 
 aff_pred_net, _ = _load_affinity_model(args.model_path)
 
 train_args = aff_pred_net.hparams.args
+if args.benchmark_csv is not None:
+    train_args.config["DATASETS"]["AntibodyBenchmark"]["summary"] = args.benchmark_csv
+
 aff_pred_net.eval().to("cuda" if train_args.cuda else "cpu")
 
 results = run_and_log_benchmarks(aff_pred_net, train_args, args.wandb)
