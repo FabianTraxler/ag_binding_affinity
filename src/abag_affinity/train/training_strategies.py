@@ -60,8 +60,7 @@ def model_train(args:Namespace, validation_set: Optional[int] = None) -> Tuple[A
     results, best_model, wandb_inst = train_loop(model, train_data, val_datas, args)
 
     if args.fine_tune:
-        wandb_benchmark_log = run_and_log_benchmarks(model, args)
-        wandb_inst.log(wandb_benchmark_log, commit=True)
+        wandb_benchmark_log = run_and_log_benchmarks(model, args, wandb_inst)
         results, best_model = finetune_frozen(best_model, train_data, val_datas, args, lr_reduction=0.2)
     return best_model, results, wandb_inst
 
@@ -108,8 +107,7 @@ def pretrain_model(args:Namespace) -> Tuple[AffinityGNN, Dict]:
 
     if args.fine_tune:
         raise NotImplementedError("We would need to fine-tune on all DMS datasets, e.g. via a for-loop again?")
-        wandb_benchmark_log = run_and_log_benchmarks(model, args)
-        wandb_inst.log(wandb_benchmark_log, commit=True)
+        wandb_benchmark_log = run_and_log_benchmarks(model, args, wandb_inst)
         train_data, val_datas = load_datasets(config, dataset_names[-1], args.validation_set, args)
         results, model = finetune_frozen(model, train_data, val_datas, args, lr_reduction=0.2)
         all_results["finetuning"] = results
@@ -189,8 +187,7 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
     logger.info("Training with {} completed".format(dataset_names))
 
     if args.fine_tune:
-        wandb_benchmark_log = run_and_log_benchmarks(model, args)
-        wandb_inst.log(wandb_benchmark_log, commit=True)
+        wandb_benchmark_log = run_and_log_benchmarks(model, args, wandb_inst)
         # TODO here we generate a new wandb_inst instance?!
         results, model = finetune_frozen(model, train_datasets, val_datasets, args, lr_reduction=0.2)
 
@@ -242,8 +239,7 @@ def train_transferlearnings_validate_target(args: Namespace):
     logger.info("Training with {} completed".format(training_set_names))
 
     if args.fine_tune:
-        wandb_benchmark_log = run_and_log_benchmarks(model, args)
-        wandb_inst.log(wandb_benchmark_log, commit=True)
+        wandb_benchmark_log = run_and_log_benchmarks(model, args, wandb_inst)
 
         results, model = finetune_frozen(model, train_datasets, val_datasets, args, lr_reduction=0.2)
 

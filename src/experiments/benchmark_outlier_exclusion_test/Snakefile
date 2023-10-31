@@ -1,0 +1,42 @@
+# See https://github.com/moritzschaefer/guided-protein-diffusion/issues/313
+import os
+from pathlib import Path
+
+OUT_PATH="results/{benchmark_type}/{run}.csv"
+MODEL_PATH = Path("~/ag_binding_affinity/results/models/sweep/ayudihdb").expanduser()
+runs = [path.name for path in MODEL_PATH.iterdir() if path.is_dir()]
+
+rule all:
+    input:
+        "results/combined.csv"
+
+# See plotting.ipynb for downstream analysis
+
+rule combine:
+    input:
+        expand(OUT_PATH, run=runs, benchmark_type=["orig", "dropped"])
+    output:
+        "results/combined.csv"
+    run:
+        import pandas as pd
+        dfs = []
+        for f in input:
+            df = pd.read_csv(f)
+            df.columns = ["metric", "value"]
+            match = re.match(OUT_PATH.format(benchmark_type="(?P<benchmark_type>[^/]+)", run="(?P<run>[^/]+)"), f)
+            df["benchmark_type"] = match.group('benchmark_type')
+            df["run"] = match.group('run')            
+            dfs.append(df)
+        df = pd.concat(dfs)
+        df.to_csv(output[0])
+
+rule evaluate:
+    input:
+        MODEL_PATH / "{run}/model.pt"
+    output:
+        OUT_PATH
+    conda:
+        "ag_binding_diffusion3"
+    shell:
+        "python ~/ag_binding_affinity/src/abag_affinity/evaluate_model.py {input} --output_path {output} --benchmark_csv benchmark.{wildcards.benchmark_type}.csv"
+
