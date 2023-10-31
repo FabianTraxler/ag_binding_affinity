@@ -1,4 +1,4 @@
---gnn_type=guided
+--gnn_type=egnn
 --patience=30
 --node_type=residue
 --batch_size=64
