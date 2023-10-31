@@ -13,7 +13,7 @@ parameters:
   target_dataset:
     values:
       - "abag_affinity#L1-1"
-      - "abag_affinity#L1-1+relativeL1-1"
+      - "abag_affinity#L1-1+relative_L1-1"
       - "abag_affinity#L1-1+relative_cdf-1"
       - "abag_affinity#L1-1+relative_ce-1"
   embeddings_type:
