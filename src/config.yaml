@@ -82,13 +82,10 @@ RESOURCES:
 
 RESULTS:
   path: "results"
-  prediction_path: "predictions"
-  model_path: "model"
   force_field_results: "force_fields"
   plot_path: "plots"
   prediction_path: "predictions"
   model_path: "models"
-  force_field_results: "ff_res"
   processed_graph_path: "processed_graphs"
   interface_pdbs: "interface_pdb"
 

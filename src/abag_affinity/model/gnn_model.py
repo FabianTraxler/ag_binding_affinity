@@ -193,12 +193,11 @@ class AffinityGNN(pl.LightningModule):
         # define regression head
         if aggregation_method == "edge":
             self.regression_head = EdgeRegressionHead(self.graph_conv.embedding_dim, num_layers=num_fc_layers,
-                                                      size_halving=fc_size_halving, nonlinearity=nonlinearity,
-                                                      device=device)
+                                                      size_halving=fc_size_halving, nonlinearity=nonlinearity)
         else:
             self.regression_head = RegressionHead(self.graph_conv.embedding_dim, num_nodes=num_nodes,
                                                   aggregation_method=aggregation_method, size_halving=fc_size_halving,
-                                                  nonlinearity=nonlinearity,  num_fc_layers=num_fc_layers, device=device)
+                                                  nonlinearity=nonlinearity,  num_fc_layers=num_fc_layers)
         # Dataset-specific output layers
         self.dataset_names = dataset_names
         self.dataset_specific_layer = DatasetAdjustment(args.dms_output_layer_type, len(dataset_names), dataset_names)

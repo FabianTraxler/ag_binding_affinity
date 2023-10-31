@@ -40,8 +40,7 @@ def get_node_batches(data: HeteroData):
 class EdgeRegressionHead(torch.nn.Module):
     """Calculate binding affinity based on interface edges"""
 
-    def __init__(self, node_dim: int, num_layers: int = 3, nonlinearity: str = "relu", size_halving: bool = True,
-                 device: torch.device = torch.device("cpu")):
+    def __init__(self, node_dim: int, num_layers: int = 3, nonlinearity: str = "relu", size_halving: bool = True):
         super(EdgeRegressionHead, self).__init__()
         # embed each interface edge
         input_dim = 2 * node_dim + 1  # 2x node + distance
@@ -60,7 +59,6 @@ class EdgeRegressionHead(torch.nn.Module):
         self.activation = nonlinearity_function[nonlinearity]()
 
         self.double()
-        self.device = device
 
     def forward(self, data: HeteroData):
         x = data["node"].x
@@ -76,7 +74,7 @@ class EdgeRegressionHead(torch.nn.Module):
         edge_embeddings = self.layers[-1](edge_embeddings)
 
         # handle batches
-        batch = get_edge_batches(len(edge_embeddings), data).to(self.device)
+        batch = get_edge_batches(len(edge_embeddings), data).to(interface_edges.device)
 
         # affinity = global_mean_pool(edge_embeddings, torch.zeros(len(edge_embeddings)).long())
         affinity = global_add_pool(edge_embeddings, batch)
@@ -87,7 +85,7 @@ class EdgeRegressionHead(torch.nn.Module):
 class RegressionHead(torch.nn.Module):
     def __init__(self, node_feat_dim: int, num_nodes: int = None, aggregation_method: str = "sum",
                  nonlinearity: str = "silu", size_halving: bool = True,
-                 num_fc_layers: int = 3, device: torch.device = torch.device("cpu")):
+                 num_fc_layers: int = 3):
         super(RegressionHead, self).__init__()
 
         # define activation function
@@ -118,12 +116,11 @@ class RegressionHead(torch.nn.Module):
         self.fc_layers = torch.nn.ModuleList(self.fc_layers)
 
         self.double()
-        self.device = device
 
     def forward(self, data: HeteroData):
         x = data["node"].x
 
-        batch = get_node_batches(data).to(self.device)
+        batch = get_node_batches(data).to(x.device)
 
         if self.aggregation_method in ["interface_sum", "interface_mean", "interface_size"]:
             # get interface edges

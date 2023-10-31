@@ -23,9 +23,6 @@ torch.multiprocessing.set_sharing_strategy('file_system') # cluster mulitple dat
 
 logger = logging.getLogger(__name__) # setup module logger
 
-
-
-
 def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
     """ Train on multiple datasets in parallel but downsample larger datasets to the smallest in ever epoch
 
@@ -103,8 +100,7 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
     logger.info("Training with {} completed".format(dataset_names))
 
     if args.fine_tune:
-        wandb_benchmark_log = run_and_log_benchmarks(model, args)
-        wandb_inst.log(wandb_benchmark_log, commit=True)
+        wandb_benchmark_log = run_and_log_benchmarks(model, args, wandb_inst)
         # TODO here we generate a new wandb_inst instance?!
         results, model = finetune_frozen(model, train_datasets, val_datasets, args, lr_reduction=0.2)
 
@@ -156,8 +152,7 @@ def train_transferlearnings_validate_target(args: Namespace):
     logger.info("Training with {} completed".format(training_set_names))
 
     if args.fine_tune:
-        wandb_benchmark_log = run_and_log_benchmarks(model, args)
-        wandb_inst.log(wandb_benchmark_log, commit=True)
+        wandb_benchmark_log = run_and_log_benchmarks(model, args, wandb_inst)
 
         results, model = finetune_frozen(model, train_datasets, val_datasets, args, lr_reduction=0.2)
 

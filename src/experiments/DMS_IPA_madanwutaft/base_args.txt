@@ -11,12 +11,11 @@
 --scale_values
 --validation_set=0
 --train_strategy=bucket_train
---fine_tune
-10
+--fine_tune=10
 --max_edge_distance=5
 -wdb
 --aggregation_method=interface_sum
---wandb_mode=offline
+--wandb_mode=online
 --lr_scheduler=plateau
 --lr_decay_factor=0.5
 --stop_at_learning_rate=0.000005
@@ -24,7 +23,7 @@
 --relaxed_pdbs=False
 --sweep_config=src/experiments/DMS_IPA_madanwutaft/sweep_config.yaml
 --sweep_runs=1
---init_sweep
+--sweep_id=oszg70g2
 --bucket_size_mode=double_geometric_mean
 --add_neglogkd_labels_dataset=L1+relative_L1
 --transfer_learning_dataset

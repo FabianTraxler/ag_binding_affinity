@@ -733,7 +733,11 @@ def get_skempi_corr(model: AffinityGNN, args: Namespace, tqdm_output: bool = Tru
     # return np.mean([v[0] for v in results]), np.mean([v[1] for v in results])
 
 
-def run_and_log_benchmarks(model, args):
+def run_and_log_benchmarks(model, args, wandb_inst=None):
+    """
+    Run all our benchmarks on the given model. 
+
+    """
     # Run benchmarks
     benchmark_pearson, benchmark_loss, benchmark_df = get_benchmark_score(model, args, tqdm_output=args.tqdm_output)
     test_skempi_grouped_corrs, test_skempi_score, test_loss_skempi, test_skempi_df = get_skempi_corr(model, args,
@@ -766,5 +770,8 @@ def run_and_log_benchmarks(model, args):
                            "abag_train_pearson": train_pearson, "abag_train_loss": train_loss,
                            "skempi_test_pearson_grouped_mean": np.mean(test_skempi_grouped_corrs), "skempi_test_pearson": test_skempi_score, "skempi_test_loss": test_loss_skempi,
                            "benchmark_test_pearson": benchmark_pearson, "benchmark_test_loss": benchmark_loss, "Full_Predictions": wandb.Table(dataframe=full_df)}
+
+    if wandb_inst is not None:
+        wandb_inst.log(wandb_benchmark_log, commit=True)
 
     return wandb_benchmark_log
