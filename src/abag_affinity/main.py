@@ -66,10 +66,8 @@ def seed(num):
 
 def save_model(model, path):
     # Minor hack to exploit PyTorch Lightnings model+argument-saving mechanism
-    # TODO make sure (when loading) that the model is initialized with the same seed. <- why did I write this comment? If no-one finds a reason, delete the comment
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Minor hack to exploit PyTorch Lightnings model+argument-saving mechanism
     trainer = pl.Trainer()
     trainer.fit(model, DataLoader([]))
     trainer.save_checkpoint(path)
