@@ -23,7 +23,7 @@
 --relaxed_pdbs=False
 --sweep_config=src/experiments/DMS_IPA_madanwutaft/sweep_config.yaml
 --sweep_runs=1
---sweep_id=oszg70g2
+--sweep_id=ayudihdb
 --bucket_size_mode=double_geometric_mean
 --add_neglogkd_labels_dataset=L1+relative_L1
 --transfer_learning_dataset
