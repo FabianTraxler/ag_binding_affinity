@@ -11,8 +11,9 @@ import random
 from collections import Counter
 
 from ..utils.config import read_config, get_data_paths
-from .utils import get_skempi_corr, load_model, load_datasets, train_loop, finetune_frozen, bucket_learning, get_benchmark_score, \
+from .utils import get_skempi_corr, load_model, finetune_frozen, bucket_learning, get_benchmark_score, \
     get_abag_test_score, run_and_log_benchmarks
+from ..dataset.advanced_data_utils import load_datasets
 from ..model.gnn_model import AffinityGNN
 
 
@@ -21,99 +22,6 @@ torch.cuda.empty_cache()
 torch.multiprocessing.set_sharing_strategy('file_system') # cluster mulitple dataloader
 
 logger = logging.getLogger(__name__) # setup module logger
-
-
-def model_train(args:Namespace, validation_set: Optional[int] = None) -> Tuple[AffinityGNN, Dict]:
-    """ Model training functionality
-
-    1. Get random initialized model
-    2. Get dataloader
-    3. Train model
-    4. Return results
-
-    Args:
-        args: CLI arguments
-        validation_set: Validation set to use
-
-    Returns:
-        Tuple: Trained model and Dict with results and statistics of training
-    """
-
-    logging.warning("deprecated. please use bucket_learn")
-    dataset_name = args.target_dataset
-
-    if validation_set is None:
-        validation_set = args.validation_set
-
-    train_data, val_datas = load_datasets(args.config, dataset_name, validation_set, args)
-
-    logger.info("Val Set:{} | Train Size:{} | Test Size: {}".format(str(validation_set), len(train_data), len(val_datas)))
-
-    use_cuda = args.cuda and torch.cuda.is_available()
-    device = torch.device("cuda" if use_cuda else "cpu")
-
-    model = load_model(train_data.num_features, train_data.num_edge_features, [dataset_name], args, device)
-
-    logger.debug(f"Training with  {dataset_name}")
-    logger.debug(f"Training done on GPU: {next(model.parameters()).is_cuda}")
-
-    results, best_model, wandb_inst = train_loop(model, train_data, val_datas, args)
-
-    if args.fine_tune:
-        wandb_benchmark_log = run_and_log_benchmarks(model, args, wandb_inst)
-        results, best_model = finetune_frozen(best_model, train_data, val_datas, args, lr_reduction=0.2)
-    return best_model, results, wandb_inst
-
-
-def pretrain_model(args:Namespace) -> Tuple[AffinityGNN, Dict]:
-    """ Pretrain model and then finetune model based on information in config file
-
-    Args:
-        args: CLI arguments
-
-    Returns:
-        Tuple: Trained model and Dict with results and statistics of training
-    """
-    logging.warning("deprecated. please use bucket_learn")
-    config = read_config(args.config_file)
-
-    dataset_names = args.transfer_learning_datasets + [args.target_dataset]
-
-    use_cuda = args.cuda and torch.cuda.is_available()
-    device = torch.device("cuda" if use_cuda else "cpu")
-    model = None
-
-    all_results = {}
-
-    logger.debug("Loading Datasets")
-
-    for dataset_name in dataset_names:
-        logger.info("Training with {} starting ...".format(dataset_name))
-        logger.debug(f"Loading  {dataset_name}")
-        train_data, val_datas = load_datasets(config, dataset_name, args.validation_set, args)
-
-        if model is None: # only load model for first dataset
-            logger.debug(f"Loading  Model")
-            model = load_model(train_data.num_features, train_data.num_edge_features, dataset_names, args, device)
-            logger.debug(f"Model Memory usage: {torch.cuda.max_memory_allocated()/(1<<20):,.0f} MB")
-        logger.debug(f"Training with  {dataset_name}")
-        logger.debug(f"Training done on GPU: {next(model.parameters()).is_cuda}")
-
-        results, model, wandb_inst = train_loop(model, train_data, val_datas, args)
-
-        logger.info("Training with {} completed".format(dataset_name))
-        logger.debug(results)
-        all_results[dataset_name] = results
-
-    if args.fine_tune:
-        raise NotImplementedError("We would need to fine-tune on all DMS datasets, e.g. via a for-loop again?")
-        wandb_benchmark_log = run_and_log_benchmarks(model, args, wandb_inst)
-        train_data, val_datas = load_datasets(config, dataset_names[-1], args.validation_set, args)
-        results, model = finetune_frozen(model, train_data, val_datas, args, lr_reduction=0.2)
-        all_results["finetuning"] = results
-
-    return model, all_results, wandb_inst
-
 
 def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
     """ Train on multiple datasets in parallel but downsample larger datasets to the smallest in ever epoch
@@ -131,6 +39,7 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
     use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
 
+    #### Preparing Dataset ######
     train_datasets = []
     val_datasets = []
 
@@ -176,12 +85,16 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
         else:
             train_datasets.extend(neglogkd_datasets)
 
+    #### Preparing Model ######
+
     model = load_model(train_datasets[0].num_features, train_datasets[0].num_edge_features, dataset_names, args, device)
     logger.debug(f"Training done on GPU = {next(model.parameters()).is_cuda}")
 
     logger.info("Training with {}".format(", ".join([dataset.full_dataset_name for dataset in train_datasets])))
     logger.info("Evaluating on {}".format(", ".join([dataset.full_dataset_name for dataset in val_datasets])))
     pretrain_epochs = args.fine_tune if isinstance(args.fine_tune, int) else args.max_epochs
+
+    #### Actual Training ######
     results, model, wandb_inst = bucket_learning(model, train_datasets, val_datasets, pretrain_epochs, args)
 
     logger.info("Training with {} completed".format(dataset_names))
@@ -274,8 +187,6 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
 
     training = {
         "bucket_train": bucket_train,
-        "pretrain_model": pretrain_model,
-        "model_train": model_train
     }
 
     #args.max_epochs = 1

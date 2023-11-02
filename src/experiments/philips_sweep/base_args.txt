@@ -1,5 +1,6 @@
 --batch_size=64
 --num_workers=8
+--gnn_type=egnn
 --train_strategy=bucket_train
 -wdb
 --wandb_mode=online
