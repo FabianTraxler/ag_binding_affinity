@@ -94,9 +94,9 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("-m", "--pretrained_model", type=str,
                           help='Name of the published/pretrained model to use for node embeddings',
                           choices=["", "DeepRefine", "Binding_DDG", "IPA", "Diffusion"], default="")
-    optional.add_argument("--fine_tune",
+    optional.add_argument("--warm_up_epochs",
                           help='Fine-tune model components that have been frozen at the start of training (e.g. published/pretrained models or dataset-specific layers). Provide an integer to indicate the number of pre-training epochs',
-                          type=int, default=None)
+                          type=int, default=0)
     optional.add_argument('--load_pretrained_weights', action=BooleanOptionalAction, help="Load pretrained weights for the pretrained model", default=True)
     optional.add_argument("--training_set_spikein", type=float,
                           help="Proportion of target_dataset to spike into training set, in mode `train_transferlearnings_validate_target`",
@@ -333,12 +333,18 @@ def check_and_complement_args(args: Namespace, args_dict: dict) -> Namespace:
         new_args.__dict__["embeddings_type"] = "of"
 
         # Enforce fine-tuning
-        if not new_args.__dict__["fine_tune"]:
-            new_args.__dict__["fine_tune"] = new_args.__dict__["max_epochs"] // 10
+        if not new_args.__dict__["warm_up_epochs"]:
+            # We do 10% Finetuning
+            new_args.__dict__["warm_up_epochs"] = new_args.__dict__["max_epochs"] // 10
+
 
     if args.preprocessed_to_scratch and not args.preprocess_graph:
         logging.warning("preprocessed_to_scratch only works with --preprocess_graph activated. Enabling forcefully...")
         args.__dict__["preprocess_graph"] = True
+
+    # We add the warm up epochs to the total amount of epochs!
+    new_args.max_epochs += new_args.warm_up_epochs
+
 
     new_args.tqdm_output = False  # disable tqdm output to reduce log syncing
     if wandb_name:
