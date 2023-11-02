@@ -187,8 +187,6 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
 
     training = {
         "bucket_train": bucket_train,
-        "pretrain_model": bucket_train,
-        "model_train": bucket_train
     }
 
     #args.max_epochs = 1
