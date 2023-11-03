@@ -334,17 +334,12 @@ def check_and_complement_args(args: Namespace, args_dict: dict) -> Namespace:
 
         # Enforce fine-tuning
         if not new_args.__dict__["warm_up_epochs"]:
-            # We do 10% Finetuning
+            # Do 10% Finetuning
             new_args.__dict__["warm_up_epochs"] = new_args.__dict__["max_epochs"] // 10
-
 
     if args.preprocessed_to_scratch and not args.preprocess_graph:
         logging.warning("preprocessed_to_scratch only works with --preprocess_graph activated. Enabling forcefully...")
         args.__dict__["preprocess_graph"] = True
-
-    # We add the warm up epochs to the total amount of epochs!
-    new_args.max_epochs += new_args.warm_up_epochs
-
 
     new_args.tqdm_output = False  # disable tqdm output to reduce log syncing
     if wandb_name:
