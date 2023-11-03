@@ -368,11 +368,11 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
     n_datasets = len(model.dataset_specific_layer.linear.bias)
     dataset_specific_column_names = ["Epoch"] + [f"Weight {i}" for i in range(n_datasets)] + [f"Bias {i}" for i in
                                                                                               range(n_datasets)]
-    table = pd.DataFrame(columns=dataset_specific_column_names)
+    dataset_specific_layer_df = pd.DataFrame(columns=dataset_specific_column_names)
     #table = wandb_inst.Table(columns=dataset_specific_column_names)
 
     for epoch in range(args.max_epochs):
-        
+
         if epoch == args.warm_up_epochs:
             model.unfreeze()
 
@@ -382,19 +382,15 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
         train_dataloader, val_dataloaders = get_bucket_dataloader(args, train_datasets, val_datasets)
 
         model, total_loss_train = train_epoch(model, train_dataloader, optimizer, device,
-                                           args.tqdm_output)
-
+                                              args.tqdm_output)
 
         # Save modelspecific weights
-        table.loc[epoch] = (epoch, *model.dataset_specific_layer.linear.weight[:, 0].tolist(), *model.dataset_specific_layer.linear.bias.tolist())
+        dataset_specific_layer_df.loc[epoch] = (epoch, *model.dataset_specific_layer.linear.weight[:, 0].tolist(), *model.dataset_specific_layer.linear.bias.tolist())
         #table.add_data(epoch, *model.dataset_specific_layer.linear.weight[:, 0].tolist(), *model.dataset_specific_layer.linear.bias.tolist())
 
-        wandb_log = {
-            "dataset_specific_layer": wandb_inst.Table(dataframe=table)
-        }
+        wandb_log = {"dataset_specific_layer": wandb_inst.Table(dataframe=dataset_specific_layer_df)}
 
         ####   Validation  ######
-
         val_results = validate_epochs(model, val_dataloaders, device, args)
 
         val_result = {"total_val_loss": 0,
