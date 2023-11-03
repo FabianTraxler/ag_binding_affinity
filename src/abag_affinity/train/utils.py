@@ -400,7 +400,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
             logger.info(
                 f'Epochs: {epoch + 1}  | Dataset: {dataset_name} | Val-Loss: {dataset_results["val_loss"]: .3f} | '
                 f'Val-r: {dataset_results["pearson_correlation"]: .4f} | p-value r=0: {dataset_results["pearson_correlation_p"]: .4f} | '
-                f'RMSE: {dataset_results["rmse"]} | '
+                f'Val-RMSE: {dataset_results["rmse"]} | '
                 f'Val-Acc: {dataset_results["val_accuracy"]: .4f}')
 
             if np.isnan(dataset_results["pearson_correlation"]):
@@ -437,17 +437,15 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
                 patience = args.patience - scheduler.num_bad_epochs
 
 
-        if val_results[dataset2optimize]["val_loss"] < best_loss:  # or dataset_results[dataset2optimize]["pearson_correlation"] > best_pearson_corr:
+        if val_results[dataset2optimize]["val_rmse"] < best_rmse:  # or val_loss or pearson_correlation
             patience = args.patience
             best_loss = val_results[dataset2optimize]["val_loss"]
             best_pearson_corr = val_results[dataset2optimize]["pearson_correlation"]
             best_rmse = val_results[dataset2optimize]["rmse"]
             for dataset_name, dataset_results in val_results.items(): # correlation plot for each dataset
-
                 plot_correlation(x=dataset_results["all_labels"],
                                  y=dataset_results["all_predictions"],
                                  path=os.path.join(plot_path, f"{dataset_name}Epoch{epoch}.png"))
-
 
             best_data = [[x, y]
                          for x, y
