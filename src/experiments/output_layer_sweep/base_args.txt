@@ -23,7 +23,7 @@
 --learning_rate=0.001
 --relaxed_pdbs=False
 --target_dataset=abag_affinity#L1
---fine_tune
+--warm_up_epochs=5
 --init_sweep
 --sweep_config=../experiments/output_layer_sweep/sweep_config.yaml
 --no-load_pretrained_weights

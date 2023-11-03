@@ -11,8 +11,8 @@ import random
 from collections import Counter
 
 from ..utils.config import read_config, get_data_paths
-from .utils import get_skempi_corr, load_model, finetune_frozen, bucket_learning, get_benchmark_score, \
-    get_abag_test_score, run_and_log_benchmarks
+from .utils import get_skempi_corr, load_model, bucket_learning, get_benchmark_score, \
+    get_abag_test_score
 from ..dataset.advanced_data_utils import load_datasets
 from ..model.gnn_model import AffinityGNN
 
@@ -92,17 +92,11 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
 
     logger.info("Training with {}".format(", ".join([dataset.full_dataset_name for dataset in train_datasets])))
     logger.info("Evaluating on {}".format(", ".join([dataset.full_dataset_name for dataset in val_datasets])))
-    pretrain_epochs = args.fine_tune if isinstance(args.fine_tune, int) else args.max_epochs
-
+    
     #### Actual Training ######
-    results, model, wandb_inst = bucket_learning(model, train_datasets, val_datasets, pretrain_epochs, args)
+    results, model, wandb_inst = bucket_learning(model, train_datasets, val_datasets, args)
 
     logger.info("Training with {} completed".format(dataset_names))
-
-    if args.fine_tune:
-        wandb_benchmark_log = run_and_log_benchmarks(model, args, wandb_inst)
-        # TODO here we generate a new wandb_inst instance?!
-        results, model = finetune_frozen(model, train_datasets, val_datasets, args, lr_reduction=0.2)
 
     logger.debug(results)
     return model, results, wandb_inst
@@ -150,11 +144,6 @@ def train_transferlearnings_validate_target(args: Namespace):
     logger.info("Evaluating on {}".format(", ".join([dataset.full_dataset_name for dataset in val_datasets])))
     results, model, wandb_inst = bucket_learning(model, train_datasets, val_datasets, args)
     logger.info("Training with {} completed".format(training_set_names))
-
-    if args.fine_tune:
-        wandb_benchmark_log = run_and_log_benchmarks(model, args, wandb_inst)
-
-        results, model = finetune_frozen(model, train_datasets, val_datasets, args, lr_reduction=0.2)
 
     logger.debug(results)
     return model, results, wandb_inst

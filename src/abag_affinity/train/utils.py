@@ -144,7 +144,7 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
 
 
 def train_epoch(model: AffinityGNN, train_dataloader: DataLoader,
-                optimizer: torch.optim, device: torch.device = torch.device("cpu"), tqdm_output: bool = True) -> Tuple[AffinityGNN, List, np.ndarray, float]:
+                optimizer: torch.optim, device: torch.device = torch.device("cpu"), tqdm_output: bool = True) -> Tuple[AffinityGNN, float]:
     """ Train model for one epoch given the train and validation dataloaders
 
     Args:
@@ -323,7 +323,7 @@ def load_model(num_node_features: int, num_edge_features: int, dataset_names: Li
     return model
 
 
-def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], val_datasets: List[AffinityDataset], num_epochs: int,
+def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], val_datasets: List[AffinityDataset],
                     args: Namespace) -> Tuple[Dict, AffinityGNN]:
     """ Train a model using the bucket (multitask) learning approach
 
@@ -371,7 +371,11 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
     table = pd.DataFrame(columns=dataset_specific_column_names)
     #table = wandb_inst.Table(columns=dataset_specific_column_names)
 
-    for epoch in range(num_epochs):
+    for epoch in range(args.max_epochs):
+        
+        if epoch == args.warm_up_epochs:
+            model.unfreeze()
+
         # create new buckets for each epoch (implements shuffling)
         # This ensures that different part of the dataset are used when geometric mean is set
         # Also shuffles the batches as otherwise each bucket dataloader returns the same combination of samples in one batch
@@ -469,13 +473,13 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
             benchmark_results = run_and_log_benchmarks(model, args)
             wandb_log.update(benchmark_results)
         wandb_inst.log(wandb_log, commit=True)
-        stop_training = True
+        stop_training = epoch > args.warmup_up_epochs
 
         for param_group in optimizer.param_groups:
             stop_training = stop_training and (
                 param_group['lr'] < args.stop_at_learning_rate)
 
-        if args.lr_scheduler == 'exponential' and patience is not None and patience < 0:
+        if args.lr_scheduler == 'exponential' and patience is not None and patience < 0 and epoch > args.warmup_up_epochs:
             stop_training = True
 
         if stop_training:
@@ -499,38 +503,6 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
     results["best_rmse"] = best_rmse
 
     return results, best_model, wandb_inst
-
-
-def finetune_frozen(model: AffinityGNN, train_dataset: Union[AffinityDataset, List[AffinityDataset]], val_dataset: Union[AffinityDataset, List[AffinityDataset]],
-                      args: Namespace, lr_reduction: float = 1e-01) -> Tuple[Dict, AffinityGNN]:
-    """ Utility to finetune the previously frozen model components (e.g. published pretrained model or dataset-specific layers)
-
-    Args:
-        model: Model with a pretrained encoder
-        train_dataset: Dataset used for finetuning
-        val_dataset: Validation dataset
-        args: CLI Arguments
-        lr_reduction: Value the learning rate gets multiplied by
-
-    Returns:
-        Tuple: Finetuned model, results as dict
-
-    """
-
-    # lower learning rate for pretrained model finetuning
-    args.learning_rate = args.learning_rate * lr_reduction
-    args.stop_at_learning_rate = args.stop_at_learning_rate * lr_reduction
-    logger.info(f"Fintuning pretrained model with lr={args.learning_rate}")
-    model.unfreeze()
-
-
-    # TODO When finetuning is applied after normal training a new wandb instance is generated?!
-    results, model, wandb_inst = bucket_learning(model, train_dataset, val_dataset, args.max_epochs, args)
-    logger.info("Fintuning pretrained model completed")
-    logger.debug(results)
-
-    return results, model
-
 
 def log_gradients(model: AffinityGNN):
     from torch_geometric.nn import GATv2Conv

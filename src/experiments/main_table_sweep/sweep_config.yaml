@@ -55,10 +55,6 @@ parameters:
   train_strategy:
     values:
       - "bucket_train"
-  fine_tune:
-    values:
-      - True
-      - False
   pretrained_model:
     values:
       - ""
