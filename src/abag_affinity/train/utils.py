@@ -405,7 +405,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
 
             if np.isnan(dataset_results["pearson_correlation"]):
                 logger.error(f"Pearson correlation is NaN for dataset {dataset_name}.")
-                return results, best_model
+                # return results, best_model, wandb_inst
 
             wandb_log[f"{dataset_name}_val_loss"] = dataset_results["val_loss"]
             wandb_log[f"{dataset_name}_val_corr"] = dataset_results["pearson_correlation"]
@@ -467,13 +467,13 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
             benchmark_results = run_and_log_benchmarks(model, args)
             wandb_log.update(benchmark_results)
         wandb_inst.log(wandb_log, commit=True)
-        stop_training = epoch > args.warmup_up_epochs
+        stop_training = epoch > args.warm_up_epochs
 
         for param_group in optimizer.param_groups:
             stop_training = stop_training and (
                 param_group['lr'] < args.stop_at_learning_rate)
 
-        if args.lr_scheduler == 'exponential' and patience is not None and patience < 0 and epoch > args.warmup_up_epochs:
+        if args.lr_scheduler == 'exponential' and patience is not None and patience < 0 and epoch > args.warm_up_epochs:
             stop_training = True
 
         if stop_training:
