@@ -431,6 +431,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
         wandb_log["pearson_correlation"] = val_result["pearson_correlation"]
         wandb_log["spearman_correlation"] = val_result["spearman_correlation"]
         wandb_log["learning_rate"] = optimizer.param_groups[0]['lr']
+        wandb_log["rmse"] = val_results[dataset2optimize]["rmse"]
 
         results["epoch_loss"].append(val_result["total_val_loss"] / len(val_dataloaders))
         results["epoch_corr"].append(val_result["pearson_correlation"] / len(val_dataloaders))
@@ -440,6 +441,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
             results["target_epoch_loss"].append(val_results[dataset2optimize]["val_loss"])
             results["target_epoch_corr"].append(val_results[dataset2optimize]["pearson_correlation"])
             results["target_epoch_spearman_corr"].append(val_results[dataset2optimize]["spearman_correlation"])
+            results["target_epoch_rmse"].append(val_results[dataset2optimize]["rmse"])
         else:
             raise ValueError(f"Somehow the dataset2optimize {dataset2optimize} is not contained in the validation datasets!")
 
@@ -451,7 +453,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
                 patience = args.patience - scheduler.num_bad_epochs
 
 
-        if val_results[dataset2optimize]["val_rmse"] < best_rmse:  # Mihail analyzed that RMSE works well. It also is the metric we report so it fits
+        if val_results[dataset2optimize]["rmse"] < best_rmse:  # Mihail analyzed that RMSE works well. It also is the metric we report so it fits
             patience = args.patience
             best_loss = val_results[dataset2optimize]["val_loss"]
             best_pearson_corr = val_results[dataset2optimize]["pearson_correlation"]
@@ -542,7 +544,7 @@ def log_gradients(model: AffinityGNN):
 
 
 def evaluate_model(model: AffinityGNN, dataloader: DataLoader, args: Namespace, tqdm_output: bool = True,
-                   device: torch.device = torch.device("cpu"), plot_path: str = None) -> Tuple[float, float, float, pd.DataFrame]:
+                   device: torch.device = torch.device("cpu"), plot_path: str = None) -> Tuple[float, float, float, float, pd.DataFrame]:
     # TODO Why do we have different validations at different places (train_epoch, bucket_learning, ...)
     total_loss_val = 0
     all_predictions = np.array([])
@@ -564,9 +566,15 @@ def evaluate_model(model: AffinityGNN, dataloader: DataLoader, args: Namespace, 
         all_predictions = np.append(all_predictions, output[f"{output_type}"].flatten().detach().cpu().numpy())
 
         all_labels = np.append(all_labels, label[f"{output_type}"].detach().cpu().numpy())
+
         all_pdbs.extend([ filepath.split("/")[-1].split(".")[0] for filepath in data["input"]["filepath"]])
         # if len(all_labels) > 2:
             # break
+
+    # scale prediction back to original values
+    if args.scale_values:
+        all_labels = all_labels * (args.scale_max - args.scale_min) + args.scale_min
+        all_predictions = all_predictions * (args.scale_max - args.scale_min) + args.scale_min
 
     val_loss = total_loss_val / (len(all_predictions))
     try:
@@ -577,10 +585,7 @@ def evaluate_model(model: AffinityGNN, dataloader: DataLoader, args: Namespace, 
         pearson_corr = None
         spearman_corr = None
 
-    # scale prediction back to original values
-    if args.scale_values:
-        all_labels = all_labels * (args.scale_max - args.scale_min) + args.scale_min
-        all_predictions = all_predictions * (args.scale_max - args.scale_min) + args.scale_min
+    rmse = math.sqrt(np.square(np.subtract(all_labels, all_predictions)).mean())
 
     # TODO pull out the plotting too
     if plot_path is not None:
@@ -594,7 +599,7 @@ def evaluate_model(model: AffinityGNN, dataloader: DataLoader, args: Namespace, 
                 "prediction": all_predictions,
                 "labels": all_labels
             })
-    return pearson_corr, spearman_corr, val_loss, res_df
+    return pearson_corr, spearman_corr, val_loss, rmse, res_df
 
 
 def get_benchmark_score(model: AffinityGNN, args: Namespace, tqdm_output: bool = True, plot_path: str = None) -> Tuple[float, float, float, pd.DataFrame]:
@@ -700,7 +705,7 @@ def get_skempi_corr(model: AffinityGNN, args: Namespace, tqdm_output: bool = Tru
 
     use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
-    pearson_corr, spearman_corr, val_loss, res_df = evaluate_model(model, dataloader, args=args, tqdm_output=tqdm_output, device=device,
+    pearson_corr, spearman_corr, val_loss, rmse, res_df = evaluate_model(model, dataloader, args=args, tqdm_output=tqdm_output, device=device,
                         plot_path=plot_path)
 
     # take everything after dash (-)
@@ -716,7 +721,7 @@ def get_skempi_corr(model: AffinityGNN, args: Namespace, tqdm_output: bool = Tru
     res_df["grouped_correlations"] = res_df["pdb"].apply(grouped_correlations.get)
     res_df["grouped_spearman_correlations"] = res_df["pdb"].apply(grouped_spearman_correlations.get)
 
-    return grouped_correlations_weighted_mean, grouped_spearman_correlations_weighted_mean, pearson_corr, spearman_corr, val_loss, res_df
+    return grouped_correlations_weighted_mean, grouped_spearman_correlations_weighted_mean, pearson_corr, spearman_corr, val_loss, rmse, res_df
 
     # results.append(res)
 
@@ -728,19 +733,19 @@ def run_and_log_benchmarks(model, args, wandb_inst=None):
     Run all our benchmarks on the given model.
     """
     # Run benchmarks
-    benchmark_pearson, benchmark_spearman, benchmark_loss, benchmark_df = get_benchmark_score(model, args, tqdm_output=args.tqdm_output)
-    test_skempi_grouped_corrs, test_skempi_grouped_spearman_corrs, test_skempi_score, test_loss_skempi, test_skempi_df = get_skempi_corr(model, args,
+    benchmark_pearson, benchmark_spearman, benchmark_loss, benchmark_rmse, benchmark_df = get_benchmark_score(model, args, tqdm_output=args.tqdm_output)
+    test_skempi_grouped_corrs, test_skempi_grouped_spearman_corrs, test_skempi_score, test_loss_skempi, rmse_skempi, test_skempi_df = get_skempi_corr(model, args,
                                                                                                      tqdm_output=args.tqdm_output)
     abag_test_plot_path = os.path.join(args.config["plot_path"], f"abag_affinity_test_cv{args.validation_set}.png")
 
-    test_pearson, test_spearman, test_loss, test_df = get_abag_test_score(model, args, tqdm_output=args.tqdm_output,
+    test_pearson, test_spearman, test_loss, test_rmse, test_df = get_abag_test_score(model, args, tqdm_output=args.tqdm_output,
                                                            plot_path=abag_test_plot_path,
                                                            validation_set=args.validation_set)
 
     # When a negative validation set is provided, we use all but the corresponding set.
     # As we have to deal with the case validation_set==0 we first add 1 before flipping the sign
     train_set_indicator = (args.validation_set+1)*-1 if args.validation_set is not None else -1
-    train_pearson, train_spearman, train_loss, train_df = get_abag_test_score(model, args, tqdm_output=args.tqdm_output,
+    train_pearson, train_spearman, train_loss, train_rmse, train_df = get_abag_test_score(model, args, tqdm_output=args.tqdm_output,
                                                            plot_path=abag_test_plot_path,
                                                            validation_set=train_set_indicator)
     logger.info(f"ABAG Train pearson >>> {train_pearson}")
@@ -753,7 +758,7 @@ def run_and_log_benchmarks(model, args, wandb_inst=None):
 
     logger.info(f"SKEMPI testset results >>> {test_skempi_score}")
     logger.info(f"Mean SKEMPI correlations >>> {np.mean(test_skempi_grouped_corrs)}")
-    logger.info(f"Mean SKEMPI spearman correlations >>> {np.mean(test_skempi_grouped_spearman_corrs)}"
+    logger.info(f"Mean SKEMPI spearman correlations >>> {np.mean(test_skempi_grouped_spearman_corrs)}")
 
     benchmark_df["Dataset"] = "benchmark"
     test_skempi_df["Dataset"] = "skempi"
@@ -761,11 +766,11 @@ def run_and_log_benchmarks(model, args, wandb_inst=None):
     train_df["Dataset"] = "abag_train"
     full_df = pd.concat([test_df, benchmark_df, test_skempi_df, train_df])
 
-    wandb_benchmark_log = {"abag_test_pearson": test_pearson, "abag_test_spearman": test_spearman, "abag_test_loss": test_loss,
-                           "abag_train_pearson": train_pearson, "abag_train_spearman": train_spearman, "abag_train_loss": train_loss,
+    wandb_benchmark_log = {"abag_test_pearson": test_pearson, "abag_test_spearman": test_spearman, "abag_test_loss": test_loss, "abag_test_rmse": test_rmse,
+                           "abag_train_pearson": train_pearson, "abag_train_spearman": train_spearman, "abag_train_loss": train_loss, "abag_train_rmse": train_rmse,
                            "skempi_test_pearson_grouped_mean": np.mean(test_skempi_grouped_corrs), "skempi_test_spearman_grouped_mean": np.mean(test_skempi_grouped_spearman_corrs),
-                           "skempi_test_pearson": test_skempi_score, "skempi_test_spearman": test_skempi_grouped_spearman_corrs, "skempi_test_loss": test_loss_skempi,
-                           "benchmark_test_pearson": benchmark_pearson, "benchmark_test_spearman": benchmark_spearman, "benchmark_test_loss": benchmark_loss,
+                           "skempi_test_pearson": test_skempi_score, "skempi_test_spearman": test_skempi_grouped_spearman_corrs, "skempi_test_loss": test_loss_skempi, "skempi_rmse": rmse_skempi,
+                           "benchmark_test_pearson": benchmark_pearson, "benchmark_test_spearman": benchmark_spearman, "benchmark_test_loss": benchmark_loss, "benchmark_rmse": benchmark_rmse,
                            "Full_Predictions": wandb.Table(dataframe=full_df)}
 
     if wandb_inst is not None:

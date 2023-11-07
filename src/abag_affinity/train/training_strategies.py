@@ -213,7 +213,7 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
 
         # Benchmark results
         benchmark_plot_path = os.path.join(args.config["plot_path"], experiment_name, f"benchmark_cv{args.validation_set}.png")
-        benchmark_pearson, benchmark_spearman, benchmark_loss, benchmark_df = get_benchmark_score(best_model, args, tqdm_output=args.tqdm_output, plot_path=benchmark_plot_path)
+        benchmark_pearson, benchmark_spearman, benchmark_loss, benchmark_rmse, benchmark_df = get_benchmark_score(best_model, args, tqdm_output=args.tqdm_output, plot_path=benchmark_plot_path)
 
         benchmark_df.to_csv(os.path.join(args.config["prediction_path"], experiment_name, f"benchmark_cv{args.validation_set}.csv"))
 
@@ -227,7 +227,7 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
         # SKEMPI results
         skempi_test_plot_path = os.path.join(args.config["plot_path"], experiment_name,
                                             f"skempi_score_test_cv{args.validation_set}.png")
-        test_skempi_grouped_corrs, test_skempi_grouped_spearman_corrs, test_skempi_score, test_skempi_spearman_score, test_loss_skempi, test_skempi_df = get_skempi_corr(best_model, args, tqdm_output=args.tqdm_output,
+        test_skempi_grouped_corrs, test_skempi_grouped_spearman_corrs, test_skempi_score, test_skempi_spearman_score, test_loss_skempi, rmse_skempi, test_skempi_df = get_skempi_corr(best_model, args, tqdm_output=args.tqdm_output,
                                                               plot_path=skempi_test_plot_path)
         test_skempi_df.to_csv(os.path.join(args.config["prediction_path"], experiment_name, f"skempi_score_test_cv{args.validation_set}.csv"))
 
@@ -241,7 +241,7 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
         # ABAG Test set results
         abag_test_plot_path = os.path.join(args.config["plot_path"], experiment_name,
                                            f"abag_affinity_test_cv{args.validation_set}.png")
-        test_pearson, test_spearman, test_loss, test_df = get_abag_test_score(best_model, args, tqdm_output=args.tqdm_output,
+        test_pearson, test_spearman, test_loss, test_rmse, test_df = get_abag_test_score(best_model, args, tqdm_output=args.tqdm_output,
                                                       plot_path=abag_test_plot_path,
                                                       validation_set=i)
         test_df.to_csv(os.path.join(args.config["prediction_path"], experiment_name, f"abag_affinity_test_cv{args.validation_set}.csv"))
@@ -250,9 +250,9 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
         test_spearman_correlation.append(test_spearman)
         logger.info(f"AbAg-Affinity testset results >>> {test_pearson}")
 
-        wandb_benchmark_log = {"abag_test_pearson": test_pearson, "abag_test_spearman": test_spearman, "abag_test_loss": test_loss,
-                               "skempi_test_pearson": test_skempi_score, "skempi_test_spearman": test_skempi_spearman_score, "skempi_test_loss": test_loss_skempi,
-                               "benchmark_test_pearson": benchmark_pearson, "benchmark_test_spearman": benchmark_spearman, "benchmark_test_loss": benchmark_loss}
+        wandb_benchmark_log = {"abag_test_pearson": test_pearson, "abag_test_spearman": test_spearman, "abag_test_loss": test_loss, "abag_rmse": test_rmse,
+                               "skempi_test_pearson": test_skempi_score, "skempi_test_spearman": test_skempi_spearman_score, "skempi_test_loss": test_loss_skempi, "skempi_rmse": rmse_skempi,
+                               "benchmark_test_pearson": benchmark_pearson, "benchmark_test_spearman": benchmark_spearman, "benchmark_test_loss": benchmark_loss, "benchmark_rmse": benchmark_rmse}
         wandb_inst.log(wandb_benchmark_log, commit=True)
 
     # TODO need to add logging for spearman in case we use this function
