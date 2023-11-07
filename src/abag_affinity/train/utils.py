@@ -701,8 +701,7 @@ def get_skempi_corr(model: AffinityGNN, args: Namespace, tqdm_output: bool = Tru
 
 def run_and_log_benchmarks(model, args, wandb_inst=None):
     """
-    Run all our benchmarks on the given model. 
-
+    Run all our benchmarks on the given model.
     """
     # Run benchmarks
     benchmark_pearson, benchmark_loss, benchmark_df = get_benchmark_score(model, args, tqdm_output=args.tqdm_output)
