@@ -368,6 +368,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
         "target_epoch_loss": [],
         "target_epoch_corr": [],
         "target_epoch_spearman_corr": [],
+        "target_epoch_rmse": [],
     }
 
     best_model = deepcopy(model)
@@ -414,7 +415,6 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
             if np.isnan(dataset_results["pearson_correlation"]):
                 logger.error(f"Pearson correlation is NaN for dataset {dataset_name}.")
                 # return results, best_model, wandb_inst
-            
 
             wandb_log[f"{dataset_name}_val_loss"] = dataset_results["val_loss"]
             wandb_log[f"{dataset_name}_val_corr"] = dataset_results["pearson_correlation"]
@@ -734,7 +734,8 @@ def run_and_log_benchmarks(model, args, wandb_inst=None):
     """
     # Run benchmarks
     benchmark_pearson, benchmark_spearman, benchmark_loss, benchmark_rmse, benchmark_df = get_benchmark_score(model, args, tqdm_output=args.tqdm_output)
-    test_skempi_grouped_corrs, test_skempi_grouped_spearman_corrs, test_skempi_score, test_loss_skempi, rmse_skempi, test_skempi_df = get_skempi_corr(model, args,
+
+    test_skempi_grouped_corrs, test_skempi_grouped_spearman_corrs, test_skempi_score, test_skempi_spearman_score, test_loss_skempi, rmse_skempi, test_skempi_df = get_skempi_corr(model, args,
                                                                                                      tqdm_output=args.tqdm_output)
     abag_test_plot_path = os.path.join(args.config["plot_path"], f"abag_affinity_test_cv{args.validation_set}.png")
 
@@ -756,7 +757,8 @@ def run_and_log_benchmarks(model, args, wandb_inst=None):
     logger.info(f"ABAG Test spearman >>> {test_spearman}")
     logger.info(f"Benchmark spearman >>> {benchmark_spearman}")
 
-    logger.info(f"SKEMPI testset results >>> {test_skempi_score}")
+    logger.info(f"SKEMPI pearson results >>> {test_skempi_score}")
+    logger.info(f"SKEMPI spearman testset results >>> {test_skempi_spearman_score}")
     logger.info(f"Mean SKEMPI correlations >>> {np.mean(test_skempi_grouped_corrs)}")
     logger.info(f"Mean SKEMPI spearman correlations >>> {np.mean(test_skempi_grouped_spearman_corrs)}")
 
@@ -769,7 +771,7 @@ def run_and_log_benchmarks(model, args, wandb_inst=None):
     wandb_benchmark_log = {"abag_test_pearson": test_pearson, "abag_test_spearman": test_spearman, "abag_test_loss": test_loss, "abag_test_rmse": test_rmse,
                            "abag_train_pearson": train_pearson, "abag_train_spearman": train_spearman, "abag_train_loss": train_loss, "abag_train_rmse": train_rmse,
                            "skempi_test_pearson_grouped_mean": np.mean(test_skempi_grouped_corrs), "skempi_test_spearman_grouped_mean": np.mean(test_skempi_grouped_spearman_corrs),
-                           "skempi_test_pearson": test_skempi_score, "skempi_test_spearman": test_skempi_grouped_spearman_corrs, "skempi_test_loss": test_loss_skempi, "skempi_rmse": rmse_skempi,
+                           "skempi_test_pearson": test_skempi_score, "skempi_test_spearman": test_skempi_spearman_score, "skempi_test_loss": test_loss_skempi, "skempi_rmse": rmse_skempi,
                            "benchmark_test_pearson": benchmark_pearson, "benchmark_test_spearman": benchmark_spearman, "benchmark_test_loss": benchmark_loss, "benchmark_rmse": benchmark_rmse,
                            "Full_Predictions": wandb.Table(dataframe=full_df)}
 
