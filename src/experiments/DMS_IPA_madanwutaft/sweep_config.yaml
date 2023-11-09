@@ -1,17 +1,17 @@
 method: 'grid'
-name: 'DMS_madanwutaft_relative_ce_low_IPA'
+name: 'DMS_madanwutaft_relative_ce_low_IPA_rmse'
 metric:
-  goal: 'maximize'
-  name: 'pearson_correlation'  # this works because we only use a single validation set TODO minimize rmse
+  goal: 'minimize'
+  name: 'rmse'  # this works because we only use a single validation set TODO minimize rmse
 parameters:
   pretrained_model:
     values:
       - "IPA"
-      # - ""
+      - ""
   dms_output_layer_type:
     values:
       - "mlp"
-      # - "regression_sigmoid"
+      - "regression_sigmoid"
   seed:
     values:
       - 1
