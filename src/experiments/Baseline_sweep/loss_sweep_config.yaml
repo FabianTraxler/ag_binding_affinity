@@ -1,0 +1,26 @@
+method: 'grid'
+name: 'Loss Baseline Sweep'
+metric:
+  goal: 'minimize'
+  name: 'val0_rmse'
+parameters:
+  seed:
+    values:
+      - 1
+      - 2
+      - 3
+      - 4
+  target_dataset:
+    values:
+      - "abag_affinity#L1-1"
+      - "abag_affinity#L1-1+relative_L1-1"
+      - "abag_affinity#L1-1+relative_cdf-1"
+      - "abag_affinity#L1-1+relative_ce-1"
+  embeddings_type:
+    values:
+      - "of"
+      - ""
+  pretrained_model:
+    values:
+      - "IPA"
+      - ""
