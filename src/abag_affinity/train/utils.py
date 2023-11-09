@@ -102,7 +102,7 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
         "relative_L2": partial(torch.nn.functional.mse_loss, reduction='sum'),
         "relative_RL2": lambda output, label: torch.sqrt(torch.nn.functional.mse_loss(output, label, reduction='sum') + 1e-10),
         "relative_ce": partial(torch.nn.functional.nll_loss, reduction='sum'),
-        "relative_cdf": lambda output, label: torch.nn.functional.nll_loss((output+1e-10).log(), label, reduction="sum")
+        "relative_cdf": lambda output, label: torch.nn.functional.nll_loss(output, label, reduction="sum")
     }
 
     for (criterion, weight) in loss_types:
@@ -122,14 +122,14 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
                 #         losses.append(weight * loss_fn(output[f"{output_type}2"][valid_indices],
                 #                                    label[f"{output_type}2"][valid_indices]))
             elif output["relative"] and criterion.startswith("relative"):
-                if criterion in ["relative_L1", "relative_L2","relative_RL2"]:
+                if criterion in ["relative_L1", "relative_L2", "relative_RL2"]:
                     output_key = f"{output_type}_difference"
                     label_key = f"{output_type}_difference"
                 elif criterion == "relative_ce":
                     output_key = f"{output_type}_logit"
                     label_key = f"{output_type}_stronger_label"
                 elif criterion == "relative_cdf":
-                    output_key = f"{output_type}_prob_cdf"
+                    output_key = f"{output_type}_logit_cdf"
                     label_key = f"{output_type}_stronger_label"
                 valid_indices = ~torch.isnan(label[label_key])
                 if valid_indices.sum() > 0:
