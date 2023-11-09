@@ -143,6 +143,9 @@ def parse_args(artifical_args=None) -> Namespace:
                           help="Indicator if after every layer the embedding size should be halved", default=True)
     optional.add_argument("--channel_doubling", action=BooleanOptionalAction,
                           help="Indicator if after every layer the embedding size should be doubled", default=False)
+    optional.add_argument("--egnn_dim", type=int, help="The number of EGNN nodes",
+                          default=64)
+
     optional.add_argument("--aggregation_method", type=str, help="Type aggregation method to get graph embeddings",
                           default="interface_sum",  choices=["max", "sum", "mean", "attention", "fixed_size", "edge", "interface_sum", "interface_mean","interface_size"])
     optional.add_argument("--nonlinearity", type=str, help="Type of activation function", default="leaky",

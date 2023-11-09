@@ -1,0 +1,18 @@
+method: 'grid'
+name: 'EGNN Node Dime Sweep'
+metric:
+  goal: 'minimize'
+  name: 'val0_rmse'
+parameters:
+  seed:
+    values:
+      - 1
+      - 2
+      - 3
+      - 4
+  egnn_dim:
+    values:
+      - 8
+      - 16
+      - 32
+      - 128
