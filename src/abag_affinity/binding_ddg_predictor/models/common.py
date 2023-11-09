@@ -23,12 +23,12 @@ def mask_zero(mask, value):
 
 
 class PositionalEncoding(nn.Module):
-    
+
     def __init__(self, num_funcs=6):
         super().__init__()
         self.num_funcs = num_funcs
         self.register_buffer('freq_bands', 2.0 ** torch.linspace(0.0, num_funcs-1, num_funcs))
-    
+
     def get_out_dim(self, in_dim):
         return in_dim * (2 * self.num_funcs + 1)
 

@@ -24,7 +24,7 @@ DMS-mason21_comb_optim_therap_antib_by_predic_combined_L3_3#L2
 DMS-starr21_prosp_covid#L2
 DMS-b.20_funct_screen_strat_engin_chimer#L2
 DMS-wu17_in#L2
---fine_tune
+--warm_up_epochs=5
 --channel_halving
 --no-fc_size_halving
 --max_edge_distance=3

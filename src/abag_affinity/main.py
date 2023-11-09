@@ -25,8 +25,6 @@ from abag_affinity.train.utils import run_and_log_benchmarks
 # different training modalities
 training = {
     "bucket_train": bucket_train,
-    "pretrain_model": bucket_train,
-    "model_train": bucket_train,
     "train_transferlearnings_validate_target": train_transferlearnings_validate_target,
 }
 
