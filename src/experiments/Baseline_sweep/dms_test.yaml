@@ -15,7 +15,7 @@ parameters:
       - 7
       - 8
   max_epochs:
-    vales:
+    values:
       - 80
   target_dataset:
     values:
