@@ -1,0 +1,96 @@
+from pathlib import Path
+import pandas as pd
+
+
+dataset_summary_path = "/home/moritz/ag_binding_affinity/results/SKEMPI_v2/skempi_v2.csv"
+DATASET_DF = pd.read_csv(dataset_summary_path, index_col=0)
+PIDS = DATASET_DF.index.tolist()
+
+PDB_PATH = Path("/home/moritz/ag_binding_affinity/results/SKEMPI_v2/mutated/")  # TODO try mutated_relaxed
+
+RESULTS_PATH = Path("/home/moritz/ag_binding_affinity/results/SKEMPI_CSMAB")
+
+rule all:
+    input:
+        RESULTS_PATH / "csmab.csv"
+
+rule aggregate:
+    input:
+        csmab_res=expand(RESULTS_PATH / "job_results" / "{pdb_id}.csv", pdb_id=PIDS),
+    output:
+        RESULTS_PATH / "csmab.csv",
+    run:
+        df = pd.concat([pd.read_csv(f) for f in input.csmab_res])
+        df.index = [re.search("job_results/([a-z0-9-]+).csv", fn).groups()[0] for fn in input.csmab_res]
+        df.to_csv(output[0], index=True)
+
+rule submit_csmab_job:
+    input:
+        pdb_path = lambda wc: PDB_PATH / DATASET_DF.loc[wc.pdb_id, "filename"],
+    output:
+        RESULTS_PATH / "jobs" / "{pdb_id}.jobid",
+    shell: """
+        python post.py --pdb_file {input.pdb_path} single > {output}
+    """
+
+rule get_csamb_result:
+    input:
+        rules.submit_csmab_job.output[0],
+    output:
+        RESULTS_PATH / "job_results" / "{pdb_id}.csv"
+    shell: """
+        python get.py single `cat {input}` {output}
+    """
+
+
+rule evaluate_csmab_results:
+    """
+    Code from `ag_binding_affinity/src/abag_affinity/train/utils.py:evaluate_model` and `ag_binding_affinity/src/abag_affinity/train/utils.py:get_skempi_corr`
+    """
+    input:
+        RESULTS_PATH / "csmab.csv",
+    output:
+        final_scores=RESULTS_PATH / "csmab_scores.csv",
+        full_results=RESULTS_PATH / "csmab_full_results.csv",
+    run:
+
+        csmab_predictions = pd.read_csv(input[0], index_col=0)
+
+        all_predictions: np.ndarray = csmab_predictions["prediction"].values
+        all_labels: np.ndarray = DATASET_DF.loc[csmab_predictions.index, "-log(Kd)"].values
+
+        # TODO make sure to use unscaled values (plot the two values)
+        import ipdb; ipdb.set_trace()
+        pearson_corr = stats.pearsonr(all_labels, all_predictions)[0]
+        spearman_corr = stats.spearmanr(all_labels, all_predictions)[0]
+
+        rmse = math.sqrt(np.square(np.subtract(all_labels, all_predictions)).mean())
+
+        res_df = pd.DataFrame({
+                    "pdb": csmab_predictions.index,
+                    "prediction": all_predictions,
+                    "labels": all_labels
+                })
+
+        # take everything after dash (-)
+        res_df["mutation"] = res_df["pdb"].apply(lambda v: v.split("-")[1])
+        res_df["pdb"] = res_df["pdb"].apply(lambda v: v.split("-")[0])
+        # split results by PDBs and compute separate correlations
+        grouped_correlations = res_df.groupby("pdb").apply(lambda group: stats.pearsonr(group.labels, group.prediction)[0])
+        grouped_correlations_weighted_mean = np.sum(res_df.groupby("pdb").apply(lambda group: stats.pearsonr(group.labels, group.prediction)[0] * len(group))) / len(res_df)
+
+        grouped_spearman_correlations = res_df.groupby("pdb").apply(lambda group: stats.spearmanr(group.labels, group.prediction)[0])
+        grouped_spearman_correlations_weighted_mean = np.sum(res_df.groupby("pdb").apply(lambda group: stats.spearmanr(group.labels, group.prediction)[0] * len(group))) / len(res_df)
+
+        res_df["grouped_correlations"] = res_df["pdb"].apply(grouped_correlations.get)
+        res_df["grouped_spearman_correlations"] = res_df["pdb"].apply(grouped_spearman_correlations.get)
+
+        # report results (grouped_correlations_weighted_mean, grouped_spearman_correlations_weighted_mean, pearson_corr, spearman_corr, val_loss, rmse)
+        pd.DataFrame({
+            "grouped_correlations_weighted_mean": [grouped_correlations_weighted_mean],
+            "grouped_spearman_correlations_weighted_mean": [grouped_spearman_correlations_weighted_mean],
+            "pearson_corr": [pearson_corr],
+            "spearman_corr": [spearman_corr],
+            "rmse": [rmse]
+        }).to_csv(output["final_scores"], index=False)
+        res_df.to_csv(output["full_results"], index=False)
