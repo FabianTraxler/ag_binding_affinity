@@ -12,6 +12,13 @@ PDB_PATH = Path("/home/moritz/ag_binding_affinity/results/SKEMPI_v2/")
 
 RESULTS_PATH = Path("/home/moritz/ag_binding_affinity/results/SKEMPI_CSMAB")
 
+import math
+
+def deltaG_to_neglogKd(deltaG, temp=298.15):
+    R = 0.0019872041  # Gas constant in kcal/(mol*K)
+    Kd = math.exp(deltaG / (R * temp))
+    return -math.log10(Kd)
+
 rule all:
     input:
         expand(RESULTS_PATH / "csmab_{state}_scores.csv", state=["mutated", "mutated_relaxed"])
@@ -28,7 +35,8 @@ rule aggregate:
         failures = df["prediction"].apply(type) != type(float())
         print(f"{failures.sum()} PDBs failed in CSM-AB: {df[failures].index.tolist()}")
         df = df[~failures]
-        df["-log(Kd)"] = -df["prediction"]
+
+        df["-log(Kd)"] = df["prediction"].apply(deltaG_to_neglogKd)
         df.to_csv(output[0], index=True)
 
 rule submit_csmab_job:
