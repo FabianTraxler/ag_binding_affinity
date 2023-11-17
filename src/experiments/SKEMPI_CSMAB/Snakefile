@@ -4,31 +4,38 @@ import pandas as pd
 
 dataset_summary_path = "/home/moritz/ag_binding_affinity/results/SKEMPI_v2/skempi_v2.csv"
 DATASET_DF = pd.read_csv(dataset_summary_path, index_col=0)
+# eliminate 1DVF, because it fails within csm-ab. 4gxu could not be relaxed to it is also removed
+DATASET_DF = DATASET_DF[~(DATASET_DF["pdb"].isin(["1dvf", "4gxu"]))]
 PIDS = DATASET_DF.index.tolist()
 
-PDB_PATH = Path("/home/moritz/ag_binding_affinity/results/SKEMPI_v2/mutated/")  # TODO try mutated_relaxed
+PDB_PATH = Path("/home/moritz/ag_binding_affinity/results/SKEMPI_v2/")
 
 RESULTS_PATH = Path("/home/moritz/ag_binding_affinity/results/SKEMPI_CSMAB")
 
 rule all:
     input:
-        RESULTS_PATH / "csmab.csv"
+        expand(RESULTS_PATH / "csmab_{state}_scores.csv", state=["mutated", "mutated_relaxed"])
 
 rule aggregate:
     input:
-        csmab_res=expand(RESULTS_PATH / "job_results" / "{pdb_id}.csv", pdb_id=PIDS),
+        csmab_res=expand(RESULTS_PATH / "job_results" / "{{state}}" / "{pdb_id}.csv", pdb_id=PIDS),
     output:
-        RESULTS_PATH / "csmab.csv",
+        RESULTS_PATH / "csmab_{state,mutated(_relaxed)?}.csv",
     run:
         df = pd.concat([pd.read_csv(f) for f in input.csmab_res])
-        df.index = [re.search("job_results/([a-z0-9-]+).csv", fn).groups()[0] for fn in input.csmab_res]
+        df.index = [re.search(f"job_results/{wildcards.state}/([a-z0-9-]+).csv", fn).groups()[0] for fn in input.csmab_res]
+        df.index.name = "pdb"
+        failures = df["prediction"].apply(type) != type(float())
+        print(f"{failures.sum()} PDBs failed in CSM-AB: {df[failures].index.tolist()}")
+        df = df[~failures]
+        df["-log(Kd)"] = -df["prediction"]
         df.to_csv(output[0], index=True)
 
 rule submit_csmab_job:
     input:
-        pdb_path = lambda wc: PDB_PATH / DATASET_DF.loc[wc.pdb_id, "filename"],
+        pdb_path = lambda wc: PDB_PATH / "{state}" / DATASET_DF.loc[wc.pdb_id, "filename"],
     output:
-        RESULTS_PATH / "jobs" / "{pdb_id}.jobid",
+        RESULTS_PATH / "jobs" / "{state}" / "{pdb_id}.jobid",
     shell: """
         python post.py --pdb_file {input.pdb_path} single > {output}
     """
@@ -37,7 +44,7 @@ rule get_csamb_result:
     input:
         rules.submit_csmab_job.output[0],
     output:
-        RESULTS_PATH / "job_results" / "{pdb_id}.csv"
+        RESULTS_PATH / "job_results" / "{state}" / "{pdb_id}.csv"
     shell: """
         python get.py single `cat {input}` {output}
     """
@@ -48,19 +55,21 @@ rule evaluate_csmab_results:
     Code from `ag_binding_affinity/src/abag_affinity/train/utils.py:evaluate_model` and `ag_binding_affinity/src/abag_affinity/train/utils.py:get_skempi_corr`
     """
     input:
-        RESULTS_PATH / "csmab.csv",
+        RESULTS_PATH / "csmab_{state}.csv",
     output:
-        final_scores=RESULTS_PATH / "csmab_scores.csv",
-        full_results=RESULTS_PATH / "csmab_full_results.csv",
+        final_scores=RESULTS_PATH / "csmab_{state}_scores.csv",
+        full_results=RESULTS_PATH / "csmab_{state}_full_results.csv",
     run:
+        import math
+        import numpy as np
+        import pandas as pd
+        from scipy import stats
 
         csmab_predictions = pd.read_csv(input[0], index_col=0)
 
-        all_predictions: np.ndarray = csmab_predictions["prediction"].values
+        all_predictions: np.ndarray = csmab_predictions["-log(Kd)"].values
         all_labels: np.ndarray = DATASET_DF.loc[csmab_predictions.index, "-log(Kd)"].values
 
-        # TODO make sure to use unscaled values (plot the two values)
-        import ipdb; ipdb.set_trace()
         pearson_corr = stats.pearsonr(all_labels, all_predictions)[0]
         spearman_corr = stats.spearmanr(all_labels, all_predictions)[0]
 

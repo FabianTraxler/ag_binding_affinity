@@ -17,7 +17,11 @@ def main(args):
         else:
             pdb_to_submit = {"pdb_file": pdb_file}
             req = requests.post(URL_single, files=pdb_to_submit)
-            print(req.json()["job_id"])
+            try:
+                print(req.json()["job_id"])
+            except:
+                print(req.json())
+                raise Exception("Error in submission")
         return True
     else:
         receptor_file = args.receptor_file
