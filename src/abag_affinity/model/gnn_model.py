@@ -234,6 +234,7 @@ class AffinityGNN(pl.LightningModule):
 
         if self.scaled_output:
             # Maybe if we scale labels we should also scale the output ? Would at least make everything more stable...
+            # However, this does lead to no learning at all, as the output is either 0 or 1 -> vanishing gradients
             neg_log_kd = torch.nn.functional.sigmoid(neg_log_kd)
 
         # dataset-specific scaling (could be done before or after scale_output)

@@ -110,9 +110,13 @@ class RegressionHead(torch.nn.Module):
             if i == num_fc_layers - 1:  # last layer
                 out_dim = 1
             self.fc_layers.append(nn.Linear(in_dim, out_dim))
+
+
             in_dim = out_dim
             out_dim = in_dim - step_size
-
+        if self.aggregation_method == "interface_sum":
+            # Initialize the Last layer with 1/50. gain, as the average interface size is 50
+            torch.nn.init.xavier_uniform_(self.fc_layers[-1].weight, 1 / 50.)
         self.fc_layers = torch.nn.ModuleList(self.fc_layers)
 
         self.double()
