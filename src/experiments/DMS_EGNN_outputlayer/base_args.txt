@@ -1,5 +1,5 @@
 --gnn_type=egnn
---num_workers=8
+--num_workers=4
 --patience=8
 --node_type=residue
 --batch_size=16

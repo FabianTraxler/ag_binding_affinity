@@ -2,8 +2,8 @@
 --patience=20
 --node_type=residue
 --batch_size=16
---max_epochs=400
---num_workers=8
+--max_epochs=100
+--num_workers=0
 --nonlinearity=leaky
 --scale_values
 --num_fc_layers=2
@@ -20,6 +20,11 @@
 --stop_at_learning_rate=0.00001
 --learning_rate=0.001
 --relaxed_pdbs=False
---target_dataset=abag_affinity#L1-1
+--target_dataset=abag_affinity#L1-1+relative_ce-1
 --init_sweep
---sweep_config=../experiments/Baseline_sweep/relativeloss_egnn_sweep_config.yaml
+--sweep_config=../experiments/DMS_RelativeTest/dms_test.yaml
+--transfer_learning_dataset
+DMS-madan21_mutat_hiv#L1-1+relative_ce-1
+DMS-phillips21_bindin#L1-1+relative_ce-1
+DMS-taft22_deep_mutat_learn_predic_ace2#L1-1+relative_ce-1
+DMS-starr21_prosp_covid#L1-1+relative_ce-1

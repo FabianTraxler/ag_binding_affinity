@@ -285,7 +285,7 @@ def check_and_complement_args(args: Namespace, args_dict: dict) -> Namespace:
             param_value = None
         else:
             param_value = args_dict[param]
-            wandb_name = wandb_name + str(param)[:5] + str(param_value)
+            wandb_name = wandb_name + str(param)[:5] + str(param_value)[:40]
 
         if param == "max_num_nodes" and param_value is None and "aggregation_method" in args_dict and args_dict[
             "aggregation_method"] == "fixed_size":

@@ -40,7 +40,10 @@ class TwinWrapper(torch.nn.Module):
             diff_2 = output[f"{output_type}2"] - output[output_type]
             class_preds = torch.stack((diff_1.flatten(), diff_2.flatten()), dim=-1)
             prob_1_ge_2 = torch.special.ndtr(diff_1.flatten() / 2**0.5 / rel_temperature)
+            log_prob_1_ge_2 = torch.special.log_ndtr(diff_1.flatten() / 2 ** 0.5 / rel_temperature)
+            log_prob_2_ge_1 = torch.special.log_ndtr(diff_2.flatten() / 2 ** 0.5 / rel_temperature)
             output[f"{output_type}_prob_cdf"] = torch.stack((prob_1_ge_2, 1-prob_1_ge_2), dim=-1)
+            output[f"{output_type}_logit_cdf"] = torch.stack((log_prob_1_ge_2, log_prob_2_ge_1), dim=-1)
             output[f"{output_type}_prob"] = torch.nn.functional.softmax(class_preds/rel_temperature, dim=-1)
             output[f"{output_type}_logit"] = torch.nn.functional.log_softmax(class_preds / rel_temperature, dim=-1)
 
