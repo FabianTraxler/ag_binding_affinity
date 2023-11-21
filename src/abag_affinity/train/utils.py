@@ -139,6 +139,7 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
     if any([torch.isnan(l) for l in losses]):
         logging.error("Somehow a nan in loss")
     assert len(losses) > 0, f"No valid lossfunction was given with:{loss_functions} and relative data {output['relative']}"
+
     return sum(losses)
 
 

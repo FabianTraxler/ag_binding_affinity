@@ -232,6 +232,10 @@ class AffinityGNN(pl.LightningModule):
         # calculate binding affinity
         neg_log_kd = self.regression_head(graph)
 
+        if self.scaled_output:
+            # Maybe if we scale labels we should also scale the output ? Would at least make everything more stable...
+            neg_log_kd = torch.nn.functional.sigmoid(neg_log_kd)
+
         # dataset-specific scaling (could be done before or after scale_output)
         dataset_indices = torch.Tensor([self.dataset_names.index(dataset) if dataset is not None else -1
                                         for dataset in data["dataset_adjustment"]]).long().to(neg_log_kd.device)
