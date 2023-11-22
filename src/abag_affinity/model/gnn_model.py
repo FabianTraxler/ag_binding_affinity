@@ -232,7 +232,7 @@ class AffinityGNN(pl.LightningModule):
         # calculate binding affinity
         neg_log_kd = self.regression_head(graph)
 
-        if self.scaled_output:
+        if self.scaled_output and False:
             # Maybe if we scale labels we should also scale the output ? Would at least make everything more stable...
             # However, this does lead to no learning at all, as the output is either 0 or 1 -> vanishing gradients
             neg_log_kd = torch.nn.functional.sigmoid(neg_log_kd)

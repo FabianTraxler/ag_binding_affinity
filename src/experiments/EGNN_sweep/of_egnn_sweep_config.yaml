@@ -1,5 +1,5 @@
 method: 'grid'
-name: 'Sigmoid Out EGNN Sweep'
+name: 'EGNN OF Sweep'
 metric:
   goal: 'minimize'
   name: 'val0_rmse'
@@ -17,8 +17,11 @@ parameters:
   embeddings_type:
     values:
       - "of"
-      - ""
-  scaled_output:
+  scale_values:
     values:
       - True
       - False
+  learning_rate:
+    - 0.001
+    - 0.01
+    - 0.0001

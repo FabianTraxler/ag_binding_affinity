@@ -138,6 +138,13 @@ class EGNN(nn.Module):
         self.device = device
         self.n_layers = n_layers
         self.embedding_in = nn.Linear(in_node_nf, self.hidden_nf)
+
+        # When using openfold embedding, the network somehow explodes. To fix this, we could reduce the initialization strength
+        # TODO Maybe not nice to have this in here?
+        if in_node_nf > 100:
+            # We do have openfold embedding which seems to be not normalized
+            torch.nn.init.xavier_uniform_(self.embedding_in.weight, 1/50.)
+
         self.embedding_out = nn.Linear(self.hidden_nf, out_node_nf)
         for i in range(0, n_layers):
             self.add_module("gcl_%d" % i, E_GCL(self.hidden_nf, self.hidden_nf, self.hidden_nf, edges_in_d=in_edge_nf,
