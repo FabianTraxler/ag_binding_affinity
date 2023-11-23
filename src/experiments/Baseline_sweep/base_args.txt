@@ -22,4 +22,4 @@
 --relaxed_pdbs=False
 --target_dataset=abag_affinity#L1-1
 --init_sweep
---sweep_config=../experiments/Baseline_sweep/relativeloss_egnn_sweep_config.yaml
+--sweep_config=../experiments/Baseline_sweep/uncertainty_sweep_config.yaml

@@ -1,6 +1,6 @@
 import torch
 from torch_geometric.nn import global_add_pool, global_max_pool, global_mean_pool, global_sort_pool, GlobalAttention, GraphConv, GATv2Conv
-from torch.nn import ReLU, LeakyReLU, GELU
+from torch.nn import ReLU, LeakyReLU, GELU, Softplus
 from typing import Tuple, Dict
 
 from .pretrained_models import DDGBackbone, DeepRefineBackbone, IPABindingEmbedder, DiffusionPipelinePredictor
@@ -69,7 +69,8 @@ layer_type_edge_dim = {
 nonlinearity_function = {
     "relu": ReLU,
     "leaky": LeakyReLU,
-    "gelu": GELU
+    "gelu": GELU,
+    "softplus": Softplus,
 }
 
 pretrained_models = {
