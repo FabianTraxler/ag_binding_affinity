@@ -1,0 +1,25 @@
+method: 'grid'
+name: 'Uncertainty Baseline Sweep'
+metric:
+  goal: 'minimize'
+  name: 'val0_rmse'
+parameters:
+  seed:
+    values:
+      - 1
+      - 2
+      - 3
+      - 4
+  target_dataset:
+    values:
+      - "abag_affinity#NLL-1"
+      - "abag_affinity#L1-1+relative_cdf-1"
+      - "abag_affinity#L1-1+relative_cdf-10"
+      - "abag_affinity#NLL-1+relative_cdf-1"
+      - "abag_affinity#NLL-1+relative_cdf-10"
+  embeddings_type:
+    values:
+      - ""
+  pretrained_model:
+    values:
+      - ""
