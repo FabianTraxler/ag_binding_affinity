@@ -227,7 +227,8 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
         # SKEMPI results
         skempi_test_plot_path = os.path.join(args.config["plot_path"], experiment_name,
                                             f"skempi_score_test_cv{args.validation_set}.png")
-        test_skempi_grouped_corrs, test_skempi_grouped_spearman_corrs, test_skempi_score, test_skempi_spearman_score, test_loss_skempi, rmse_skempi, test_skempi_df = get_skempi_corr(best_model, args, tqdm_output=args.tqdm_output,
+
+        test_skempi_grouped_corrs, test_skempi_grouped_corr_pval, test_skempi_grouped_spearman_corrs, grouped_spearman_pval, test_skempi, test_skempi_score, test_skempi_spearman_score, test_loss_skempi, rmse_skempi, test_skempi_df = get_skempi_corr(best_model, args, tqdm_output=args.tqdm_output,
                                                               plot_path=skempi_test_plot_path)
         test_skempi_df.to_csv(os.path.join(args.config["prediction_path"], experiment_name, f"skempi_score_test_cv{args.validation_set}.csv"))
 
@@ -255,7 +256,7 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
                                "benchmark_test_pearson": benchmark_pearson, "benchmark_test_spearman": benchmark_spearman, "benchmark_test_loss": benchmark_loss, "benchmark_rmse": benchmark_rmse}
         wandb_inst.log(wandb_benchmark_log, commit=True)
 
-    # TODO need to add logging for spearman in case we use this function
+    # TODO need to add logging for spearman and the corr-pvalues in case we use this function
     logger.info("Average Loss: {} ({})".format(np.mean(losses), np.std(losses)))
     logger.info("Losses: {}".format(" - ".join([ str(loss) for loss in losses ])))
     logger.info("Average Pearson Correlation: {} ({})".format(np.mean(correlations), np.std(correlations)))
