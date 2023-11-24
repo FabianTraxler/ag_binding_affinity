@@ -205,11 +205,17 @@ class AffinityGNN(pl.LightningModule):
                                                   aggregation_method=aggregation_method, size_halving=fc_size_halving,
                                                   nonlinearity=nonlinearity,  num_fc_layers=num_fc_layers)
 
-        # We do predict the uncertainty as well. This might help the relative loss, which needs a temperature
-        self.uncertainty_head = RegressionHead(self.graph_conv.embedding_dim, num_nodes=num_nodes,
-                                               aggregation_method="interface_mean", size_halving=fc_size_halving,
-                                               nonlinearity="gelu", num_fc_layers=num_fc_layers)
 
+        self.uncertainty_temp = 0
+        if "uncertainty_temp" in args:
+            if isinstance(args.uncertaint_temp, float):
+                self.uncertainty_temp = args.uncertaint_temp
+
+         if not self.uncertainty_temp:
+             # We do predict the uncertainty as well. This might help the relative loss, which needs a temperature
+             self.uncertainty_head = RegressionHead(self.graph_conv.embedding_dim, num_nodes=num_nodes,
+                                                    aggregation_method="interface_mean", size_halving=fc_size_halving,
+                                                    nonlinearity="gelu", num_fc_layers=num_fc_layers)
         # Dataset-specific output layers
         self.dataset_names = dataset_names
         self.dataset_specific_layer = DatasetAdjustment(args.dms_output_layer_type, len(dataset_names), dataset_names)
@@ -244,9 +250,13 @@ class AffinityGNN(pl.LightningModule):
         # calculate binding affinity
         neg_log_kd = self.regression_head(graph)
 
-        unc_graph = graph
-        unc_graph["node"].x = unc_graph["node"].x.detach()
-        predicted_uncertainty = torch.nn.functional.softplus(self.uncertainty_head(unc_graph))
+
+        if self.uncertainty_temp:
+            predicted_uncertainty = torch.ones_like(neg_log_kd)*self.uncertainty_temp
+        else:
+            unc_graph = graph
+            unc_graph["node"].x = unc_graph["node"].x.detach()
+            predicted_uncertainty = torch.nn.functional.softplus(self.uncertainty_head(unc_graph))
         if self.scaled_output and False:
             # Maybe if we scale labels we should also scale the output ? Would at least make everything more stable...
             # However, this does lead to no learning at all, as the output is either 0 or 1 -> vanishing gradients

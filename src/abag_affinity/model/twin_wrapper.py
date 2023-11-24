@@ -31,7 +31,7 @@ class TwinWrapper(torch.nn.Module):
 
         output = {"relative": data["relative"]}
 
-        if "uncertainty" in out_1.keys():
+        if "uncertainty" in out_1.keys() and False:
             # We predicted uncertainty directly!
             rel_temperature = (out_1["uncertainty"] + out_2["uncertainty"]).flatten() /2.
             output["uncertainty"] = out_1["uncertainty"]
