@@ -608,6 +608,7 @@ def evaluate_model(model: AffinityGNN, dataloader: DataLoader, args: Namespace, 
                 "prediction": all_predictions,
                 "labels": all_labels,
                 "uncertainties": all_uncertainties,
+                "squared_error": np.square(np.subtract(all_labels, all_predictions))
             })
     return pearson_corr, spearman_corr, val_loss, rmse, res_df
 

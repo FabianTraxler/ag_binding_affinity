@@ -1,5 +1,5 @@
 method: 'grid'
-name: 'Uncertainty Baseline Sweep'
+name: 'Uncertainty InterfaceMean Baseline Sweep'
 metric:
   goal: 'minimize'
   name: 'val0_rmse'

@@ -207,8 +207,8 @@ class AffinityGNN(pl.LightningModule):
 
         # We do predict the uncertainty as well. This might help the relative loss, which needs a temperature
         self.uncertainty_head = RegressionHead(self.graph_conv.embedding_dim, num_nodes=num_nodes,
-                                               aggregation_method=aggregation_method, size_halving=fc_size_halving,
-                                               nonlinearity=nonlinearity, num_fc_layers=num_fc_layers)
+                                               aggregation_method="interface_mean", size_halving=fc_size_halving,
+                                               nonlinearity="gelu", num_fc_layers=num_fc_layers)
 
         # Dataset-specific output layers
         self.dataset_names = dataset_names
