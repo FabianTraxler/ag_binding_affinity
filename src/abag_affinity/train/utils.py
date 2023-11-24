@@ -694,6 +694,8 @@ def combine_pvalues(pvalues):
 def get_skempi_corr(model: AffinityGNN, args: Namespace, tqdm_output: bool = True, plot_path: str = None) -> Tuple[float, float, float, float, float, pd.DataFrame]:
     """
     Take the available Skempi mutations for validation
+
+    Note that the spearman-aggregated p-value is not reliable for small sample sizes (https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.spearmanr.html)
     """
 
     dataset = AffinityDataset(args.config, args.relaxed_pdbs, "SKEMPI.v2", "L2",
