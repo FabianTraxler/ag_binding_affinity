@@ -1,5 +1,5 @@
 method: 'grid'
-name: 'EGNN/IPA Relative Baseline Sweep'
+name: 'EGNN and IPA Relative Baseline Sweep'
 metric:
   goal: 'minimize'
   name: 'val0_rmse'
@@ -20,9 +20,8 @@ parameters:
       - ""
   target_dataset:
     values:
-      - "abag_affinity#L1-1+relative_ce-0.1"
-      - "abag_affinity#L1-1+relative_ce-1"
-      - "abag_affinity#L1-1+relative_ce-10"
+      - "abag_affinity#L1-1"
       - "abag_affinity#L1-1+relative_cdf-0.1"
       - "abag_affinity#L1-1+relative_cdf-1"
       - "abag_affinity#L1-1+relative_cdf-10"
+      - "abag_affinity#L1-0.1+relative_cdf-10"

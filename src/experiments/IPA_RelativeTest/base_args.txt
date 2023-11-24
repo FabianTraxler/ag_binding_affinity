@@ -8,7 +8,6 @@
 --scale_values
 --num_fc_layers=2
 --validation_set=0
---preprocessed_to_scratch=/tmp
 --train_strategy=bucket_train
 --max_edge_distance=5
 --aggregation_method=interface_sum
@@ -21,5 +20,5 @@
 --learning_rate=0.001
 --relaxed_pdbs=False
 --target_dataset=abag_affinity#L1-1+relative_ce-1
---init_sweep
+--sweep_id=pftyfa7t
 --sweep_config=src/experiments/IPA_RelativeTest/sweep_config.yaml
