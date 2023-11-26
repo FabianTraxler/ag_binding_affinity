@@ -208,8 +208,8 @@ class AffinityGNN(pl.LightningModule):
 
         self.uncertainty_temp = 0
         if "uncertainty_temp" in args:
-            if isinstance(args.uncertaint_temp, float):
-                self.uncertainty_temp = args.uncertaint_temp
+            if isinstance(args.uncertainty_temp, float):
+                self.uncertainty_temp = args.uncertainty_temp
 
         if not self.uncertainty_temp:
              # We do predict the uncertainty as well. This might help the relative loss, which needs a temperature
