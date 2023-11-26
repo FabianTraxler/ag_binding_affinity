@@ -211,7 +211,7 @@ class AffinityGNN(pl.LightningModule):
             if isinstance(args.uncertaint_temp, float):
                 self.uncertainty_temp = args.uncertaint_temp
 
-         if not self.uncertainty_temp:
+        if not self.uncertainty_temp:
              # We do predict the uncertainty as well. This might help the relative loss, which needs a temperature
              self.uncertainty_head = RegressionHead(self.graph_conv.embedding_dim, num_nodes=num_nodes,
                                                     aggregation_method="interface_mean", size_halving=fc_size_halving,
