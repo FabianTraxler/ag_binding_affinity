@@ -206,10 +206,10 @@ class AffinityGNN(pl.LightningModule):
                                                   nonlinearity=nonlinearity,  num_fc_layers=num_fc_layers)
 
 
-        self.uncertainty_temp = 0
         if "uncertainty_temp" in args:
-            if isinstance(args.uncertainty_temp, float):
-                self.uncertainty_temp = args.uncertainty_temp
+            self.uncertainty_temp = args.uncertainty_temp
+        else:
+            self.uncertainty_temp = 0.2
 
         if not self.uncertainty_temp:
              # We do predict the uncertainty as well. This might help the relative loss, which needs a temperature
@@ -221,13 +221,7 @@ class AffinityGNN(pl.LightningModule):
         self.dataset_specific_layer = DatasetAdjustment(args.dms_output_layer_type, len(dataset_names), dataset_names)
 
         self.scaled_output = scaled_output
-
-
-
-
-
         self.float()
-
         self.to(device)
 
     def forward(self, data: Dict) -> Dict:

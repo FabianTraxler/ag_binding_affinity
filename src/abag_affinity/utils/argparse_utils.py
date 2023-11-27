@@ -217,7 +217,7 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--seed", type=int, default=42, help="Seed for random number generator")
     optional.add_argument("--debug", action=BooleanOptionalAction, default=False, help="Start debugger on a free port starting from 5678")
     optional.add_argument("--weight_decay", type=float, default=0, help="Weight Decay for Parameters")
-    optional.add_argument("--uncertainty_temp", type=float, default=0.0, help="Uncertainty Temperature for cdf loss")
+    optional.add_argument("--uncertainty_temp", type=float, default=0.2, help="Uncertainty Temperature for cdf loss, when 0 then it is learned")
 
     args = parser.parse_args(artifical_args)
     args.config = read_config(args.config_file)

@@ -174,6 +174,8 @@ def train_epoch(model: AffinityGNN, train_dataloader: DataLoader,
         output, label = forward_step(model, data, device)
         loss = get_loss(data["loss_criterion"], label, output)
         total_loss_train += loss.item()
+        torch.nn.utils.clip_grad_value_(model.parameters(), 0.5)
+
         loss.backward()
         optimizer.step()
 
