@@ -617,7 +617,7 @@ def evaluate_model(model: AffinityGNN, dataloader: DataLoader, args: Namespace, 
 
 def get_benchmark_score(model: AffinityGNN, args: Namespace, tqdm_output: bool = True, plot_path: str = None) -> Tuple[float, float, float, pd.DataFrame]:
 
-    dataset = AffinityDataset(args.config, args.relaxed_pdbs, "AntibodyBenchmark", "L2",
+    dataset = AffinityDataset(args.config, "False", "AntibodyBenchmark", "L2",
                               node_type=args.node_type,
                               max_nodes=args.max_num_nodes,
                               interface_distance_cutoff=args.interface_distance_cutoff,
@@ -661,7 +661,7 @@ def get_abag_test_score(model: AffinityGNN, args: Namespace, tqdm_output: bool =
 
     test_pdbs_ids = summary_df.index.tolist()
 
-    dataset = AffinityDataset(args.config, args.relaxed_pdbs, "abag_affinity", "L2", test_pdbs_ids,
+    dataset = AffinityDataset(args.config, "False, "abag_affinity", "L2", test_pdbs_ids,
                               node_type=args.node_type,
                               max_nodes=args.max_num_nodes,
                               interface_distance_cutoff=args.interface_distance_cutoff,
@@ -694,7 +694,7 @@ def get_skempi_corr(model: AffinityGNN, args: Namespace, tqdm_output: bool = Tru
     Take the available Skempi mutations for validation
     """
 
-    dataset = AffinityDataset(args.config, args.relaxed_pdbs, "SKEMPI.v2", "L2",
+    dataset = AffinityDataset(args.config, "False", "SKEMPI.v2", "L2",
                               node_type=args.node_type,
                               max_nodes=args.max_num_nodes,
                               interface_distance_cutoff=args.interface_distance_cutoff,
