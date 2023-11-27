@@ -586,7 +586,7 @@ def evaluate_model(model: AffinityGNN, dataloader: DataLoader, args: Namespace, 
     if args.scale_values:
         all_labels = all_labels * (args.scale_max - args.scale_min) + args.scale_min
         all_predictions = all_predictions * (args.scale_max - args.scale_min) + args.scale_min
-        all_uncertainties = all_uncertainties * (args.scale_max - args.scale_min)**2
+        #all_uncertainties = all_uncertainties * (args.scale_max - args.scale_min)**2
     val_loss = total_loss_val / (len(all_predictions))
     try:
         pearson_corr = stats.pearsonr(all_labels, all_predictions)[0]

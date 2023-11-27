@@ -12,16 +12,18 @@ parameters:
       - 4
   target_dataset:
     values:
+      - "abag_affinity#L1-1+relative_cdf-0.1"
+      - "abag_affinity#L1-1+relative_cdf-1"
       - "abag_affinity#L1-1+relative_cdf-10"
-      
+      - "abag_affinity#L1-0.1+relative_cdf-10"
+      - "abag_affinity#NLL-1+relative_cdf-1"
+      - "abag_affinity#NLL-1+relative_cdf-10"
+
   uncertainty_temp:
     values:
       - 0
-      - 0.05
-      - 0.1
-      - 0.2
-      - 0.3
-      - 0.5
-      - 0.8
       - 1.0
-      - 2.0
+  relaxed_pdbs:
+    values:
+      - "both"
+      - "False"
