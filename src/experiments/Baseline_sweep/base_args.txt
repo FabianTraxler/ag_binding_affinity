@@ -2,9 +2,9 @@
 --patience=20
 --node_type=residue
 --batch_size=16
---max_epochs=200
+--max_epochs=400
 --num_workers=8
---nonlinearity=gelu
+--nonlinearity=leaky
 --scale_values
 --num_fc_layers=2
 --validation_set=0

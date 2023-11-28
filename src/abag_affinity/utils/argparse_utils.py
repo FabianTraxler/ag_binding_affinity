@@ -222,7 +222,6 @@ def parse_args(artifical_args=None) -> Namespace:
     args = parser.parse_args(artifical_args)
     args.config = read_config(args.config_file)
 
-    args.relaxed_pdbs = eval(args.relaxed_pdbs.capitalize()) if args.relaxed_pdbs != "both" else "both"
 
     if args.wandb_name == "":
         args.wandb_name = f'{args.train_strategy}' \
@@ -345,6 +344,7 @@ def check_and_complement_args(args: Namespace, args_dict: dict) -> Namespace:
         logging.warning("preprocessed_to_scratch only works with --preprocess_graph activated. Enabling forcefully...")
         args.__dict__["preprocess_graph"] = True
 
+    new_args.relaxed_pdbs = new_args.relaxed_pdbs.capitalize() == "True" if new_args.relaxed_pdbs != "both" else "both"
     new_args.tqdm_output = False  # disable tqdm output to reduce log syncing
     if wandb_name:
         # In a sweep, we update the config and thereby set the name to the updated config entries
