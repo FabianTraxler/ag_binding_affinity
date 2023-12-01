@@ -344,7 +344,8 @@ def check_and_complement_args(args: Namespace, args_dict: dict) -> Namespace:
         logging.warning("preprocessed_to_scratch only works with --preprocess_graph activated. Enabling forcefully...")
         args.__dict__["preprocess_graph"] = True
 
-    new_args.relaxed_pdbs = new_args.relaxed_pdbs.capitalize() == "True" if new_args.relaxed_pdbs != "both" else "both"
+    if isinstance(new_args.relaxed_pdbs, str):
+        new_args.relaxed_pdbs = new_args.relaxed_pdbs.capitalize() == "True" if new_args.relaxed_pdbs != "both" else "both"
     new_args.tqdm_output = False  # disable tqdm output to reduce log syncing
     if wandb_name:
         # In a sweep, we update the config and thereby set the name to the updated config entries
