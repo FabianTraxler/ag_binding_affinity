@@ -97,7 +97,7 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
     loss_functions: Dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = {
         "L1": partial(torch.nn.functional.l1_loss, reduction='sum'),
         "L2": partial(torch.nn.functional.mse_loss, reduction='sum'),
-        "NLL": lambda output, label, var: torch.sum(0.5 * (torch.log(torch.clamp(var,1e-6)) + (output - label)**2 / torch.clamp(var,1e-6))),
+        "NLL": lambda output, label, var: torch.sum(0.5 * (torch.log(torch.clamp(var,1e-6)) + (output - label)**2 / torch.clamp(2 * var,1e-6))),
         "RL2": lambda output, label: torch.sqrt(torch.nn.functional.mse_loss(output, label, reduction='sum') + 1e-10), # We add 1e-10 to avoid nan gradients when mse=0
         "relative_L1": partial(torch.nn.functional.l1_loss, reduction='sum'),
         "relative_L2": partial(torch.nn.functional.mse_loss, reduction='sum'),
