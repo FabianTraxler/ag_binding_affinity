@@ -11,8 +11,8 @@ import random
 from collections import Counter
 
 from ..utils.config import read_config, get_data_paths
-from .utils import get_skempi_corr, load_model, finetune_frozen, bucket_learning, get_benchmark_score, \
-    get_abag_test_score, run_and_log_benchmarks
+from .utils import get_skempi_corr, load_model, bucket_learning, get_benchmark_score, \
+    get_abag_test_score
 from ..dataset.advanced_data_utils import load_datasets
 from ..model.gnn_model import AffinityGNN
 
@@ -92,17 +92,11 @@ def bucket_train(args:Namespace) -> Tuple[AffinityGNN, Dict]:
 
     logger.info("Training with {}".format(", ".join([dataset.full_dataset_name for dataset in train_datasets])))
     logger.info("Evaluating on {}".format(", ".join([dataset.full_dataset_name for dataset in val_datasets])))
-    pretrain_epochs = args.fine_tune if isinstance(args.fine_tune, int) else args.max_epochs
-
+    
     #### Actual Training ######
-    results, model, wandb_inst = bucket_learning(model, train_datasets, val_datasets, pretrain_epochs, args)
+    results, model, wandb_inst = bucket_learning(model, train_datasets, val_datasets, args)
 
     logger.info("Training with {} completed".format(dataset_names))
-
-    if args.fine_tune:
-        wandb_benchmark_log = run_and_log_benchmarks(model, args, wandb_inst)
-        # TODO here we generate a new wandb_inst instance?!
-        results, model = finetune_frozen(model, train_datasets, val_datasets, args, lr_reduction=0.2)
 
     logger.debug(results)
     return model, results, wandb_inst
@@ -151,11 +145,6 @@ def train_transferlearnings_validate_target(args: Namespace):
     results, model, wandb_inst = bucket_learning(model, train_datasets, val_datasets, args)
     logger.info("Training with {} completed".format(training_set_names))
 
-    if args.fine_tune:
-        wandb_benchmark_log = run_and_log_benchmarks(model, args, wandb_inst)
-
-        results, model = finetune_frozen(model, train_datasets, val_datasets, args, lr_reduction=0.2)
-
     logger.debug(results)
     return model, results, wandb_inst
 
@@ -176,14 +165,19 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
     Path(args.config["model_path"]).mkdir(exist_ok=True, parents=True)
     losses = []
     correlations = []
+    spearman_correlations = []
     all_results = {}
     benchmark_losses = []
     benchmark_correlation = []
+    benchmark_spearman_correlation = []
     test_losses = []
     test_correlation = []
+    test_spearman_correlation = []
     skempi_losses = []
     skempi_correlation = []
+    skempi_spearman_correlation = []
     skempi_grouped_correlation = []
+    skempi_grouped_spearman_correlation = []
 
     training = {
         "bucket_train": bucket_train,
@@ -205,52 +199,64 @@ def cross_validation(args:Namespace) -> Tuple[None, Dict]:
         if args.target_dataset in results:
             losses.append(results[args.target_dataset]["best_loss"])
             correlations.append(results[args.target_dataset]["best_correlation"])
-            logger.info(f"Results for split {i} >>> {results[args.target_dataset]['best_correlation']}")
+            spearman_correlations.append(results[args.target_dataset]["best_spearman_correlation"])
+            logger.info(f"Pearson for split {i} >>> {results[args.target_dataset]['best_correlation']}")
+            logger.info(f"Spearman for split {i} >>> {results[args.target_dataset]['best_spearman_correlation']}")
         else:
             losses.append(results["best_loss"])
             correlations.append(results["best_correlation"])
-            logger.info(f"Results for split {i} >>> {results['best_correlation']}")
+            spearman_correlations.append(results["best_spearman_correlation"])
+            logger.info(f"Pearson for split {i} >>> {results['best_correlation']}")
+            logger.info(f"Spearman for split {i} >>> {results['best_spearman_correlation']}")
 
         all_results[i] = results
 
         # Benchmark results
         benchmark_plot_path = os.path.join(args.config["plot_path"], experiment_name, f"benchmark_cv{args.validation_set}.png")
-        benchmark_pearson, benchmark_loss, benchmark_df = get_benchmark_score(best_model, args, tqdm_output=args.tqdm_output, plot_path=benchmark_plot_path)
+        benchmark_pearson, benchmark_spearman, benchmark_loss, benchmark_rmse, benchmark_df = get_benchmark_score(best_model, args, tqdm_output=args.tqdm_output, plot_path=benchmark_plot_path)
+
         benchmark_df.to_csv(os.path.join(args.config["prediction_path"], experiment_name, f"benchmark_cv{args.validation_set}.csv"))
 
         benchmark_losses.append(benchmark_loss)
         benchmark_correlation.append(benchmark_pearson)
-        logger.info(f"Benchmark results >>> {benchmark_pearson}")
+        benchmark_spearman_correlation.append(benchmark_spearman)
+
+        logger.info(f"Benchmark pearson >>> {benchmark_pearson}")
+        logger.info(f"Benchmark spearman >>> {benchmark_spearman}")
 
         # SKEMPI results
         skempi_test_plot_path = os.path.join(args.config["plot_path"], experiment_name,
                                             f"skempi_score_test_cv{args.validation_set}.png")
-        test_skempi_grouped_corrs, test_skempi_score, test_loss_skempi, test_skempi_df = get_skempi_corr(best_model, args, tqdm_output=args.tqdm_output,
+
+        test_skempi_grouped_corrs, test_skempi_grouped_corr_pval, test_skempi_grouped_spearman_corrs, grouped_spearman_pval, test_skempi, test_skempi_score, test_skempi_spearman_score, test_loss_skempi, rmse_skempi, test_skempi_df = get_skempi_corr(best_model, args, tqdm_output=args.tqdm_output,
                                                               plot_path=skempi_test_plot_path)
         test_skempi_df.to_csv(os.path.join(args.config["prediction_path"], experiment_name, f"skempi_score_test_cv{args.validation_set}.csv"))
 
         skempi_grouped_correlation.append(test_skempi_grouped_corrs)
+        skempi_grouped_spearman_correlation.append(test_skempi_grouped_spearman_corrs)
         skempi_correlation.append(test_skempi_score)
+        skempi_spearman_correlation.append(test_skempi_spearman_score)
         skempi_losses.append(test_loss_skempi)
         logger.info(f"SKEMPI testset results >>> {test_skempi_score}")
 
         # ABAG Test set results
         abag_test_plot_path = os.path.join(args.config["plot_path"], experiment_name,
                                            f"abag_affinity_test_cv{args.validation_set}.png")
-        test_pearson, test_loss, test_df = get_abag_test_score(best_model, args, tqdm_output=args.tqdm_output,
+        test_pearson, test_spearman, test_loss, test_rmse, test_df = get_abag_test_score(best_model, args, tqdm_output=args.tqdm_output,
                                                       plot_path=abag_test_plot_path,
                                                       validation_set=i)
         test_df.to_csv(os.path.join(args.config["prediction_path"], experiment_name, f"abag_affinity_test_cv{args.validation_set}.csv"))
         test_losses.append(test_loss)
         test_correlation.append(test_pearson)
+        test_spearman_correlation.append(test_spearman)
         logger.info(f"AbAg-Affinity testset results >>> {test_pearson}")
 
-        wandb_benchmark_log = {"abag_test_pearson": test_pearson, "abag_test_loss": test_loss,
-                               "skempi_test_pearson": test_skempi_score, "skempi_test_loss": test_loss_skempi,
-                               "benchmark_test_pearson": benchmark_pearson, "benchmark_test_loss": benchmark_loss}
+        wandb_benchmark_log = {"abag_test_pearson": test_pearson, "abag_test_spearman": test_spearman, "abag_test_loss": test_loss, "abag_rmse": test_rmse,
+                               "skempi_test_pearson": test_skempi_score, "skempi_test_spearman": test_skempi_spearman_score, "skempi_test_loss": test_loss_skempi, "skempi_rmse": rmse_skempi,
+                               "benchmark_test_pearson": benchmark_pearson, "benchmark_test_spearman": benchmark_spearman, "benchmark_test_loss": benchmark_loss, "benchmark_rmse": benchmark_rmse}
         wandb_inst.log(wandb_benchmark_log, commit=True)
 
-
+    # TODO need to add logging for spearman and the corr-pvalues in case we use this function
     logger.info("Average Loss: {} ({})".format(np.mean(losses), np.std(losses)))
     logger.info("Losses: {}".format(" - ".join([ str(loss) for loss in losses ])))
     logger.info("Average Pearson Correlation: {} ({})".format(np.mean(correlations), np.std(correlations)))

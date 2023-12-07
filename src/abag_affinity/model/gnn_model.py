@@ -182,9 +182,13 @@ class AffinityGNN(pl.LightningModule):
                                              channel_halving=channel_halving, channel_doubling=channel_doubling,
                                              nonlinearity=nonlinearity)
         elif "egnn" in gnn_type:
-            self.graph_conv = EGNN(in_node_nf=node_feat_dim, hidden_nf=64, out_node_nf=64, in_edge_nf=edge_feat_dim,
+            if "egnn_dim" in args:
+                embedding_dim = args.egnn_dim
+            else:
+                embedding_dim = 64
+            self.graph_conv = EGNN(in_node_nf=node_feat_dim, hidden_nf=embedding_dim, out_node_nf=embedding_dim, in_edge_nf=edge_feat_dim,
                                     device=device, n_layers=num_gnn_layers)
-            setattr(self.graph_conv, "embedding_dim", 64)
+            setattr(self.graph_conv, "embedding_dim", embedding_dim)
         elif gnn_type == "identity":
             self.graph_conv = nn.Identity()
             setattr(self.graph_conv, "embedding_dim", node_feat_dim)

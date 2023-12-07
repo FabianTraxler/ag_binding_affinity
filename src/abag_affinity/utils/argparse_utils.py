@@ -94,9 +94,9 @@ def parse_args(artifical_args=None, args_file=None) -> Namespace:
     optional.add_argument("-m", "--pretrained_model", type=str,
                           help='Name of the published/pretrained model to use for node embeddings',
                           choices=["", "DeepRefine", "Binding_DDG", "IPA", "Diffusion"], default="")
-    optional.add_argument("--fine_tune",
+    optional.add_argument("--warm_up_epochs",
                           help='Fine-tune model components that have been frozen at the start of training (e.g. published/pretrained models or dataset-specific layers). Provide an integer to indicate the number of pre-training epochs',
-                          type=int, default=None)
+                          type=int, default=0)
     optional.add_argument('--load_pretrained_weights', action=BooleanOptionalAction, help="Load pretrained weights for the pretrained model", default=True)
     optional.add_argument("--training_set_spikein", type=float,
                           help="Proportion of target_dataset to spike into training set, in mode `train_transferlearnings_validate_target`",
@@ -143,6 +143,9 @@ def parse_args(artifical_args=None, args_file=None) -> Namespace:
                           help="Indicator if after every layer the embedding size should be halved", default=True)
     optional.add_argument("--channel_doubling", action=BooleanOptionalAction,
                           help="Indicator if after every layer the embedding size should be doubled", default=False)
+    optional.add_argument("--egnn_dim", type=int, help="The number of EGNN nodes",
+                          default=64)
+
     optional.add_argument("--aggregation_method", type=str, help="Type aggregation method to get graph embeddings",
                           default="interface_sum",  choices=["max", "sum", "mean", "attention", "fixed_size", "edge", "interface_sum", "interface_mean","interface_size"])
     optional.add_argument("--nonlinearity", type=str, help="Type of activation function", default="leaky",
@@ -287,7 +290,7 @@ def check_and_complement_args(args: Namespace, args_dict: dict) -> Namespace:
             param_value = None
         else:
             param_value = args_dict[param]
-            wandb_name = wandb_name + str(param)[:5] + str(param_value)
+            wandb_name = wandb_name + str(param)[:5] + str(param_value)[:40]
 
         if param == "max_num_nodes" and param_value is None and "aggregation_method" in args_dict and args_dict[
             "aggregation_method"] == "fixed_size":
@@ -338,8 +341,9 @@ def check_and_complement_args(args: Namespace, args_dict: dict) -> Namespace:
         new_args.__dict__["embeddings_type"] = "of"
 
         # Enforce fine-tuning
-        if not new_args.__dict__["fine_tune"]:
-            new_args.__dict__["fine_tune"] = new_args.__dict__["max_epochs"] // 10
+        if not new_args.__dict__["warm_up_epochs"]:
+            # Do 10% Finetuning
+            new_args.__dict__["warm_up_epochs"] = new_args.__dict__["max_epochs"] // 10
 
     if args.preprocessed_to_scratch and not args.preprocess_graph:
         logging.warning("preprocessed_to_scratch only works with --preprocess_graph activated. Enabling forcefully...")

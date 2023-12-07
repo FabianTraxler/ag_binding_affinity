@@ -21,7 +21,6 @@
 --relaxed_pdbs=False
 --target_dataset=abag_affinity#L1-1
 --dms_output_layer_type=bias_only
---no-fine_tune
 --init_sweep
 --sweep_config=../experiments/NetworkParameter_sweep/sweep_config.yaml
 --no-load_pretrained_weights

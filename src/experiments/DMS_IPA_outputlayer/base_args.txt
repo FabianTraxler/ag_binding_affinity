@@ -11,8 +11,7 @@
 --scale_values
 --validation_set=0
 --train_strategy=bucket_train
---fine_tune
-10
+--warm_up_epochs=10
 --max_edge_distance=5
 -wdb
 --aggregation_method=interface_sum

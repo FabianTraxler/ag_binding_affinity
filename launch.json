@@ -1,0 +1,113 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python :: Run ABAG affinity training, GNN no-embs, test",
+            "type": "python",
+            "request": "launch",
+            "program": "src/abag_affinity/main.py",
+            "args": [
+                "--test",
+                "-t",
+                "model_train",
+                "-b",
+                "1",
+                "-e",
+                "1",
+                "-n",
+                "residue",
+                "--target_dataset",
+                "abag_affinity#L2",
+                "--relaxed_pdbs",
+                "False",
+                "--no-embeddings_path",
+                "--aggregation_method",
+                "interface_sum",
+            ],
+            "cwd": "${workspaceFolder}",
+            "justMyCode": false
+        },
+        {
+            "name": "Python :: Run ABAG affinity training, GNN no-embs, test, DMS, bucket-train ",
+            "type": "python",
+            "request": "launch",
+            "program": "src/abag_affinity/main.py",
+            "args": [
+                "--num_workers",
+                "0",
+                "--test",
+                "-t",
+                "train_transferlearnings_validate_target",
+                "--target_dataset",
+                "DMS-madan21_mutat_hiv#L2-1+relative_L2-2",
+                "--transfer_learning_dataset",
+                "DMS-madan21_mutat_hiv#relative_L2-2",
+                "DMS-phillips21_bindin#relative_L2-2",
+                "--dms_output_layer_type",
+                "regression_sigmoid",
+                "--force_recomputation",
+                "-b",
+                "32",
+                "-e",
+                "1",
+                "-n",
+                "residue",
+                "--relaxed_pdbs",
+                "False",
+                "--no-embeddings_path",
+                "--aggregation_method",
+                "interface_sum",
+                "--dms_output_layer_type",
+                "regression_sigmoid"
+            ],
+            "cwd": "${workspaceFolder}",
+            "justMyCode": false
+        },
+        {
+            "name": "Python :: Run ABAG affinity training",
+            "type": "python",
+            "request": "launch",
+            "program": "src/abag_affinity/main.py",
+            "args": [
+                "-t",
+                "model_train",
+                "-b",
+                "1",
+                "-e",
+                "1",
+                "-n",
+                "residue",
+                "--target_dataset",
+                "abag_affinity:absolute",
+                "--no-relaxed_pdbs",
+                "--gnn_type",
+                "identity",
+                "--num_workers",
+                "0",
+                "--pretrained_model",
+                "IPA",
+                "--aggregation_method",
+                "interface_sum",
+                "--interface_hull_size",
+                "none"
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "MedUni n11 attach",
+            "type": "python",
+            "request": "attach",
+            "connect": {
+                "host": "s0-n01.hpc.meduniwien.ac.at",
+                "port": 5678
+            },
+            "pathMappings": [
+                {
+                    "localRoot": "/home/moritz/Projects/guided-protein-diffusion/modules/ag_binding_affinity",
+                    "remoteRoot": "/msc/home/mschae83/guided-protein-diffusion/modules/ag_binding_affinity"
+                }
+            ],
+            "justMyCode": true
+        }
+]
+}

@@ -2,13 +2,12 @@
 --patience=20
 --node_type=residue
 --batch_size=16
---max_epochs=400
---num_workers=8
+--max_epochs=100
+--num_workers=0
 --nonlinearity=leaky
 --scale_values
 --num_fc_layers=2
 --validation_set=0
---preprocessed_to_scratch=/tmp
 --train_strategy=bucket_train
 --max_edge_distance=5
 --aggregation_method=interface_sum
@@ -20,6 +19,6 @@
 --stop_at_learning_rate=0.00001
 --learning_rate=0.001
 --relaxed_pdbs=False
---target_dataset=abag_affinity#L1-1
---init_sweep
---sweep_config=../experiments/Baseline_sweep/relativeloss_egnn_sweep_config.yaml
+--target_dataset=abag_affinity#L1-1+relative_ce-1
+--sweep_id=pftyfa7t
+--sweep_config=src/experiments/IPA_RelativeTest/sweep_config.yaml

@@ -1,8 +1,8 @@
 method: 'grid'
-name: 'DMS_madanwutaft_relative_replicate'
+name: 'DMS_madanwutaft_relative_ce_low_IPA_rmse'
 metric:
-  goal: 'maximize'
-  name: 'pearson_correlation'  # this works because we only use a single validation set
+  goal: 'minimize'
+  name: 'rmse'  # this works because we only use a single validation set TODO minimize rmse
 parameters:
   pretrained_model:
     values:
