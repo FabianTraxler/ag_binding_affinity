@@ -95,6 +95,8 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, embeddings: Dict,
 
     if node_type == "residue":
         distances, closest_nodes = get_distances(residue_infos, residue_distance=True, ca_distance=ca_alpha_contact)
+        print('distances', distances)
+        print('closes_noedes', closest_nodes)
         assert len(closest_nodes) == len(residue_infos), "Number of closest nodes does not match number of residues"
         node_features = get_residue_encodings(residue_infos, structure_info)
 
