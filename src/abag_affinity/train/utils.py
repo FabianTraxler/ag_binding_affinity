@@ -1,5 +1,7 @@
 from typing import Any, Dict, List, Tuple, Union, Optional, Callable
 
+from scipy.stats import chi2
+
 import wandb
 import numpy as np
 import math
@@ -689,9 +691,24 @@ def get_abag_test_score(model: AffinityGNN, args: Namespace, tqdm_output: bool =
     return evaluate_model(model, dataloader, args=args, tqdm_output=tqdm_output, device=device, plot_path=plot_path)
 
 
+def combine_pvalues(pvalues):
+    # Take the natural log of all p-values
+    ln_pvalues = np.log(pvalues)
+
+    # Apply Fisher's method
+    test_statistic = -2 * np.sum(ln_pvalues)
+
+    # The test statistic follows a chi-square distribution with 2n degrees of freedom
+    # Calculate the new p-value from this distribution
+    combined_pvalue = chi2.sf(test_statistic, 2*len(pvalues))
+
+    return combined_pvalue
+
 def get_skempi_corr(model: AffinityGNN, args: Namespace, tqdm_output: bool = True, plot_path: str = None) -> Tuple[float, float, float, float, float, pd.DataFrame]:
     """
     Take the available Skempi mutations for validation
+
+    Note that the spearman-aggregated p-value is not reliable for small sample sizes (https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.spearmanr.html)
     """
 
     dataset = AffinityDataset(args.config, False, "SKEMPI.v2", "L2",
@@ -727,14 +744,16 @@ def get_skempi_corr(model: AffinityGNN, args: Namespace, tqdm_output: bool = Tru
     # split results by PDBs and compute separate correlations
     grouped_correlations = res_df.groupby("pdb").apply(lambda group: stats.pearsonr(group.labels, group.prediction)[0])
     grouped_correlations_weighted_mean = np.sum(res_df.groupby("pdb").apply(lambda group: stats.pearsonr(group.labels, group.prediction)[0] * len(group))) / len(res_df)
+    grouped_correlations_pval = combine_pvalues(res_df.groupby("pdb").apply(lambda group: stats.pearsonr(group.labels, group.prediction)[1]).values)
 
     grouped_spearman_correlations = res_df.groupby("pdb").apply(lambda group: stats.spearmanr(group.labels, group.prediction)[0])
     grouped_spearman_correlations_weighted_mean = np.sum(res_df.groupby("pdb").apply(lambda group: stats.spearmanr(group.labels, group.prediction)[0] * len(group))) / len(res_df)
+    grouped_spearman_correlations_pval = combine_pvalues(res_df.groupby("pdb").apply(lambda group: stats.spearmanr(group.labels, group.prediction)[1]).values)
 
     res_df["grouped_correlations"] = res_df["pdb"].apply(grouped_correlations.get)
     res_df["grouped_spearman_correlations"] = res_df["pdb"].apply(grouped_spearman_correlations.get)
 
-    return grouped_correlations_weighted_mean, grouped_spearman_correlations_weighted_mean, pearson_corr, spearman_corr, val_loss, rmse, res_df
+    return grouped_correlations_weighted_mean, grouped_correlations_pval, grouped_spearman_correlations_weighted_mean, grouped_spearman_correlations_pval, pearson_corr, spearman_corr, val_loss, rmse, res_df
 
     # results.append(res)
 
@@ -748,7 +767,7 @@ def run_and_log_benchmarks(model, args, wandb_inst=None):
     # Run benchmarks
     benchmark_pearson, benchmark_spearman, benchmark_loss, benchmark_rmse, benchmark_df = get_benchmark_score(model, args, tqdm_output=args.tqdm_output)
 
-    test_skempi_grouped_corrs, test_skempi_grouped_spearman_corrs, test_skempi_score, test_skempi_spearman_score, test_loss_skempi, rmse_skempi, test_skempi_df = get_skempi_corr(model, args,
+    test_skempi_grouped_corrs, test_skempi_grouped_corr_pval, test_skempi_grouped_spearman_corrs, grouped_spearman_pval, test_skempi_score, test_skempi_spearman_score, test_loss_skempi, rmse_skempi, test_skempi_df = get_skempi_corr(model, args,
                                                                                                      tqdm_output=args.tqdm_output)
     abag_test_plot_path = os.path.join(args.config["plot_path"], f"abag_affinity_test_cv{args.validation_set}.png")
 
@@ -773,7 +792,9 @@ def run_and_log_benchmarks(model, args, wandb_inst=None):
     logger.info(f"SKEMPI pearson results >>> {test_skempi_score}")
     logger.info(f"SKEMPI spearman testset results >>> {test_skempi_spearman_score}")
     logger.info(f"Mean SKEMPI correlations >>> {np.mean(test_skempi_grouped_corrs)}")
+    logger.info(f"Aggregated SKEMPI pearson p-value >>> {test_skempi_grouped_corr_pval}")
     logger.info(f"Mean SKEMPI spearman correlations >>> {np.mean(test_skempi_grouped_spearman_corrs)}")
+    logger.info(f"Aggregated SKEMPI spearman p-value >>> {grouped_spearman_pval}")
 
     benchmark_df["Dataset"] = "benchmark"
     test_skempi_df["Dataset"] = "skempi"
@@ -783,7 +804,8 @@ def run_and_log_benchmarks(model, args, wandb_inst=None):
 
     wandb_benchmark_log = {"abag_test_pearson": test_pearson, "abag_test_spearman": test_spearman, "abag_test_loss": test_loss, "abag_test_rmse": test_rmse,
                            "abag_train_pearson": train_pearson, "abag_train_spearman": train_spearman, "abag_train_loss": train_loss, "abag_train_rmse": train_rmse,
-                           "skempi_test_pearson_grouped_mean": np.mean(test_skempi_grouped_corrs), "skempi_test_spearman_grouped_mean": np.mean(test_skempi_grouped_spearman_corrs),
+                           "skempi_test_pearson_grouped_mean": np.mean(test_skempi_grouped_corrs), "skempi_test_pearson_grouped_pval": test_skempi_grouped_corr_pval,
+                           "skempi_test_spearman_grouped_mean": np.mean(test_skempi_grouped_spearman_corrs), "skempi_test_spearman_grouped_pval": grouped_spearman_pval,
                            "skempi_test_pearson": test_skempi_score, "skempi_test_spearman": test_skempi_spearman_score, "skempi_test_loss": test_loss_skempi, "skempi_rmse": rmse_skempi,
                            "benchmark_test_pearson": benchmark_pearson, "benchmark_test_spearman": benchmark_spearman, "benchmark_test_loss": benchmark_loss, "benchmark_rmse": benchmark_rmse,
                            "Full_Predictions": wandb.Table(dataframe=full_df)}
