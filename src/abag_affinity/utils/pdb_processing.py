@@ -447,6 +447,8 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_fil
 
     # identify antigen chain
     if rename_chains is None:
+        # assign chains ids from A to Z. I checked that this will not lead to conflicts with the original chain ids (in case of 2 or more antigen chains)if df_map is not None:
+
         # check whether the PDB file header includes chain mapping
         df_map = pdb_chain_mapping(pdb_file_path)
         if df_map is not None:
@@ -458,11 +460,12 @@ def clean_and_tidy_pdb(pdb_id: str, pdb_file_path: Union[str, Path], cleaned_fil
         # order chain ids to avoid overlaps
         rename_chains = order_substitutions(rename_chains)
 
-        # assign chains ids from A to Z. I checked that this will not lead to conflicts with the original chain ids (in case of 2 or more antigen chains)
+        # First delete, then rename chains (otherwise we might delete renamed ones)
         for chain, new_id in rename_chains.items():
-            if new_id is None:
+            if new_id is None and chain not in [None, "", " "]:  # empty chain IDs are bing filtered below by PandasPdb on the way
                 rename_fixinsert_command += f" | pdb_delchain -{chain}"
-            else:
+        for chain, new_id in rename_chains.items():
+            if new_id is not None:
                 rename_fixinsert_command += f" | pdb_rplchain -{chain}:{new_id}"
 
     if fix_insert:
