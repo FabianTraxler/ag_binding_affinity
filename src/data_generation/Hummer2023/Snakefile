@@ -2,7 +2,7 @@ from pathlib import Path
 
 # data downloaded from https://github.com/amhummer/Graphinity/tree/main/data
 project_root = Path(workflow.basedir).parents[2] # two directories above - absolute paths not working
-out_folder = project_root / "results" / "synthetic_ddg" / "reduced_dataset"
+out_folder = project_root / "results" / "synthetic_ddg" / "full_dataset"
 in_folder = project_root / "resources" / "synthetic_ddg" / "data/naga03/not-backed-up/scratch/hummer/synth_aff_data/synthetic_ddg_dataset_for_sharing/synthetic_ddg_mutated_pdbs/"
 
 

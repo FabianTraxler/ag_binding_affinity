@@ -19,7 +19,7 @@ chain_ids = [chain.id for chain in structure.get_chains()]
 if "_" not in input_fn_stem:  # original
     # take matching mutation
     other_mutation_file = next(input_fn.parent.glob(f"{input_fn_stem}_*.pdb"))
-    pdb_id, ab_chains, ag_chains, _ = other_mutation_file.split("_")
+    pdb_id, ab_chains, ag_chains, _ = other_mutation_file.name.split("_")
     mutation = "original"
 else:
     pdb_id, ab_chains, ag_chains, mutation = input_fn_stem.split("_")
