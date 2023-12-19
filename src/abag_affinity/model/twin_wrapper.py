@@ -32,7 +32,7 @@ class TwinWrapper(torch.nn.Module):
         output = {"relative": data["relative"]}
 
         if "uncertainty" in out_1.keys():
-            # We predicted uncertainty directly!
+            # Uncertainty is part of model prediction (might be fixed)
             rel_temperature = (out_1["uncertainty"] + out_2["uncertainty"]).flatten() /2.
             output["uncertainty"] = out_1["uncertainty"]
             output["uncertainty2"] = out_2["uncertainty"]
@@ -46,6 +46,7 @@ class TwinWrapper(torch.nn.Module):
             diff_2 = output[f"{output_type}2"] - output[output_type]
             class_preds = torch.stack((diff_1.flatten() / rel_temperature, diff_2.flatten() / rel_temperature), dim=-1)
             prob_1_ge_2 = torch.special.ndtr(diff_1.flatten() / 2**0.5 / rel_temperature)
+            # Calculating the log_ndtr is necessary for stable training
             log_prob_1_ge_2 = torch.special.log_ndtr(diff_1.flatten() / 2 ** 0.5 / rel_temperature)
             log_prob_2_ge_1 = torch.special.log_ndtr(diff_2.flatten() / 2 ** 0.5 / rel_temperature)
             output[f"{output_type}_prob_cdf"] = torch.stack((prob_1_ge_2, 1-prob_1_ge_2), dim=-1)

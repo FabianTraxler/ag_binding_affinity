@@ -1,5 +1,5 @@
 method: 'grid'
-name: 'LargeUncertaintyrelaxed Sweep'
+name: 'eUncertainty Layernorm Sweep'
 metric:
   goal: 'minimize'
   name: 'val0_rmse'
@@ -13,11 +13,9 @@ parameters:
   target_dataset:
     values:
       - "abag_affinity#L1-1"
+      - "abag_affinity#NLL-1"
       - "abag_affinity#L1-1+relative_cdf-10"
       - "abag_affinity#NLL-1+relative_cdf-10"
-  embeddings_type:
-    values:
-      - "of"
   uncertainty_temp:
     values:
       - 0

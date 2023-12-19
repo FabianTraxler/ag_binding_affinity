@@ -117,19 +117,20 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
             if criterion in ["L1", "L2", "RL2", "NLL"]:
                 valid_indices = ~torch.isnan(label[output_type])
                 if valid_indices.sum() > 0:
-                    if criterion == "NLL":
-                        assert "uncertainty" in output.keys(), "Need to predict Uncertainty for NLL loss!"
-                        losses.append(weight * loss_fn(output[output_type][valid_indices],
-                                                       label[output_type][valid_indices],
-                                                       output["uncertainty"][valid_indices]))
-                    else:
-                        losses.append(weight * loss_fn(output[output_type][valid_indices],
+                    losses.append(weight * loss_fn(output[output_type][valid_indices],
                                                label[output_type][valid_indices]))
                 # if output["relative"]:  # previously, we also used the second data point for absolute loss
                 #     valid_indices = ~torch.isnan(label[f"{output_type}2"])
                 #     if valid_indices.sum() > 0:
                 #         losses.append(weight * loss_fn(output[f"{output_type}2"][valid_indices],
                 #                                    label[f"{output_type}2"][valid_indices]))
+            elif criterion == "NLL":
+                # This loss optimizes the predicted Likelihood jointly
+                valid_indices = ~torch.isnan(label[output_type])
+                if valid_indices.sum() > 0:
+                    losses.append(weight * loss_fn(output[output_type][valid_indices],
+                                                   label[output_type][valid_indices],
+                                                   output["uncertainty"][valid_indices]))
             elif output["relative"] and criterion.startswith("relative"):
                 if criterion in ["relative_L1", "relative_L2", "relative_RL2"]:
                     output_key = f"{output_type}_difference"
