@@ -114,7 +114,7 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
         loss_fn = loss_functions[criterion]
         for output_type in ["E", "-log(Kd)"]:
 
-            if criterion in ["L1", "L2", "RL2", "NLL"]:
+            if criterion in ["L1", "L2", "RL2"]:
                 valid_indices = ~torch.isnan(label[output_type])
                 if valid_indices.sum() > 0:
                     losses.append(weight * loss_fn(output[output_type][valid_indices],
