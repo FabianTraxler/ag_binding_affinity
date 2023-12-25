@@ -302,7 +302,7 @@ class AffinityDataset(Dataset):
         deeprefine_graphs2process = []
         for df_idx, row in self.data_df.iterrows():
             # Pre-Load Dictionary containing all relevant information to generate graphs
-            file_path = self.processed_graph_files.format(filestem=df_idx, is_relaxed=relaxed)
+            file_path = self.processed_graph_files.format(filestem=df_idx+"geodata", is_relaxed=relaxed)
             if not os.path.exists(file_path) or self.force_recomputation:
                 graph_dicts2process.append((row, file_path))
 
@@ -334,7 +334,12 @@ class AffinityDataset(Dataset):
             Returns:
                 None
             """
-
+            # In our old Code, we computed the graph dict and saved it.
+            # However, it is way more efficient to directly store the HeteroDataObject that is later used for our dataloading
+            data = self.load_graph(df_idx=row.name, relaxed=self.is_relaxed)
+            np.savez_compressed(out_path, hetero_dict=data.to_dict())
+            return
+            # Therefore, we skip the computation and saving of the graph dict
             graph_dict = load_graph_dict(row, self.dataset_name, self.config, self.interface_dir,
                                          node_type=self.node_type,
                                          interface_distance_cutoff=self.interface_distance_cutoff,
@@ -569,24 +574,23 @@ class AffinityDataset(Dataset):
             HeteroData: PyG HeteroData object
             Dict: Metadata for graph
         """
+        geo_filepath = self.processed_graph_files.format(filestem=df_idx+"geodata", is_relaxed=relaxed)
+        if os.path.exists(geo_filepath) and (not self.force_recomputation or self.preprocess_data):
+            # We already saved the full HeteroData as a dict for compact and fast dataloading
+            hetero_dict = dict(np.load(geo_filepath, allow_pickle=True))["hetero_dict"][()]
+            return HeteroData(hetero_dict)
         graph_dict = self.get_graph_dict(df_idx, relaxed)
+
         node_features = self.get_node_features(graph_dict)
         edge_indices, edge_features = self.get_edges(graph_dict)
 
         neg_log_kd = graph_dict["-log(Kd)"]
-
         e_value = graph_dict["E"]
-
-
-        if self.scale_values and not np.isnan(neg_log_kd):
-
-            neg_log_kd = scale_affinity(neg_log_kd, self.scale_min, self.scale_max)
 
         neg_log_kd = np.array(neg_log_kd)
 
 
         graph = HeteroData()
-
         graph["node"].x = torch.Tensor(node_features).float()
         graph["node"].chain_id = torch.tensor([ord(residue_info["chain_id"]) for residue_info in graph_dict["residue_infos"]])
         graph["node"].residue_id = torch.tensor([residue_info["residue_id"] for residue_info in graph_dict["residue_infos"]])  # this is the pdb residue_id
@@ -604,7 +608,7 @@ class AffinityDataset(Dataset):
             graph[edge_type].edge_index = edges
             graph[edge_type].edge_attr = edge_features[edge_type].float()
 
-        return graph, graph_dict
+        return graph
 
     def load_deeprefine_graph(self, df_idx: str, relaxed) -> dgl.DGLGraph:
         """Load a data point for Deeprefine model either from disc or compute it anew
@@ -667,13 +671,17 @@ class AffinityDataset(Dataset):
         else:
             filepath = os.path.join(self.interface_dir, f"interface_hull_{self.interface_hull_size}", df_idx + ".pdb")
 
-        graph, graph_dict = self.load_graph(df_idx, relaxed)
+        graph = self.load_graph(df_idx, relaxed)
+        if self.scale_values and not np.isnan(graph["-log(Kd)"]):
+            graph["-log(Kd)"] = torch.tensor(scale_affinity(graph["-log(Kd)"], self.scale_min, self.scale_max))
+
         data_point = {
             "filepath": filepath,
             "graph": graph,
         }
 
         if self.pretrained_model == "DeepRefine":
+            raise NotImplementedError("We do not support DeepRefine right now, as the graph dict got removed here")
             deeprefine_graph = self.load_deeprefine_graph(df_idx, relaxed)
             nodes = graph_dict["graph_nodes"]
             data_point["deeprefine_graph"] = node_subgraph(deeprefine_graph, nodes)

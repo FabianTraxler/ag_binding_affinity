@@ -193,7 +193,7 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--preprocessed_to_scratch", type=str, default=None,
                           help="Provide target path to copy preprocessed files to a scratch space for minimized/optimized cluster network access.")
     optional.add_argument("--save_graphs", action=BooleanOptionalAction,
-                          help="Saves computed graphs to speed up training in later epochs", default=True)
+                          help="Saves computed graphs to speed up training in later epochs", default=False)
     optional.add_argument("--force_recomputation", action=BooleanOptionalAction,
                           help="Force recomputation of graphs - deletes folder containing processed graphs",
                           default=False)  # TODO enable this for safety. too many can changes can happen... disable before sweeps
