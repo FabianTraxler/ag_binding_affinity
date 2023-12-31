@@ -301,8 +301,8 @@ class AffinityDataset(Dataset):
         graph_dicts2process = []
         deeprefine_graphs2process = []
         for df_idx, row in self.data_df.iterrows():
-            # Pre-Load Dictionary containing all relevant information to generate graphs
-            file_path = self.processed_graph_files.format(filestem=df_idx+"geodata", is_relaxed=relaxed)
+            # Pre-Load Dictionary containing all relevant information to generate graphs (TODO "geodata" is hacky)
+            file_path = self.processed_graph_files.format(filestem=df_idx + "geodata", is_relaxed=relaxed)
             if not os.path.exists(file_path) or self.force_recomputation:
                 graph_dicts2process.append((row, file_path))
 
