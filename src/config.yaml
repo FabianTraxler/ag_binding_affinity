@@ -16,10 +16,10 @@ DATASETS:
 
 
   synthetic_ddg:
-    folder_path: "results/synthethic_ddg"
+    folder_path: "results/synthetic_ddg"
     pdb_path: "pdbs"
     mutated_pdb_path: "pdbs"
-    summary: "ddgmodified.csv"
+    summary: "ddg_with_absolute_labels.csv"
     affinity_type: "-log(Kd)"
 
   PDBBind:

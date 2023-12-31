@@ -5,6 +5,7 @@ project_root = Path(workflow.basedir).parents[2] # two directories above - absol
 out_folder = project_root / "results" / "synthetic_ddg" / "full_dataset"
 in_folder = project_root / "resources" / "synthetic_ddg" / "data/naga03/not-backed-up/scratch/hummer/synth_aff_data/synthetic_ddg_dataset_for_sharing/synthetic_ddg_mutated_pdbs/"
 
+# TODO load paths etc from config.yaml
 
 def all_pdb_files(wildcards):
     for pdb in in_folder.glob("*.pdb"):
@@ -57,7 +58,7 @@ rule copy_pdbs_with_absolute_labels:
         metadata=rules.csv_with_absolute_labels.output,
         pdb_path=directory(out_folder)
     output:
-        directory(project_root / "results" / "synthetic_ddg" / "with_absolute_label")
+        directory(project_root / "results" / "synthetic_ddg" / "pdbs")
     run:
         from pathlib import Path
         import pandas as pd
