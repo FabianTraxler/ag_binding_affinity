@@ -218,7 +218,7 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
         val_pdbs = summary_df.loc[summary_df["validation"] == validation_set, "pdb"]
         train_pdbs = summary_df.loc[(summary_df["validation"] != validation_set) & (~summary_df["test"]), "pdb"]
 
-        if "synthetic_ddg" == dataset_name:
+        if "synthetic_ddg" == dataset_name:  # TODO DRY with the elif below
             data_path = os.path.join(config["DATASETS"]["path"],
                                      config["DATASETS"][dataset_name]["folder_path"],
                                      config["DATASETS"][dataset_name]["mutated_pdb_path"])
