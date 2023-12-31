@@ -189,6 +189,8 @@ class AffinityGNN(pl.LightningModule):
             self.graph_conv = EGNN(in_node_nf=node_feat_dim, hidden_nf=embedding_dim, out_node_nf=embedding_dim, in_edge_nf=edge_feat_dim,
                                     device=device, n_layers=num_gnn_layers)
             setattr(self.graph_conv, "embedding_dim", embedding_dim)
+
+
         elif gnn_type == "identity":
             self.graph_conv = nn.Identity()
             setattr(self.graph_conv, "embedding_dim", node_feat_dim)
@@ -202,14 +204,25 @@ class AffinityGNN(pl.LightningModule):
             self.regression_head = RegressionHead(self.graph_conv.embedding_dim, num_nodes=num_nodes,
                                                   aggregation_method=aggregation_method, size_halving=fc_size_halving,
                                                   nonlinearity=nonlinearity,  num_fc_layers=num_fc_layers)
+
+        # ensure backwards compatibility, when temp is not provided
+        if "uncertainty_temp" in args:
+            self.uncertainty_temp = args.uncertainty_temp
+        else:
+            self.uncertainty_temp = 0.2
+
+        if not self.uncertainty_temp:
+             # We do predict the uncertainty as well. This might help the relative loss, which needs a temperature
+             self.uncertainty_head = RegressionHead(self.graph_conv.embedding_dim, num_nodes=num_nodes,
+                                                    aggregation_method="interface_mean" if "interface" in aggregation_method else "mean",
+                                                    size_halving=fc_size_halving, nonlinearity="gelu",
+                                                    num_fc_layers=num_fc_layers)
         # Dataset-specific output layers
         self.dataset_names = dataset_names
         self.dataset_specific_layer = DatasetAdjustment(args.dms_output_layer_type, len(dataset_names), dataset_names)
 
         self.scaled_output = scaled_output
-
         self.float()
-
         self.to(device)
 
     def forward(self, data: Dict) -> Dict:
@@ -232,6 +245,18 @@ class AffinityGNN(pl.LightningModule):
         # calculate binding affinity
         neg_log_kd = self.regression_head(graph)
 
+
+        if self.uncertainty_temp:
+            predicted_uncertainty = torch.ones_like(neg_log_kd)*self.uncertainty_temp
+        else:
+            uncertainty_graph = graph
+            uncertainty_graph["node"].x = uncertainty_graph["node"].x.detach()
+            predicted_uncertainty = torch.nn.functional.softplus(self.uncertainty_head(uncertainty_graph))
+        if self.scaled_output and False:
+            # Maybe if we scale labels we should also scale the output ? Would at least make everything more stable...
+            # However, this does lead to no learning at all, as the output is either 0 or 1 -> vanishing gradients
+            neg_log_kd = torch.nn.functional.sigmoid(neg_log_kd)
+
         # dataset-specific scaling (could be done before or after scale_output)
         dataset_indices = torch.Tensor([self.dataset_names.index(dataset) if dataset is not None else -1
                                         for dataset in data["dataset_adjustment"]]).long().to(neg_log_kd.device)
@@ -243,6 +268,7 @@ class AffinityGNN(pl.LightningModule):
         return {
             "-log(Kd)": neg_log_kd,
             "E": e_value,
+            "uncertainty": predicted_uncertainty,
         }
 
     def unfreeze(self):

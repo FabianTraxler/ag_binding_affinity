@@ -218,11 +218,17 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
         val_pdbs = summary_df.loc[summary_df["validation"] == validation_set, "pdb"]
         train_pdbs = summary_df.loc[(summary_df["validation"] != validation_set) & (~summary_df["test"]), "pdb"]
 
-        if "mutated_pdb_path" in config["DATASETS"][dataset_name]:  # only use files that were generated
+        if "synthetic_ddg" == dataset_name:  # TODO DRY with the elif below
             data_path = os.path.join(config["DATASETS"]["path"],
                                      config["DATASETS"][dataset_name]["folder_path"],
                                      config["DATASETS"][dataset_name]["mutated_pdb_path"])
-            # TODO use `filename` in summary_df (see above! DRY?)
+            # Filter rows where the file does not exist
+            summary_df = summary_df[summary_df['filename'].apply(lambda file: os.path.exists(os.path.join(data_path, file)))]
+        elif "mutated_pdb_path" in config["DATASETS"][dataset_name]:  # only use files that were generated
+            data_path = os.path.join(config["DATASETS"]["path"],
+                                     config["DATASETS"][dataset_name]["folder_path"],
+                                     config["DATASETS"][dataset_name]["mutated_pdb_path"])
+            # TODO use `filename` in summary_df (see above! DRY?) I Do not understand this code so I leave it untouched
             all_files = glob.glob(data_path + "/*/*") + glob.glob(data_path + "/*")
             available_files = set(
                 file_path.split("/")[-2].lower() + "-" + file_path.split("/")[-1].split(".")[0].lower() for file_path in

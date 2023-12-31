@@ -73,7 +73,7 @@ def parse_args(artifical_args=None) -> Namespace:
         """
         NOTE: we could also add all possible dataset names
         """
-        pattern = r'^[A-Za-z0-9-_.]+#(L1|L2|RL2|relative_L1|relative_L2|relative_RL2|relative_ce|relative_cdf)(-[0-9.]+)?(\+(L1|L2|RL2|relative_L1|relative_L2|relative_RL2|relative_ce|relative_cdf)(-[0-9.]+)?)*$'
+        pattern = r'^[A-Za-z0-9-_.]+#(L1|L2|RL2|NLL|relative_L1|relative_L2|relative_RL2|relative_ce|relative_cdf)(-[0-9.]+)?(\+(L1|L2|RL2|NLL|relative_L1|relative_L2|relative_RL2|relative_ce|relative_cdf)(-[0-9.]+)?)*$'
         if not re.match(pattern, value):
             raise ArgumentTypeError(f"Invalid value: {value}. Expected format: DATASET#LOSS1-LAMBDA1+LOSS2-LAMBDA2")
         return value
@@ -193,7 +193,7 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--preprocessed_to_scratch", type=str, default=None,
                           help="Provide target path to copy preprocessed files to a scratch space for minimized/optimized cluster network access.")
     optional.add_argument("--save_graphs", action=BooleanOptionalAction,
-                          help="Saves computed graphs to speed up training in later epochs", default=True)
+                          help="Saves computed graphs to speed up training in later epochs", default=False)
     optional.add_argument("--force_recomputation", action=BooleanOptionalAction,
                           help="Force recomputation of graphs - deletes folder containing processed graphs",
                           default=False)  # TODO enable this for safety. too many can changes can happen... disable before sweeps
@@ -217,11 +217,11 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--seed", type=int, default=42, help="Seed for random number generator")
     optional.add_argument("--debug", action=BooleanOptionalAction, default=False, help="Start debugger on a free port starting from 5678")
     optional.add_argument("--weight_decay", type=float, default=0, help="Weight Decay for Parameters")
+    optional.add_argument("--uncertainty_temp", type=float, default=0.2, help="Uncertainty Temperature for cdf loss. If 0 then it is learned")
 
     args = parser.parse_args(artifical_args)
     args.config = read_config(args.config_file)
 
-    args.relaxed_pdbs = eval(args.relaxed_pdbs.capitalize()) if args.relaxed_pdbs != "both" else "both"
 
     if args.wandb_name == "":
         args.wandb_name = f'{args.train_strategy}' \
@@ -344,6 +344,8 @@ def check_and_complement_args(args: Namespace, args_dict: dict) -> Namespace:
         logging.warning("preprocessed_to_scratch only works with --preprocess_graph activated. Enabling forcefully...")
         args.__dict__["preprocess_graph"] = True
 
+    if isinstance(new_args.relaxed_pdbs, str):
+        new_args.relaxed_pdbs = new_args.relaxed_pdbs.capitalize() == "True" if new_args.relaxed_pdbs != "both" else "both"
     new_args.tqdm_output = False  # disable tqdm output to reduce log syncing
     if wandb_name:
         # In a sweep, we update the config and thereby set the name to the updated config entries

@@ -108,19 +108,22 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, embeddings: Dict,
             # assert (matched_residue_index > 0).all()  # check if all residues have a match (could also just raise exception in get_residue_embeddings)
 
         adj_tensor = get_residue_edge_encodings(distances, residue_infos, distance_cutoff=distance_cutoff)
-        atom_names = []
+
 
     elif node_type == "atom":
         distances, closest_nodes = get_distances(residue_infos, residue_distance=False)
 
-        node_features, atom_names = get_atom_encodings(residue_infos, structure_info)
+        node_features, _ = get_atom_encodings(residue_infos, structure_info)
         adj_tensor = get_atom_edge_encodings(distances, node_features, distance_cutoff=distance_cutoff)
 
     else:
         raise ValueError("Invalid graph_type: Either 'residue' or 'atom'")
 
     assert len(residue_infos) > 0
-
+    # TODO Current Graph Dict is very long
+    # Questions: Do we still need the full residue_infos list
+    # Can we cut Down the adjacency tensor here?
+    # Optimally, the dict does contain only stuff we need to use for our training?!
     return {
         "node_features": node_features,
         "residue_infos": residue_infos,
@@ -128,8 +131,7 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, embeddings: Dict,
         "adjacency_tensor": adj_tensor,
         "-log(Kd)": neg_log_kd,
         "E": e_value,
-        "closest_residues": closest_nodes,
-        "atom_names": atom_names
+        "closest_residues": closest_nodes
     }
 
 

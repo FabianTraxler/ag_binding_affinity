@@ -1,0 +1,28 @@
+method: 'grid'
+name: 'EGNN OF Sweep'
+metric:
+  goal: 'minimize'
+  name: 'val0_rmse'
+parameters:
+  seed:
+    values:
+      - 1
+      - 2
+      - 3
+      - 4
+  target_dataset:
+    values:
+      - "abag_affinity#L1-1"
+      - "abag_affinity#L1-1+relative_cdf-10"
+  embeddings_type:
+    values:
+      - "of"
+  scale_values:
+    values:
+      - True
+      - False
+  learning_rate:
+    values:
+      - 0.001
+      - 0.01
+      - 0.0001

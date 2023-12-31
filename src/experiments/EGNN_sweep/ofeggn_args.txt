@@ -2,8 +2,8 @@
 --patience=20
 --node_type=residue
 --batch_size=16
---max_epochs=400
---num_workers=8
+--max_epochs=800
+--num_workers=0
 --nonlinearity=leaky
 --scale_values
 --num_fc_layers=2
@@ -17,9 +17,9 @@
 --wandb_mode=online
 --lr_scheduler=plateau
 --lr_decay_factor=0.6
---stop_at_learning_rate=0.00001
+--stop_at_learning_rate=0.000001
 --learning_rate=0.001
 --relaxed_pdbs=False
 --target_dataset=abag_affinity#L1-1
 --init_sweep
---sweep_config=../experiments/Baseline_sweep/uncertainty_sweep_config.yaml
+--sweep_config=../experiments/EGNN_sweep/of_egnn_sweep_config.yaml

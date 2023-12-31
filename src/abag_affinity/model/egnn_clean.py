@@ -137,7 +137,15 @@ class EGNN(nn.Module):
         self.hidden_nf = hidden_nf
         self.device = device
         self.n_layers = n_layers
-        self.embedding_in = nn.Linear(in_node_nf, self.hidden_nf)
+
+        # When using openfold embedding, the network somehow explodes. To fix this, we could reduce the initialization strength
+        if True: # Try Layernorm always  in_node_nf > 100:
+            # The embedding is normalized using Layernorm
+            self.embedding_in = torch.nn.Sequential(nn.LayerNorm([in_node_nf]),
+                                                   nn.Linear(in_node_nf, self.hidden_nf))
+        else:
+            self.embedding_in = nn.Linear(in_node_nf, self.hidden_nf)
+
         self.embedding_out = nn.Linear(self.hidden_nf, out_node_nf)
         for i in range(0, n_layers):
             self.add_module("gcl_%d" % i, E_GCL(self.hidden_nf, self.hidden_nf, self.hidden_nf, edges_in_d=in_edge_nf,
