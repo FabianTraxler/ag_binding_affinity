@@ -30,3 +30,36 @@ rule trim_complex:
         mem_mb=10000
     threads: 1
     script: "scripts/trim_complex.py"
+
+
+rule copy_pdbs_with_absolute_labels:
+    """
+    A rule to aggregate all PDBs that have positive labels
+
+    TODO this is pseudocode
+    """
+    output:
+        directory(project_root / "results" / "synthetic_ddg" / "with_absolute_label")
+    run:
+        df = pd.read_csv("../abag_affinity_dataset/abag_affinity_dataset.csv")
+        syn_pdbs = subprocess.run('ls | grep -E "....\.pdb"')
+        syn_pdbs2 = [v[:4] for v in syn_pdbs]
+        selected_pdbs = set(df["pdb"]).intersection(syn_pdbs2)
+        all_files = Path("full_dataset/").iterdir("")
+        to_copy = [f for f in all_files if f.name[:4] in selected_pdbs]
+        for f in to_copy:
+            shutil.copy(f, output[0])
+
+rule csv_with_absolute_labels:
+    """
+    Generate the CSV file with absolute labels
+    """
+    input:
+        syn_df=project_root / "results" / "synthetic_ddg" / "ddg.csv",
+        abag_df=project_root / "results" / "abag_affinity_dataset" / "abag_affinity_dataset.csv"
+    output:
+        project_root / "results" / "synthetic_ddg" / "ddg_with_absolute_labels.csv"
+    log:
+        notebook="logs/adjust_csv.ipynb"
+    notebook:
+        "scripts/adjust_csv.py.ipynb"
