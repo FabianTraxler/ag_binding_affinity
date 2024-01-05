@@ -236,6 +236,9 @@ class AffinityDataset(Dataset):
             valid_pairs = (kd_dists - 2*kd_std) >= 0
             valid_partners = np.where(valid_pairs)[0]
             possible_partners = self.data_df.index[valid_partners].tolist()
+        elif self.dataset_name == "synthetic_ddg":
+            pdb = self.data_df.loc[pdb_id, "pdb"]
+            possible_partners = self.data_df.index[self.data_df.pdb == pdb].difference([pdb_id]).tolist()
         elif self.affinity_type == "-log(Kd)":
             other_mutations = self.data_df[(self.data_df["pdb"] == pdb_file) & (self.data_df.index != pdb_id)]
             possible_partners = other_mutations.index.tolist()
@@ -428,7 +431,7 @@ class AffinityDataset(Dataset):
             else:
                 nll_values = np.full_like(nll_values, 0.5)
         elif summary_df.shape[0]==0:
-            logging.warning(f"Somehow, we have and empty dataset {self.dataset_name} {self.publication}")
+            logging.warning(f"Empty dataset: {self.dataset_name} {self.publication}")
             nll_values = 0.5 * np.ones(summary_df.shape[0])
         else:
             nll_values = 0.5 * np.ones(summary_df.shape[0])
