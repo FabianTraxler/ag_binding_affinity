@@ -212,8 +212,11 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
     else:
         summary_path, _ = get_data_paths(config, dataset_name)
         summary_df = pd.read_csv(summary_path, index_col=0)
-
-        summary_df["validation"] = summary_df["validation"].fillna("")
+        if "validation" in summary_df.columns:
+            summary_df["validation"] = summary_df["validation"].fillna("")
+        else:
+            # If the column doesn't exist, create it and fill missing values with an empty string
+            summary_df["validation"] = ""
 
         val_pdbs = summary_df.loc[summary_df["validation"] == validation_set, "pdb"]
         train_pdbs = summary_df.loc[(summary_df["validation"] != validation_set) & (~summary_df["test"]), "pdb"]
