@@ -218,7 +218,7 @@ def train_val_split(config: Dict, dataset_name: str, validation_set: Optional[in
         val_pdbs = summary_df.loc[summary_df["validation"] == validation_set, "pdb"]
         train_pdbs = summary_df.loc[(summary_df["validation"] != validation_set) & (~summary_df["test"]), "pdb"]
 
-        if "synthetic_ddg" == dataset_name:  # TODO DRY with the elif below
+        if "synthetic_ddg" in dataset_name:  # TODO DRY with the elif below
             data_path = os.path.join(config["DATASETS"]["path"],
                                      config["DATASETS"][dataset_name]["folder_path"],
                                      config["DATASETS"][dataset_name]["mutated_pdb_path"])
@@ -354,6 +354,8 @@ def get_bucket_dataloader(args: Namespace, train_datasets: List[AffinityDataset]
         data_sizes = [len(dataset) for dataset in train_datasets]
         geometric_mean = gmean(data_sizes)
         train_bucket_size = [ int(gmean([geometric_mean, size])) for size in data_sizes]
+    elif args.bucket_size_mode == "full":
+        train_bucket_size = [len(dataset) for dataset in train_datasets]
     else:
         raise ValueError(f"bucket_size_mode argument not supported: Got {args.bucket_size_mode} "
                          f"but expected one of [min, geometric_mean]")

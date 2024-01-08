@@ -236,6 +236,9 @@ class AffinityDataset(Dataset):
             valid_pairs = (kd_dists - 2*kd_std) >= 0
             valid_partners = np.where(valid_pairs)[0]
             possible_partners = self.data_df.index[valid_partners].tolist()
+        elif self.dataset_name == "synthetic_ddg_fullcomparison":
+            # We allow all partners for synthetic_ddg_fullcomparison
+            possible_partners = self.data_df.index.difference([pdb_id]).tolist()
         elif self.dataset_name == "synthetic_ddg":
             pdb = self.data_df.loc[pdb_id, "pdb"]
             possible_partners = self.data_df.index[self.data_df.pdb == pdb].difference([pdb_id]).tolist()

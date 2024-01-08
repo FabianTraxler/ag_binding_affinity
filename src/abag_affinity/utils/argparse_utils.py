@@ -90,7 +90,7 @@ def parse_args(artifical_args=None) -> Namespace:
                           choices=["bucket_train", "train_transferlearnings_validate_target"],
                           default="bucket_train")
     optional.add_argument("--bucket_size_mode", type=str, help="Mode to determine the size of the training buckets",
-                          default="geometric_mean", choices=["min", "geometric_mean", "double_geometric_mean"])
+                          default="geometric_mean", choices=["min", "geometric_mean", "double_geometric_mean", "full"])
     optional.add_argument("-m", "--pretrained_model", type=str,
                           help='Name of the published/pretrained model to use for node embeddings',
                           choices=["", "DeepRefine", "Binding_DDG", "IPA", "Diffusion"], default="")
