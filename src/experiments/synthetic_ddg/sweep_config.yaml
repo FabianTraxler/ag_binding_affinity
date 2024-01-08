@@ -18,5 +18,5 @@ parameters:
       - "synthetic_ddg#L1"
       - - "synthetic_ddg#L1+relative_L1"
         - "abag_affinity#L1+relative_L1"
-      - - "synthetic_ddg_fullcomparison#L1+relative_L1"
+      - - "synthetic_ddg_crosscomplex#L1+relative_L1"
         - "abag_affinity#L1+relative_L1"
