@@ -1,5 +1,5 @@
 method: 'grid'
-name: 'Synthetic DDG Sweep'
+name: 'Synthetic Crosscomplex DDG Sweep'
 metric:
   goal: 'minimize'
   name: 'val0_rmse'
@@ -13,10 +13,6 @@ parameters:
       - 5
   transfer_learning_datasets:
     values:
-      - "synthetic_ddg#L1"
-      - "abag_affinity#L1+relative_L1"
-      - - "synthetic_ddg#L1+relative_L1"
-        - "abag_affinity#L1+relative_L1"
+      - ""
       - - "synthetic_ddg_crosscomplex#L1+relative_L1"
         - "abag_affinity#L1+relative_L1"
-      - ""

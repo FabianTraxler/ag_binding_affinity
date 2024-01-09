@@ -296,6 +296,9 @@ def check_and_complement_args(args: Namespace, args_dict: dict) -> Namespace:
         if param == "transfer_learning_datasets" and isinstance(param_value, str):
             if ";" in param_value:
                 new_args.__dict__[param] = param_value.split(";")
+            elif not param_value:
+                # We need to filter empty dataset names that might arise from sweeps!
+                new_args.__dict__[param] = []
             else:
                 new_args.__dict__[param] = [param_value]
             continue

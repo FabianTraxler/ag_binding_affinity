@@ -238,8 +238,13 @@ class AffinityDataset(Dataset):
             possible_partners = self.data_df.index[valid_partners].tolist()
         elif self.dataset_name == "synthetic_ddg_crosscomplex":
             # We allow all partners for synthetic_ddg_crosscomplex
-            possible_partners = self.data_df.index.difference([pdb_id]).tolist()
+            # Maybe this is a bit too much overhead of storing 100k nearly identical lists of 100k values each?
+            # ->  ~600GB of values
+            # TODO Quick fix is to just select a subset already! (e.g. 400  mostly greater than N Epochs)
+            possible_partners = random.sample(self.data_df.index.difference([pdb_id]).tolist(), k=min(400, len(self.data_df)-1))
+            #possible_partners = self.data_df.index.difference([pdb_id]).tolist()
         elif self.dataset_name == "synthetic_ddg":
+            # This is also already ~ 100.000*600*60Bytes = 3.6Gb of Data
             pdb = self.data_df.loc[pdb_id, "pdb"]
             possible_partners = self.data_df.index[self.data_df.pdb == pdb].difference([pdb_id]).tolist()
         elif self.affinity_type == "-log(Kd)":
