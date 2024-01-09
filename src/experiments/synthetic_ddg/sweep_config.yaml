@@ -11,12 +11,12 @@ parameters:
       - 3
       - 4
       - 5
-  transfer_learning_dataset:
+  transfer_learning_datasets:
     values:
-      - ""
-      - "abag_affinity#L1+relative_L1"
       - "synthetic_ddg#L1"
+      - "abag_affinity#L1+relative_L1"
       - - "synthetic_ddg#L1+relative_L1"
         - "abag_affinity#L1+relative_L1"
       - - "synthetic_ddg_crosscomplex#L1+relative_L1"
         - "abag_affinity#L1+relative_L1"
+      - ""
