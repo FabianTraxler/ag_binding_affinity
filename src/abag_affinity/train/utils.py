@@ -76,12 +76,12 @@ def get_label(data: Dict, device: torch.device) -> Dict:
             label_2 = (data["input"][1]["graph"][output_type] > data["input"][0]["graph"][output_type])
             label[f"{output_type}_prob"] = torch.stack((label_1.float(), label_2.float()), dim=-1)
             label[f"{output_type}_stronger_label"] = label_2.long()  # Index of the stronger binding complex
-            label[f"{output_type}"] = data["input"][0]["graph"][output_type].to(device).view(-1,1)
-            label[f"{output_type}2"] = data["input"][1]["graph"][output_type].to(device).view(-1,1)
+            label[f"{output_type}"] = data["input"][0]["graph"][output_type].float().to(device).view(-1,1)
+            label[f"{output_type}2"] = data["input"][1]["graph"][output_type].float().to(device).view(-1,1)
             label[f"{output_type}_difference"] = label[f"{output_type}"] - label[f"{output_type}2"]
         else:
             # We add an additional dimension to match the output (Batchsize, N-Channel=1)
-            label[output_type] = data["input"]["graph"][output_type].to(device).view(-1,1)
+            label[output_type] = data["input"]["graph"][output_type].float().to(device).view(-1,1)
 
     # TODO Try to return NLL values of data if available!
     return label
