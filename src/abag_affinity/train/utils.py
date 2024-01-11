@@ -125,6 +125,12 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
                 #     if valid_indices.sum() > 0:
                 #         losses.append(weight * loss_fn(output[f"{output_type}2"][valid_indices],
                 #                                    label[f"{output_type}2"][valid_indices]))
+            if criterion == "cosinesim":
+                valid_indices = ~torch.isnan(label[output_type])
+                if valid_indices.sum() > 1:
+                    losses.append(weight * loss_fn(output[output_type][valid_indices],
+                                                   label[output_type][valid_indices]))
+
             elif criterion == "NLL":
                 # This loss optimizes the predicted Likelihood jointly
                 valid_indices = ~torch.isnan(label[output_type])
