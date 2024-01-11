@@ -13,11 +13,6 @@ parameters:
       - 5
   transfer_learning_datasets:
     values:
-      - ""
-      - "synthetic_ddg#NLL"
-      - - "synthetic_ddg#NLL+relative_cdf"
-        - "abag_affinity#NLL+relative_cdf"
       - - "synthetic_ddg#cosinesim"
         - "abag_affinity#cosinesim"
       - "abag_affinity#cosinesim"
-
