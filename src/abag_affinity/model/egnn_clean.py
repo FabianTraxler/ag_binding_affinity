@@ -139,7 +139,7 @@ class EGNN(nn.Module):
         self.n_layers = n_layers
 
         # When using openfold embedding, the network somehow explodes. To fix this, we could reduce the initialization strength
-        if True: # Try Layernorm always  in_node_nf > 100:
+        if False: # Not Sure LayerNorm is really beneficial
             # The embedding is normalized using Layernorm
             self.embedding_in = torch.nn.Sequential(nn.LayerNorm([in_node_nf]),
                                                    nn.Linear(in_node_nf, self.hidden_nf))

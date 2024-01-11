@@ -365,6 +365,7 @@ class AffinityDataset(Dataset):
                                          save_path=out_path,
                                          relaxed=self.is_relaxed
                                         )
+        print(f"Preprocessing {len(graph_dicts2process)} graphs with and saving them to {self.processed_graph_files}")
         submit_jobs(preload_graph_dict, graph_dicts2process, self.num_threads)
 
         if self.pretrained_model == "DeepRefine":

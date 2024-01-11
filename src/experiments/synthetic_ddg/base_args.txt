@@ -1,8 +1,8 @@
 --gnn_type=egnn
---patience=20
+--patience=10
 --node_type=residue
 --batch_size=32
---max_epochs=400
+--max_epochs=100
 --num_workers=8
 --nonlinearity=leaky
 --scale_values
@@ -11,9 +11,9 @@
 --preprocessed_to_scratch=/tmp
 --train_strategy=bucket_train
 --max_edge_distance=5
---bucket_size_mode=full
+--bucket_size_mode=double_geometric_mean
 --aggregation_method=interface_sum
---weight_decay=0.0000001
+--weight_decay=0.000001
 -wdb
 --wandb_mode=online
 --lr_scheduler=plateau
