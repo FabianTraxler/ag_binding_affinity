@@ -1,5 +1,5 @@
 method: 'grid'
-name: 'Synthetic DDG DoubleGeometricMean Sweep'
+name: 'Synthetic DDG Uncertainty Sweep'
 metric:
   goal: 'minimize'
   name: 'val0_rmse'
@@ -14,8 +14,10 @@ parameters:
   transfer_learning_datasets:
     values:
       - ""
-      - "synthetic_ddg#L1"
-      - "synthetic_ddg#relative_L1"
-      - - "synthetic_ddg#L1+relative_cdf"
-        - "abag_affinity#L1+relative_cdf"
+      - "synthetic_ddg#NLL"
+      - - "synthetic_ddg#NLL+relative_cdf"
+        - "abag_affinity#NLL+relative_cdf"
+      - - "synthetic_ddg#cosinesim"
+        - "abag_affinity#cosinesim"
+      - "abag_affinity#cosinesim"
 

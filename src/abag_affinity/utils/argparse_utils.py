@@ -73,7 +73,7 @@ def parse_args(artifical_args=None) -> Namespace:
         """
         NOTE: we could also add all possible dataset names
         """
-        pattern = r'^[A-Za-z0-9-_.]+#(L1|L2|RL2|NLL|relative_L1|relative_L2|relative_RL2|relative_ce|relative_cdf)(-[0-9.]+)?(\+(L1|L2|RL2|NLL|relative_L1|relative_L2|relative_RL2|relative_ce|relative_cdf)(-[0-9.]+)?)*$'
+        pattern = r'^[A-Za-z0-9-_.]+#(L1|L2|RL2|NLL|relative_L1|relative_L2|relative_RL2|relative_ce|relative_cdf|cosinesim)(-[0-9.]+)?(\+(L1|L2|RL2|NLL|relative_L1|relative_L2|relative_RL2|relative_ce|relative_cdf|cosinesim)(-[0-9.]+)?)*$'
         if not re.match(pattern, value):
             raise ArgumentTypeError(f"Invalid value: {value}. Expected format: DATASET#LOSS1-LAMBDA1+LOSS2-LAMBDA2")
         return value
