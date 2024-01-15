@@ -369,7 +369,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
                              f"{args.wandb_name}/bucket_learning/val_set_{args.validation_set}")
     Path(plot_path).mkdir(exist_ok=True, parents=True)
 
-    dataset2optimize = args.target_dataset
+    dataset2optimize = args.target_dataset.split("#")[0]
 
     wandb_inst, wdb_config, use_wandb, run = configure(args, model.dataset_specific_layer)
 
