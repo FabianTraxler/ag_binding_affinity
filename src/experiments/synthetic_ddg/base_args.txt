@@ -22,6 +22,6 @@
 --learning_rate=0.001
 --relaxed_pdbs=False
 --target_dataset=abag_affinity#NLL
---uncertainty_temp=0
+--uncertainty_temp=0.2
 --init_sweep
 --sweep_config=../experiments/synthetic_ddg/sweep_config.yaml

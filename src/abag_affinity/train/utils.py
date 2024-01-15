@@ -267,7 +267,10 @@ def validate_epochs(model: AffinityGNN, val_dataloaders: List[DataLoader], devic
 
 
         # We could have the same dateset with different losses in one validation, therefore, we need to add the loss?!
-        results[f"{val_dataloader.dataset.full_dataset_name}#{val_dataloader.dataset.loss_criterion}"] = {
+        # However, on wandb it would be nice to see the results together when training with different losses...
+
+        #results[f"{val_dataloader.dataset.full_dataset_name}#{val_dataloader.dataset.loss_criterion}"] = {
+        results[f"{val_dataloader.dataset.full_dataset_name}"] = {
             "val_loss": total_loss_val,
             "pearson_correlation": pearson_corr[0],
             "pearson_correlation_p": pearson_corr[1],
