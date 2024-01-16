@@ -1,5 +1,5 @@
 method: 'grid'
-name: 'Synthetic DDG Only Sweep'
+name: 'Synthetic DDG InterFace Mean Sweep'
 metric:
   goal: 'minimize'
   name: 'val0_rmse'
@@ -12,12 +12,9 @@ parameters:
       - 4
   target_dataset:
     values:
-      - 'synthetic_ddg#L1'
       - 'synthetic_ddg#L2'
-      - 'synthetic_ddg#relative_L1'
       - 'synthetic_ddg#relative_L2'
       - 'synthetic_ddg#relative_cdf'
       - 'synthetic_ddg#cosinesim'
-      - 'synthetic_ddg#L1+relative_L1'
       - 'synthetic_ddg#L2+relative_L2'
-      - 'synthetic_ddg#L1++relative_cdf'
+      - 'synthetic_ddg#L2+relative_cdf'

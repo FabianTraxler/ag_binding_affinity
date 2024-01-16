@@ -106,7 +106,7 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
         "relative_RL2": lambda output, label: torch.sqrt(torch.nn.functional.mse_loss(output, label, reduction='sum') + 1e-10),
         "relative_ce": partial(torch.nn.functional.nll_loss, reduction='sum'),
         "relative_cdf": lambda output, label: torch.nn.functional.nll_loss(output, label, reduction="sum"),
-        "cosinesim": lambda output, label: torch.nn.functional.cosine_similarity(output, label, dim=0, eps=1e-6).mean(),
+        "cosinesim": lambda output, label: -1 * torch.nn.functional.cosine_similarity(output, label, dim=0, eps=1e-6).mean(),
     }
 
     for (criterion, weight) in loss_types:
