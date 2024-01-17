@@ -115,10 +115,6 @@ class AffinityDataset(Dataset):
             self.publication = None
             self.full_dataset_name = dataset_name
 
-        # for synthetic_ddg_crosscomplex we do not want seperate preprocessed graphs...
-        if self.dataset_name == "synthetic_ddg_crosscomplex":
-            self.full_dataset_name = "synthetic_ddg"
-
         # define edge types based on node type
         if node_type == "residue":
             self.edge_types = ["distance", "peptide_bond", "same_protein"]
