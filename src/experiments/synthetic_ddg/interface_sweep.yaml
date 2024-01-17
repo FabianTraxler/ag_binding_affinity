@@ -1,0 +1,22 @@
+method: 'grid'
+name: 'Synthetic DDG InterFace Sweep'
+metric:
+  goal: 'minimize'
+  name: 'val0_rmse'
+parameters:
+  seed:
+    values:
+      - 1
+      - 2
+      - 3
+      - 4
+  aggregation_method:
+    values:
+      - 'interface_sum'
+      - 'interface_mean'
+      - 'mean'
+      - 'sum'
+  target_dataset:
+    values:
+      - 'synthetic_ddg#L2'
+      - 'synthetic_ddg#relative_L2'

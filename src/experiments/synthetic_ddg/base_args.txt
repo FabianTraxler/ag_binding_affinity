@@ -24,4 +24,4 @@
 --target_dataset=abag_affinity#NLL
 --uncertainty_temp=0.2
 --init_sweep
---sweep_config=../experiments/synthetic_ddg/sweep_config.yaml
+--sweep_config=../experiments/synthetic_ddg/interface_sweep.yaml
