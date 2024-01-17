@@ -83,6 +83,9 @@ def parse_args(artifical_args=None) -> Namespace:
     parser.add_argument("-tld", "--transfer_learning_datasets", type=validate_dataset_string,
                         help='Datasets used for transfer-learning in addition to goal_dataset', default=[], nargs='+')
 
+    # Add the `relative_sampling_strategy` argument with specified choices and default value
+    optional.add_argument("--relative_sampling_strategy", type=str, choices=["all_pairs", "same_base_complex"], default="all_pairs", help="Strategy for sampling relative pairs for training. `strong_label_difference` is for E-values")
+
     optional.add_argument("--relaxed_pdbs", choices=["True", "False", "both"], help="Use the relaxed pdbs for training "
                                                                                "and validation", default="False")
     # -train strategy

@@ -46,7 +46,7 @@ class AffinityDataset(Dataset):
                  max_edge_distance: int = 5,
                  pretrained_model: str = "",
                  scale_values: bool = True, scale_min: int = 0, scale_max: int = 16,
-                 relative_data: bool = False,
+                 relative_data: Optional[str] = None,
                  save_graphs: bool = False, force_recomputation: bool = False,
                  preprocess_data: bool = False,
                  preprocessed_to_scratch: Optional[str] = None,
@@ -73,7 +73,7 @@ class AffinityDataset(Dataset):
             scale_values: Boolean indicator if affinity values should be scaled
             scale_min: Minimum value of scaling range
             scale_max: Maximum value of scaling range
-            relative_data: Boolean indicator if this dataset is relative
+            relative_data: Indicator if this dataset is relative and how relative pairs should be sampled
             save_graphs: Boolean indicator if processed graphs are stored to disc
             force_recomputation: Boolean indicator if graphs are newly computed even if they are found on disc
             preprocess_data: Boolean indicator if data should be processed after class initialization
@@ -236,17 +236,18 @@ class AffinityDataset(Dataset):
             valid_pairs = (kd_dists - 2*kd_std) >= 0
             valid_partners = np.where(valid_pairs)[0]
             possible_partners = self.data_df.index[valid_partners].tolist()
-        elif self.dataset_name == "synthetic_ddg_crosscomplex":
-            # We allow all partners for synthetic_ddg_crosscomplex
-            # Maybe this is a bit too much overhead of storing 100k nearly identical lists of 100k values each?
-            # ->  ~600GB of values
-            # TODO Quick fix is to just select a subset already! (e.g. 400  mostly greater than N Epochs)
-            possible_partners = random.sample(self.data_df.index.difference([pdb_id]).tolist(), k=min(400, len(self.data_df)-1))
-            #possible_partners = self.data_df.index.difference([pdb_id]).tolist()
         elif self.dataset_name == "synthetic_ddg":
-            # This is also already ~ 100.000*600*60Bytes = 3.6Gb of Data
-            pdb = self.data_df.loc[pdb_id, "pdb"]
-            possible_partners = self.data_df.index[self.data_df.pdb == pdb].difference([pdb_id]).tolist()
+            if self.relative_data == "same_base_complex":
+                # This is already ~ 100.000*600*60Bytes = 3.6Gb of Data
+                pdb = self.data_df.loc[pdb_id, "pdb"]
+                possible_partners = self.data_df.index[self.data_df.pdb == pdb].difference([pdb_id]).tolist()
+            elif self.relative_data == "all_pairs":  # sample across base complexes
+                # Allowing all partners for synthetic_ddg is a bit too much overhead of
+                # storing 100k nearly identical lists of 100k values each (600GB of values)
+                # As a quick fix, just select a subset already here: (e.g. 400 mostly greater than N Epochs)
+                possible_partners = random.sample(self.data_df.index.difference([pdb_id]).tolist(), k=min(400, len(self.data_df)-1))
+            else:
+                raise ValueError(f"Wrong relative sampling strategy given - expected one of (same_base_complex, all_pairs) but got {self.relative_sampling_strategy}")
         elif self.affinity_type == "-log(Kd)":
             other_mutations = self.data_df[(self.data_df["pdb"] == pdb_file) & (self.data_df.index != pdb_id)]
             possible_partners = other_mutations.index.tolist()

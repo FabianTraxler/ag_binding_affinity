@@ -271,9 +271,9 @@ def load_datasets(config: Dict, dataset: str, validation_set: int,
     # E.g. data_type = relative#l2-1,l1-0.1,relative_l1-2,relative_2-0.1,relative_ce-1
 
     if "relative" in loss_types and not only_neglogkd_samples:
-        relative_data = True
+        relative_data = args.relative_sampling_strategy
     else:
-        relative_data = False
+        relative_data = None
     train_ids, val_ids = train_val_split(config, dataset_name, validation_set, validation_size)
 
     if args.test:
