@@ -236,7 +236,7 @@ class AffinityDataset(Dataset):
             valid_pairs = (kd_dists - 2*kd_std) >= 0
             valid_partners = np.where(valid_pairs)[0]
             possible_partners = self.data_df.index[valid_partners].tolist()
-        elif self.dataset_name == "synthetic_ddg":
+        elif "synthetic_ddg" in self.dataset_name:
             if self.relative_data == "same_base_complex":
                 # This is already ~ 100.000*600*60Bytes = 3.6Gb of Data
                 pdb = self.data_df.loc[pdb_id, "pdb"]

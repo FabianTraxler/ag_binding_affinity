@@ -45,6 +45,7 @@ rule prepare_dataset_csv:
     output:
         absolute=project_root / "results" / "synthetic_ddg" / "ddg_with_absolute_labels.csv",
         relative=project_root / "results" / "synthetic_ddg" / "ddg_with_relative_labels.csv"
+    conda: "ag_binding_diffusion3"
     params:
         offset_neglogkd=8.0
     log:
