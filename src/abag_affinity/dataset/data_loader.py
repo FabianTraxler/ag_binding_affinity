@@ -199,7 +199,17 @@ class AffinityDataset(Dataset):
         assert self.relative_data, "This function is only available for relative data"
         all_data_points = []
         n_skipped_pdbs = 0
-        for pdb_id in self.pdb_ids:
+
+
+        if self.dataset_name != "synthetic_ddg_rel":
+            # We normally want matching pairs for each pdb id
+            pdb_to_iterate = self.pdb_ids
+        else:
+            # for synthetic_ddg_rel this becomes crazy...
+            # Therefore, we restrict us to compute only for WT
+            pdb_to_iterate = self.data_df["pdb"].unique()
+
+        for pdb_id in pdb_to_iterate: #self.pdb_ids:
             other_pdb_ids = self.get_compatible_pairs(pdb_id)
             if other_pdb_ids is None:
                 # do not use this pdb
