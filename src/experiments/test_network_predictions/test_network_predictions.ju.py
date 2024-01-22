@@ -20,6 +20,9 @@ from tqdm import tqdm
 from sklearn.metrics import accuracy_score
 from functools import partial
 # import pdb
+import matplotlib.pyplot as plt
+from matplotlib import colormaps
+from matplotlib.lines import Line2D
 
 from abag_affinity.dataset import AffinityDataset
 from abag_affinity.dataset.advanced_data_utils import complexes_from_dms_datasets, get_bucket_dataloader, load_datasets
@@ -30,6 +33,7 @@ from abag_affinity.utils.visualize import plot_correlation
 from abag_affinity.utils.argparse_utils import read_args_from_file, parse_args
 from abag_affinity.train.utils import load_model
 from abag_affinity.model import regression_heads
+from abag_affinity.utils.pdb_processing import AMINO_ACIDS
 # %load_ext autoreload
 # %autoreload 2
 # %%
@@ -166,6 +170,54 @@ for set_name, dataloader in dataloaders.items():
     print('standard dev across residues', np.std(list(means_per_residue.values())), '\n')
     print('\n\n')
 # %%
+# Plot residue energy distributions
+
+
+fig = plt.figure(figsize=(20, 10))
+cmap_inds = np.linspace(0.0, 1.0, 3)
+colors = colormaps['viridis'](cmap_inds)
+
+
+offsets = np.linspace(-0.25, 0.25, len(results.keys()))
+for i, set_name in enumerate(results.keys()):
+    for res in results[set_name]['preds_per_residue'].keys():
+        res_preds = results[set_name]['preds_per_residue'][res]
+        plt.boxplot(res_preds, positions=[res + offsets[i]], boxprops=dict(color=colors[i], alpha=0.5), flierprops=dict(marker='.'))
+
+
+custom_lines = [Line2D([0], [0], color=colors[0], lw=4, alpha=0.5),
+                Line2D([0], [0], color=colors[1], lw=4, alpha=0.5),
+                Line2D([0], [0], color=colors[2], lw=4, alpha=0.5)]
+
+plt.legend(custom_lines, ['Training', 'Validation', 'Benchmark'], loc='lower right')
+plt.xticks(list(results['Training']['preds_per_residue'].keys()), [AMINO_ACIDS[i] for i in results['Training']['preds_per_residue'].keys()])
+plt.show()
+
+# %%
+# Plot residue energy distributions
+
+
+fig = plt.figure(figsize=(20, 10))
+cmap_inds = np.linspace(0.0, 1.0, 3)
+colors = colormaps['viridis'](cmap_inds)
+
+
+offsets = np.linspace(-0.25, 0.25, len(results.keys()))
+for i, set_name in enumerate(results.keys()):
+    for res in results[set_name]['preds_per_residue'].keys():
+        res_preds = results[set_name]['preds_per_residue'][res]
+        plt.boxplot(res_preds, positions=[res + offsets[i]], boxprops=dict(color=colors[i], alpha=0.5), flierprops=dict(marker='.'))
+
+
+custom_lines = [Line2D([0], [0], color=colors[0], lw=4, alpha=0.5),
+                Line2D([0], [0], color=colors[1], lw=4, alpha=0.5),
+                Line2D([0], [0], color=colors[2], lw=4, alpha=0.5)]
+
+plt.legend(custom_lines, ['Training', 'Validation', 'Benchmark'], loc='lower right')
+plt.xticks(list(results['Training']['preds_per_residue'].keys()), [AMINO_ACIDS[i] for i in results['Training']['preds_per_residue'].keys()])
+plt.ylim(0.011, 0.014)
+plt.show()
+# %%
 train_mean = np.mean(results['Training']['y_data'])
 
 for set_name in dataloaders.keys():
@@ -181,3 +233,23 @@ mean_rmses = [results[set_name]['train_mean_rmse'] for set_name in dataloaders.k
 pred_rmses = [results[set_name]['pred_rmse'] for set_name in dataloaders.keys()]
 np.corrcoef(mean_rmses, pred_rmses)
 print('Correlation between train_mean_rmse and pred_rmse', np.corrcoef(mean_rmses, pred_rmses)[0, 1])
+# %%
+fig = plt.figure()
+
+plt.axhline(y=train_mean, color='k', linestyle='--', label=f'Mean: {train_mean:.2f}')
+
+offsets = np.linspace(-0.15, 0.15, 2)
+cmap_inds = np.linspace(0.0, 1.0, 2)
+colors = colormaps['viridis'](cmap_inds)
+for i, set_name in enumerate(results.keys()):
+    plt.boxplot(results[set_name]['y_data'], positions=[i + offsets[0]], boxprops=dict(color=colors[0], alpha=0.5),
+                flierprops=dict(marker='.'), showmeans=True)
+    plt.boxplot(results[set_name]['y_pred'], positions=[i + offsets[1]], boxprops=dict(color=colors[1], alpha=0.5),
+                flierprops=dict(marker='.'), showmeans=True)
+
+custom_lines = [Line2D([0], [0], color=colors[0], lw=4, alpha=0.5),
+                Line2D([0], [0], color=colors[1], lw=4, alpha=0.5),
+                Line2D([0], [0], color='k', lw=1.5, linestyle='--')]
+
+plt.legend(custom_lines, ['data', 'pred', 'train mean'], loc='lower right')
+plt.xticks([0, 1, 2], ['Training', 'Validation', 'Benchmark'])
