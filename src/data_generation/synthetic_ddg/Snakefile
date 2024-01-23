@@ -1,10 +1,12 @@
 from pathlib import Path
+from snakemake.remote.HTTP import RemoteProvider as HTTPRemoteProvider
+
+HTTP = HTTPRemoteProvider()
 
 # data downloaded from https://github.com/amhummer/Graphinity/tree/main/data
 project_root = Path(workflow.basedir).parents[2] # two directories above - absolute paths not working
 out_folder = project_root / "results" / "synthetic_ddg" / "pdbs"
 in_folder = project_root / "resources" / "synthetic_ddg" / "data/naga03/not-backed-up/scratch/hummer/synth_aff_data/synthetic_ddg_dataset_for_sharing/synthetic_ddg_mutated_pdbs/"
-
 # TODO load paths etc from config.yaml
 
 def all_pdb_files(wildcards):
@@ -13,8 +15,9 @@ def all_pdb_files(wildcards):
 
 rule all:
     input:
-        all_pdb_files
-
+        # all_pdb_files,
+        absolute=project_root / "results" / "synthetic_ddg" / "ddg_with_absolute_labels.csv",
+        relative=project_root / "results" / "synthetic_ddg" / "ddg_with_relative_labels.csv"
 
 rule trim_complex:
     """
@@ -33,21 +36,147 @@ rule trim_complex:
     script: "scripts/trim_complex.py"
 
 
+rule wt_pdbs_to_fasta:
+    """
+    it is better to use the out_folder WT pdbs, as they only contain the chains that are present in the mutated pdbs
+    """
+
+    input:
+        wt_pdb_dir=out_folder
+        # wt_pdb_dir=project_root / "resources" / "synthetic_ddg" / "synthetic_ddg_wt_pdbs"  # only for local testing
+    output:
+        pdb_seqs=project_root / "results" / "synthetic_ddg" / "pdb_seqs.fasta"
+    conda: "ag_binding_diffusion3"
+    script:
+        "scripts/wt_pdbs_to_fasta.py"
+
+rule anarci:
+    """
+    This is a dummy rule that requires you to run  anarci online
+
+    https://opig.stats.ox.ac.uk/webapps/sabdab-sabpred/sabpred/anarci/
+
+    KL stands for kappa and lambda
+
+    """
+    input:
+        pdb_seqs=rules.wt_pdbs_to_fasta.output.pdb_seqs
+    output:
+        imgt_numeration=directory(project_root / "results" / "synthetic_ddg" / "anarci"),
+        imgt_numeration_H=project_root / "results" / "synthetic_ddg" / "anarci" / "anarci_H.csv",
+        imgt_numeration_KL=project_root / "results" / "synthetic_ddg" / "anarci" / "anarci_KL.csv",
+    conda:
+        "anarci"  # NOTE: installation only works when installing ANARCI manually (git pull, python setup.py install)
+        # "envs/anarci.yaml"
+    shell:
+        """
+        ANARCI -i {input.pdb_seqs} --scheme imgt --csv --outfile {output.imgt_numeration}/anarci
+        """
+
+rule concat_pdb_cdrs:
+    """
+    The CDRs were extracted, concatenated and binned based on length.
+
+    IMGT does not care about L or H chain.
+
+    26 and 39 for the CDR1-IMGT
+    55 and 66 for the CDR2-IMGT
+    104 and 118 for the CDR3-IMGT
+
+    For more info see here: https://github.com/oxpig/ANARCI/issues/39 and here https://www.imgt.org/IMGTScientificChart/Nomenclature/IMGT-FRCDRdefinition.html
+    """
+    input:
+        H_chains=rules.anarci.output.imgt_numeration_H,
+        L_chains=rules.anarci.output.imgt_numeration_KL,
+    output:
+        cdr_seqs=project_root / "results" / "synthetic_ddg" / "cdrs.fasta"
+    # conda:
+    #     "ag_binding_diffusion3"
+    run:
+        import pandas as pd
+        import numpy as np
+
+        h_chains = pd.read_csv(input.H_chains, index_col=0)
+        l_chains = pd.read_csv(input.L_chains, index_col=0)
+
+        possible_resis = set(range(26, 40)) | set(range(55, 67)) | set(range(104, 119))
+
+        def get_cdr_seqs(row):
+            residues = [residue for resi, residue in row.items() if int(''.join(filter(str.isdigit, resi))) in possible_resis and residue != "-"]
+            return "".join(residues)
+
+        skip_cols = ['domain_no', 'hmm_species', 'chain_type', 'e-value', 'score', 'seqstart_index', 'seqend_index', 'identity_species', 'v_gene', 'v_identity', 'j_gene', 'j_identity']
+        h_chains["cdr_seq"] = h_chains.drop(columns=skip_cols).apply(get_cdr_seqs, axis=1)
+        l_chains["cdr_seq"] = l_chains.drop(columns=skip_cols).apply(get_cdr_seqs, axis=1)
+        h_chains["pdb"] = h_chains.index.str.split("_").str[0]
+        l_chains["pdb"] = l_chains.index.str.split("_").str[0]
+
+        # merge h_chains and l_chains for each
+        all_pdbs = set(h_chains["pdb"]) | set(l_chains["pdb"])
+
+        with open(output.cdr_seqs, "a") as f:
+            for pdb in all_pdbs:
+                # take the first one if there are multiple H chains (shouldn't happen because we prepared the PDBs)
+                try:
+                    h_cdr_seq = h_chains.loc[h_chains["pdb"] == pdb, "cdr_seq"].iloc[0]
+                except IndexError:
+                    print(f"No H chain for {pdb}")
+                    h_cdr_seq = ""
+
+                try:
+                    l_cdr_seq = l_chains.loc[l_chains["pdb"] == pdb, "cdr_seq"].iloc[0]
+                except IndexError:
+                    print(f"No L chain for {pdb}")
+                    l_cdr_seq = ""
+
+                f.write(f">{pdb}\n")
+                f.write(f"{h_cdr_seq}{l_cdr_seq}\n")
+
+
+rule cdhit_clustering:
+    """
+    In contrast to Hummer et al., we don't cluster by length explicitly, so our approach is more stringent.
+    Furthermore, our default threshold is 0.7, whereas Hummer et al. used 0.9.
+    Less stringent Hummer approach can be implemented by adding -S 0
+
+    - `-i`: Specifies the input file containing your sequences in FASTA format.
+    - `-o`: Specifies the base name of the output files. CD-HIT will generate two output files: `clustered_sequences` (the FASTA file of representative sequences) and `clustered_sequences.clstr` (the text file listing the clusters).
+    - `-c 0.7`: Sets the sequence identity threshold to 70%.
+    - `-n 5`: Sets the word size for sequence comparison. According to the documentation, a word size of 5 is appropriate for identity thresholds between 0.7 and 1.0.
+    - `-d 0`: Includes the full sequence name in the `.clstr` output file until the first white space.
+    - `-M 16000`: Allocates 16GB of RAM for CD-HIT to use.
+    - `-T 8`: Specifies that CD-HIT should use 8 threads for parallel computation.
+    """
+    input:
+        cdr_seqs=rules.concat_pdb_cdrs.output.cdr_seqs
+    output:
+        cdr_repseqs=project_root / "results" / "synthetic_ddg" / "cdr_clusters",
+        cdr_clusters=project_root / "results" / "synthetic_ddg" / "cdr_clusters.clstr"
+    params:
+        threshold=0.7,  # as in the paper
+    threads: 8
+    resources:
+        mem_mb=16000
+    conda:
+        "envs/cdhit.yaml"
+    shell: """
+    cd-hit -i {input.cdr_seqs} -o {output.cdr_repseqs} -c {params.threshold} -n 5 -d 0 -M {resources.mem_mb} -T {threads}
+    """
+
 rule prepare_dataset_csv:
     """
     Generate the CSV file with absolute labels
     """
     input:
-        syn_df=project_root / "results" / "synthetic_ddg" / "ddg.csv",
-        abag_df=project_root / "results" / "abag_affinity_dataset" / "abag_affinity_dataset.csv",  # TODO delete
-
-        sabdab_summary=project_root / "resources" / "SAbDab" / "sabdab_summary.tsv"
+        # syn_df=project_root / "resources" / "synthetic_ddg" / "ddg.csv",
+        syn_df=HTTP.remote("https://github.com/amhummer/Graphinity/raw/main/data/ddg_synthetic/Synthetic_ddG_942723.csv", keep_local=True)[0],
+        cdr_clusters=rules.cdhit_clustering.output.cdr_clusters,
     output:
-        absolute=project_root / "results" / "synthetic_ddg" / "ddg_with_absolute_labels.csv",
-        relative=project_root / "results" / "synthetic_ddg" / "ddg_with_relative_labels.csv"
+        full=project_root / "results" / "synthetic_ddg" / "ddg_full_synthetic_labels.csv",
     conda: "ag_binding_diffusion3"
     params:
-        offset_neglogkd=8.0
+        filter_logkd_min=0.0,
+        fliter_logkd_max=20.0,
     log:
         notebook="logs/prepare_dataset_csv.py.ipynb"
     notebook:
