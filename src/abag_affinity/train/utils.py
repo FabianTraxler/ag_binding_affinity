@@ -76,12 +76,12 @@ def get_label(data: Dict, device: torch.device) -> Dict:
             label_2 = (data["input"][1]["graph"][output_type] > data["input"][0]["graph"][output_type])
             label[f"{output_type}_prob"] = torch.stack((label_1.float(), label_2.float()), dim=-1)
             label[f"{output_type}_stronger_label"] = label_2.long()  # Index of the stronger binding complex
-            label[f"{output_type}"] = data["input"][0]["graph"][output_type].to(device).view(-1,1)
-            label[f"{output_type}2"] = data["input"][1]["graph"][output_type].to(device).view(-1,1)
+            label[f"{output_type}"] = data["input"][0]["graph"][output_type].float().to(device).view(-1,1)
+            label[f"{output_type}2"] = data["input"][1]["graph"][output_type].float().to(device).view(-1,1)
             label[f"{output_type}_difference"] = label[f"{output_type}"] - label[f"{output_type}2"]
         else:
             # We add an additional dimension to match the output (Batchsize, N-Channel=1)
-            label[output_type] = data["input"]["graph"][output_type].to(device).view(-1,1)
+            label[output_type] = data["input"]["graph"][output_type].float().to(device).view(-1,1)
 
     # TODO Try to return NLL values of data if available!
     return label
@@ -105,7 +105,8 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
         "relative_L2": partial(torch.nn.functional.mse_loss, reduction='sum'),
         "relative_RL2": lambda output, label: torch.sqrt(torch.nn.functional.mse_loss(output, label, reduction='sum') + 1e-10),
         "relative_ce": partial(torch.nn.functional.nll_loss, reduction='sum'),
-        "relative_cdf": lambda output, label: torch.nn.functional.nll_loss(output, label, reduction="sum")
+        "relative_cdf": lambda output, label: torch.nn.functional.nll_loss(output, label, reduction="sum"),
+        "cosinesim": lambda output, label: -1 * torch.nn.functional.cosine_similarity(output, label, dim=0, eps=1e-6).mean(),
     }
 
     for (criterion, weight) in loss_types:
@@ -124,6 +125,12 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
                 #     if valid_indices.sum() > 0:
                 #         losses.append(weight * loss_fn(output[f"{output_type}2"][valid_indices],
                 #                                    label[f"{output_type}2"][valid_indices]))
+            if criterion == "cosinesim":
+                valid_indices = ~torch.isnan(label[output_type])
+                if valid_indices.sum() > 1:
+                    losses.append(weight * loss_fn(output[output_type][valid_indices],
+                                                   label[output_type][valid_indices]))
+
             elif criterion == "NLL":
                 # This loss optimizes the predicted Likelihood jointly
                 valid_indices = ~torch.isnan(label[output_type])
@@ -260,7 +267,10 @@ def validate_epochs(model: AffinityGNN, val_dataloaders: List[DataLoader], devic
 
 
         # We could have the same dateset with different losses in one validation, therefore, we need to add the loss?!
-        results[f"{val_dataloader.dataset.full_dataset_name}#{val_dataloader.dataset.loss_criterion}"] = {
+        # However, on wandb it would be nice to see the results together when training with different losses...
+
+        #results[f"{val_dataloader.dataset.full_dataset_name}#{val_dataloader.dataset.loss_criterion}"] = {
+        results[f"{val_dataloader.dataset.full_dataset_name}"] = {
             "val_loss": total_loss_val,
             "pearson_correlation": pearson_corr[0],
             "pearson_correlation_p": pearson_corr[1],
@@ -359,7 +369,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
                              f"{args.wandb_name}/bucket_learning/val_set_{args.validation_set}")
     Path(plot_path).mkdir(exist_ok=True, parents=True)
 
-    dataset2optimize = args.target_dataset
+    dataset2optimize = args.target_dataset.split("#")[0]
 
     wandb_inst, wdb_config, use_wandb, run = configure(args, model.dataset_specific_layer)
 
@@ -630,7 +640,6 @@ def get_benchmark_score(model: AffinityGNN, args: Namespace, tqdm_output: bool =
                               scale_values=args.scale_values,
                               scale_min=args.scale_min,
                               scale_max=args.scale_max,
-                              relative_data=False,
                               save_graphs=args.save_graphs,
                               force_recomputation=args.force_recomputation,
                               preprocess_data=args.preprocess_graph,
@@ -674,7 +683,6 @@ def get_abag_test_score(model: AffinityGNN, args: Namespace, tqdm_output: bool =
                               scale_values=args.scale_values,
                               scale_min=args.scale_min,
                               scale_max=args.scale_max,
-                              relative_data=False,
                               save_graphs=args.save_graphs,
                               force_recomputation=args.force_recomputation,
                               preprocess_data=args.preprocess_graph,
@@ -722,7 +730,6 @@ def get_skempi_corr(model: AffinityGNN, args: Namespace, tqdm_output: bool = Tru
                               scale_values=args.scale_values,
                               scale_min=args.scale_min,
                               scale_max=args.scale_max,
-                              relative_data=False,
                               save_graphs=args.save_graphs,
                               force_recomputation=args.force_recomputation,
                               preprocess_data=args.preprocess_graph,
