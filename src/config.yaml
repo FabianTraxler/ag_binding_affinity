@@ -14,6 +14,13 @@ DATASETS:
     summary: "abag_affinity_dataset.csv"
     affinity_type: "-log(Kd)"
 
+  synthetic_ddg_full_synthetic_labels:
+    folder_path: "results/synthetic_ddg"
+    pdb_path: "pdbs"
+    mutated_pdb_path: "pdbs"
+    summary: "ddg_with_synthetic_labels.csv"
+    affinity_type: "-log(Kd)"
+
   synthetic_ddg_abs:
     folder_path: "results/synthetic_ddg"
     pdb_path: "pdbs"
