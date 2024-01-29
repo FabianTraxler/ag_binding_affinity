@@ -52,7 +52,7 @@ rule wt_pdbs_to_fasta:
 
 rule anarci:
     """
-    This is a dummy rule that requires you to run  anarci online
+    This is a dummy rule that requires you to run anarci online
 
     https://opig.stats.ox.ac.uk/webapps/sabdab-sabpred/sabpred/anarci/
 
@@ -177,6 +177,7 @@ rule prepare_dataset_csv:
     params:
         filter_logkd_min=0.0,
         fliter_logkd_max=20.0,
+        val_max_num_mutations=50,
     log:
         notebook="logs/prepare_dataset_csv.py.ipynb"
     notebook:
