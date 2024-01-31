@@ -153,7 +153,7 @@ rule cdhit_clustering:
         cdr_repseqs=project_root / "results" / "synthetic_ddg" / "cdr_clusters",
         cdr_clusters=project_root / "results" / "synthetic_ddg" / "cdr_clusters.clstr"
     params:
-        threshold=0.7,  # as in the paper
+        threshold=0.7,
     threads: 8
     resources:
         mem_mb=16000
