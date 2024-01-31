@@ -54,7 +54,7 @@ class BooleanOptionalAction(Action):
         return ' | '.join(self.option_strings)
 
 
-def parse_args(artifical_args=None) -> Namespace:
+def parse_args(artifical_args=None, args_file=None) -> Namespace:
     """ CLI arguments parsing functionality
 
     Parse all CLI arguments and set not available to default values
@@ -219,7 +219,12 @@ def parse_args(artifical_args=None) -> Namespace:
     optional.add_argument("--weight_decay", type=float, default=0, help="Weight Decay for Parameters")
     optional.add_argument("--uncertainty_temp", type=float, default=0.2, help="Uncertainty Temperature for cdf loss. If 0 then it is learned")
 
-    args = parser.parse_args(artifical_args)
+    if args_file is not None:
+        with open(args_file, 'r') as f:
+            args_str = f.read()
+            args = parser.parse_args(args_str.split())
+    else:
+        args = parser.parse_args(artifical_args)
     args.config = read_config(args.config_file)
 
 
