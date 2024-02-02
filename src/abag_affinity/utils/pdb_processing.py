@@ -1,5 +1,6 @@
 """Process PDB file to get residue and atom encodings, node distances and edge encodings"""
 import tempfile
+import math
 from collections import defaultdict, deque
 import logging
 import os
@@ -17,6 +18,8 @@ from Bio.PDB.PDBIO import PDBIO
 from Bio.PDB.Structure import Structure
 from Bio.SeqUtils import seq1
 from biopandas.pdb import PandasPdb
+import torch
+import time
 
 from abag_affinity.binding_ddg_predictor.utils.protein import (
     ATOM_CA, NON_STANDARD_SUBSTITUTIONS, RESIDUE_SIDECHAIN_POSTFIXES,
@@ -167,7 +170,8 @@ def get_residue_infos(structure: Structure) -> Tuple[Dict, List[Dict], np.ndarra
     return structure_info, residue_infos, residue_atom_coordinates
 
 
-def get_distances(residue_info: List[Dict], residue_distance: bool = True, ca_distance: bool = True) -> Tuple[np.ndarray, np.ndarray]:
+def get_distances(residue_info: List[Dict], distance_cutoff,
+                  residue_distance: bool = True, ca_distance: bool = True) -> Tuple[np.ndarray, np.ndarray]:
     coordinates = []
     antibody_idx = []
     antigen_idx = []
@@ -202,33 +206,278 @@ def get_distances(residue_info: List[Dict], residue_distance: bool = True, ca_di
     antigen_idx = np.array(antigen_idx).astype(int)
 
     if ca_distance or not residue_distance:
-        distances = sp.distance_matrix(coordinates, coordinates).astype(coordinates.dtype)
+        # get two list containing corresponding indices of node pairs within the cutoff distance
+        idx_is, idx_js, _ = get_neighbors(coordinates, distance_cutoff)
+        # remove batch dimension since we don't have batches yet
+        idx_is = idx_is[0]
+        idx_js = idx_js[0]
+        # calculate distances for the index lists of pairs
+        list_distances = calculate_distances(torch.tensor(coordinates), idx_is, idx_js)
+        list_distances = list_distances.detach().cpu().numpy()
+        idx_is = idx_is.detach().cpu().numpy()
+        idx_js = idx_js.detach().cpu().numpy()
+
+        # distances = sp.distance_matrix(coordinates, coordinates).astype(coordinates)
     else:
         atom_per_residue = coordinates.shape[1]
+        # flatten to intially calculate atomwise distances
         coordinates_flattened = coordinates.reshape((len(coordinates) * atom_per_residue, 3))
 
-        distances = sp.distance_matrix(coordinates_flattened, coordinates_flattened).astype(coordinates_flattened.dtype)
+        # get two list containing corresponding indices of node pairs within the cutoff distance
+        idx_is, idx_js, _ = get_neighbors(coordinates_flattened, distance_cutoff)
+        # remove batch dimension since we don't have batches yet
+        idx_is = idx_is[0]
+        idx_js = idx_js[0]
+        # calculate distances for the index lists of pairs
+        list_distances = calculate_distances(torch.tensor(coordinates_flattened), idx_is, idx_js)
 
-        new_shape = (len(coordinates), atom_per_residue, len(coordinates), atom_per_residue)
-        distances = distances.reshape(new_shape)
-        distances = np.nanmin(distances, axis=(1, 3))
+        # convert atom indices to residue indices
+        res_idx_is = idx_is // atom_per_residue
+        res_idx_js = idx_js // atom_per_residue
+
+        new_idx_is = []
+        new_idx_js = []
+        new_distances = []
+        unique_idx_is = torch.unique(res_idx_is)
+        # find the minimum distance between all atom pairs belonging to the same pair of residues
+        for idx_i in unique_idx_is:
+            i_idxs = torch.where(res_idx_is == idx_i, 1, 0).type(torch.bool)
+            unique_idx_js = torch.unique(res_idx_js[i_idxs])
+            for idx_j in unique_idx_js:
+                # skip is both atoms belong to the same residue
+                if idx_i == idx_j:
+                    continue
+                # find pairs of atoms that are in the same pair of residues
+                ij_idxs = torch.where(torch.logical_and(i_idxs, res_idx_js == idx_j), 1, 0).type(torch.bool)
+                new_idx_is.append(idx_i)
+                new_idx_js.append(idx_j)
+                # find minimum atom distance, and take that as distance between the two residues
+                new_distances.append(torch.min(list_distances[ij_idxs]))
+
+        # convert distance and index lists to tensors/arrays
+        new_distances = torch.stack(new_distances, dim=0)
+        new_idx_is = torch.stack(new_idx_is, dim=0)
+        new_idx_js = torch.stack(new_idx_js, dim=0)
+        list_distances = new_distances.detach().cpu().numpy()
+        idx_is = new_idx_is.detach().cpu().numpy()
+        idx_js = new_idx_js.detach().cpu().numpy()
+
+        # distances = sp.distance_matrix(coordinates_flattened, coordinates_flattened).astype(coordinates_flattened.dtype)
+        # new_shape = (len(coordinates), atom_per_residue, len(coordinates), atom_per_residue)
+        # distances = distances.reshape(new_shape)
+        # distances = np.nanmin(distances, axis=(1, 3))
+
+    ###############################################################################
+    # I have absolutely no idea what closest residue indices is supposed to be,
+    # since it's not a sorted list per residue, and the code is completely incomprehensible.
+    # So I'm going to just assume that it is the single closest antibody node
+    # of the currect residue is in the antigen, and vice versa, even though this clearly doesn't match.
+    ###################################################################################
+    # select indices and distances where one residue is an antibody and the other is an antigen
+    i_ab = np.isin(idx_is, antibody_idx)
+    i_ag = np.isin(idx_is, antigen_idx)
+    j_ab = np.isin(idx_js, antibody_idx)
+    j_ag = np.isin(idx_js, antigen_idx)
+    abag_idx = (i_ab & j_ag) | (i_ag & j_ab)
+    abag_idx_is = idx_is[abag_idx]
+    abag_idx_js = idx_js[abag_idx]
+    list_abag_distances = list_distances[abag_idx]
+
+    # iterate over residues to find index of the closest antibody-antiget residue,
+    # if there is one within the cutoff, otherwise set to -1
+    list_closest_residue_indices = np.ones(coordinates.shape[0], dtype=int) * -1
+    for i in np.unique(abag_idx_is):
+        min_idx = np.argmin(list_abag_distances[abag_idx_is == i])
+        list_closest_residue_indices[i] = abag_idx_js[abag_idx_is == i][min_idx]
 
     # select antibody-antigen distances (or protein1-protein2)
-    abag_distance = distances[antibody_idx, :][:, antigen_idx]
-    abag_indices = np.unravel_index(np.argsort(abag_distance.ravel()), abag_distance.shape)
-    # convert to structure node ids
-    antibody_indices = antibody_idx[abag_indices[0]]
-    antigen_indices = antigen_idx[abag_indices[1]]
+    # abag_distance = distances[antibody_idx, :][:, antigen_idx]
+    # abag_indices = np.unravel_index(np.argsort(abag_distance.ravel()), abag_distance.shape)
+    # # convert to structure node ids
+    # antibody_indices = antibody_idx[abag_indices[0]]
+    # antigen_indices = antigen_idx[abag_indices[1]]
 
-    # sort by closeness
-    closest_residue_indices = np.empty((antibody_indices.size + antigen_indices.size), dtype=antigen_indices.dtype)
-    closest_residue_indices[0::2] = antibody_indices
-    closest_residue_indices[1::2] = antigen_indices
-    _, idx = np.unique(closest_residue_indices, return_index=True)
-    closest_residue_indices = closest_residue_indices[np.sort(idx)]
+    # # sort by closeness
+    # closest_residue_indices = np.empty((antibody_indices.size + antigen_indices.size), dtype=antigen_indices.dtype)
+    # closest_residue_indices[0::2] = antibody_indices
+    # closest_residue_indices[1::2] = antigen_indices
+    # _, idx = np.unique(closest_residue_indices, return_index=True)
+    # closest_residue_indices = closest_residue_indices[np.sort(idx)]
 
-    return distances, closest_residue_indices
+    return list_distances, idx_is, idx_js, list_closest_residue_indices
 
+
+def calculate_distances(R, idx_i=None, idx_j=None):
+    """Calculate distances between all pairs of positions in R, or based on index lists specific pairs.
+
+    Arguments:
+        R (:class:`torch.Tensor'): tensor of shape [atoms, 3] containing
+            the positions of the atoms.
+        idx_i (:class:`torch.Tensor'): tensor of shape [#pairs] containing
+            the first part of the pair index list.
+        idx_j (:class:`torch.Tensor'): tensor of shape [#pairs] containing
+            the second part of the pair index list.
+        center
+    """
+    if idx_i is not None and idx_j is not None:
+        Ri = torch.gather(R, -2, idx_i.view(-1, 1).repeat(1, R.size(-1)))
+        Rj = torch.gather(R, -2, idx_j.view(-1, 1).repeat(1, R.size(-1)))
+    else:
+        Ri = R.view(1, *R.shape)
+        Rj = R.view(R.shape[0], 1, *R.shape[1:])
+
+    rij = Rj - Ri  # displacement vectors
+    dij = torch.norm(rij, dim=-1, keepdim=True)  # distances
+    return dij
+
+def get_neighbors(coordinates, cutoff, pbc=False):
+    """Compute pairs of atoms that are neighbors based on a set of atomic coords and a cutoff.
+
+    Based on implementation in TorchAni
+    (https://github.com/aiqm/torchani/blob/master/torchani/aev.py).
+    Supports cutoffs, PBCs and can be performed on either CPU or GPU.
+
+    Arguments:
+        coords (:class:`torch.tensor`): tensor of shape
+            (molecules, atoms, 3) for atom coordinates.
+        cutoff (float): the cutoff inside which atoms are considered pairs
+    """
+    coords = torch.tensor(coordinates)
+    idx_is = []
+    idx_js = []
+    idx_Ss = []
+    if pbc:
+        pbc = torch.ones((3, )).to(coords).type(torch.ByteTensor)
+    else:
+        pbc = torch.zeros((3, )).to(coords).type(torch.ByteTensor)
+
+    inf_idx = torch.logical_not(torch.isinf(coords.sum(dim=-1)))
+    cell = torch.max(coords[inf_idx], dim=(0))[0]\
+        - torch.min(coords[inf_idx], dim=(0))[0] + 2
+    cell = torch.diag(cell)
+
+    shifts = compute_shifts(cell=cell, pbc=pbc, cutoff=cutoff)
+
+    # The returned indices are only one directional
+    idx_i, idx_j, idx_S = neighbor_pairs(
+        torch.zeros((coords.shape[0],)).type(torch.ByteTensor), coords, cell, shifts, cutoff
+    )
+
+    idx_i = idx_i
+    idx_j = idx_j
+    idx_S = idx_S
+    # Create bidirectional id arrays, similar to what the ASE neighbor_list returns
+    bi_idx_i = torch.hstack((idx_i, idx_j))
+    bi_idx_j = torch.hstack((idx_j, idx_i))
+    bi_idx_S = torch.vstack((-idx_S, idx_S))
+    idx_is.append(bi_idx_i)
+    idx_js.append(bi_idx_j)
+    idx_Ss.append(bi_idx_S)
+
+    return idx_is, idx_js, idx_Ss
+
+
+def compute_shifts(cell, pbc, cutoff):
+    """Compute the shifts of unit cell along the given cell vectors to make it
+    large enough to contain all pairs of neighbor atoms with PBC under
+    consideration.
+    Copyright 2018- Xiang Gao and other ANI developers
+    (https://github.com/aiqm/torchani/blob/master/torchani/aev.py)
+
+    Arguments:
+        cell (:class:`torch.Tensor`): tensor of shape (3, 3) of the three
+        vectors defining unit cell:
+            tensor([[x1, y1, z1], [x2, y2, z2], [x3, y3, z3]])
+        cutoff (float): the cutoff inside which atoms are considered pairs
+        pbc (:class:`torch.Tensor`): boolean vector of size 3 storing
+            if pbc is enabled for that direction.
+
+    Returns:
+        :class:`torch.Tensor`: long tensor of shifts. the center cell and
+            symmetric cells are not included.
+    """
+    reciprocal_cell = cell.inverse().t()
+    inv_distances = reciprocal_cell.norm(2, -1)
+    num_repeats = torch.ceil(cutoff * inv_distances).to(pbc).type(torch.long)
+    num_repeats = torch.where(pbc, num_repeats, torch.zeros_like(num_repeats))
+
+    r1 = torch.arange(1, num_repeats[0] + 1, device=cell.device)
+    r2 = torch.arange(1, num_repeats[1] + 1, device=cell.device)
+    r3 = torch.arange(1, num_repeats[2] + 1, device=cell.device)
+    o = torch.zeros(1, dtype=torch.long, device=cell.device)
+
+    return torch.cat(
+        [
+            torch.cartesian_prod(r1, r2, r3),
+            torch.cartesian_prod(r1, r2, o),
+            torch.cartesian_prod(r1, r2, -r3),
+            torch.cartesian_prod(r1, o, r3),
+            torch.cartesian_prod(r1, o, o),
+            torch.cartesian_prod(r1, o, -r3),
+            torch.cartesian_prod(r1, -r2, r3),
+            torch.cartesian_prod(r1, -r2, o),
+            torch.cartesian_prod(r1, -r2, -r3),
+            torch.cartesian_prod(o, r2, r3),
+            torch.cartesian_prod(o, r2, o),
+            torch.cartesian_prod(o, r2, -r3),
+            torch.cartesian_prod(o, o, r3),
+        ]
+    )
+
+
+def neighbor_pairs(padding_mask, coordinates, cell, shifts, cutoff):
+    """Compute pairs of atoms that are neighbors.
+
+    Copyright 2018- Xiang Gao and other ANI developers
+    (https://github.com/aiqm/torchani/blob/master/torchani/aev.py)
+
+    Arguments:
+        padding_mask (:class:`torch.Tensor`): boolean tensor of shape
+            (molecules, atoms) for padding mask. 1 == is padding.
+        coordinates (:class:`torch.Tensor`): tensor of shape
+            (molecules, atoms, 3) for atom coordinates.
+        cell (:class:`torch.Tensor`): tensor of shape (3, 3) of the three vectors
+            defining unit cell: tensor([[x1, y1, z1], [x2, y2, z2], [x3, y3, z3]])
+        cutoff (float): the cutoff inside which atoms are considered pairs
+        shifts (:class:`torch.Tensor`): tensor of shape (?, 3) storing shifts
+    """
+    coordinates = coordinates.detach()
+    cell = cell.detach()
+    num_atoms = padding_mask.shape[0]
+    all_atoms = torch.arange(num_atoms, device=cell.device)
+
+    # Step 2: center cell
+    p1_center, p2_center = torch.combinations(all_atoms).unbind(-1)
+    shifts_center = shifts.new_zeros(p1_center.shape[0], 3)
+
+    # Step 3: cells with shifts
+    # shape convention (shift index, molecule index, atom index, 3)
+    num_shifts = shifts.shape[0]
+    all_shifts = torch.arange(num_shifts, device=cell.device)
+    shift_index, p1, p2 = torch.cartesian_prod(all_shifts, all_atoms, all_atoms).unbind(
+        -1
+    )
+    shifts_outside = shifts.index_select(0, shift_index)
+
+    # Step 4: combine results for all cells
+    shifts_all = torch.cat([shifts_center, shifts_outside])
+    p1_all = torch.cat([p1_center, p1])
+    p2_all = torch.cat([p2_center, p2])
+
+    shift_values = torch.mm(shifts_all.to(cell.dtype), cell)
+
+    # step 5, compute distances, and find all pairs within cutoff
+    distances = (coordinates[p1_all] - coordinates[p2_all] + shift_values).norm(2, -1)
+
+    padding_mask = (padding_mask[p1_all]) | (padding_mask[p2_all])
+    distances.masked_fill_(padding_mask, math.inf)
+    in_cutoff = torch.nonzero(distances < cutoff, as_tuple=False)
+    pair_index = in_cutoff.squeeze()
+    atom_index1 = p1_all[pair_index]
+    atom_index2 = p2_all[pair_index]
+    shifts = shifts_all.index_select(0, pair_index)
+
+    return atom_index1, atom_index2, shifts
 
 def get_residue_encodings(residue_infos: List, structure_info: Dict) -> np.ndarray:
     """ Convert the residue infos to numerical encodings in a numpy array
@@ -246,9 +495,11 @@ def get_residue_encodings(residue_infos: List, structure_info: Dict) -> np.ndarr
     return np.array(residue_encodings)
 
 
-def get_residue_edge_encodings(distance_matrix: np.ndarray, residue_infos: List, distance_cutoff: int = 5) -> np.ndarray:
+def get_residue_edge_encodings(distances: np.ndarray, idx_is: np.ndarray,
+                               idx_js: np.ndarray, residue_infos: List, distance_cutoff: int = 5) -> np.ndarray:
     """
-    Convert the distance matrix and residue information to an adjacency tensor
+    Convert the distance matrix and residue information to an adjacency tensor.
+
     Information:
         A[0,:,:] = inverse pairwise distances - only below distance cutoff otherwise 0
         A[1,:,:] = neighboring amino acid - 1 if connected by peptide bond
@@ -256,39 +507,44 @@ def get_residue_edge_encodings(distance_matrix: np.ndarray, residue_infos: List,
         A[3,:,:] = distances
 
     Args:
-        distance_matrix: matrix with node distances
+        distances: list with edge distances
+        idx_is: indices of the first node of the edge corresponding to distances
+        idx_js: indices of the second node of the edge corresponding to distances
         residue_infos: List with residue information dicts
         distance_cutoff: distance cutoff for interface
     Returns:
         np.ndarray: Tensor edge information about interface closeness, chain identity, protein identity, distances
     """
-    A = np.zeros((4, len(residue_infos), len(residue_infos))).astype(distance_matrix.dtype)
-
-    contact_map = distance_matrix < distance_cutoff
+    A = np.zeros((4, distances.shape[0])).astype(distances.dtype)
 
     # scale distances
-    A[0, contact_map] = distance_matrix[contact_map] / distance_cutoff
+    A[0] = distances / distance_cutoff
 
     # Test whether "L" or "H" in residue_infos["chain_id"]
     lh_present = np.any(["chain_id" in res_info and res_info["chain_id"].upper() in "LH" for res_info in residue_infos])
 
     for i, res_info in enumerate(residue_infos):
+        i_idx = np.where(idx_is == i, 1, 0).astype(bool)
         for j, other_res_info in enumerate(residue_infos[i:]):
             j += i
-            if j - 1 == i and res_info["chain_id"] == other_res_info["chain_id"]:
-                A[1, i, j] = 1
-                A[1, j, i] = 1
+            # find position in neighbor list matching the pair of i and j if it exists
+            ij_idx = np.where(i_idx & (idx_js == j), 1, 0).astype(bool)
+            # assign values if i and j are neighbors
+            if np.sum(ij_idx) > 0:
+                if j - 1 == i and res_info["chain_id"] == other_res_info["chain_id"]:
+                    A[1, ij_idx] = 1
+                    A[1, ij_idx] = 1
 
-            if lh_present:
-                if "chain_id" in res_info and (res_info["chain_id"].upper() in "LH") == (other_res_info["chain_id"].upper() in "LH"):
-                    A[2, i, j] = 1
-                    A[2, j, i] = 1
-            else:
-                if "chain_id" in res_info and res_info["chain_id"].upper() == other_res_info["chain_id"].upper():
-                    A[2, i, j] = 1
-                    A[2, j, i] = 1
+                if lh_present:
+                    if "chain_id" in res_info and (res_info["chain_id"].upper() in "LH") == (other_res_info["chain_id"].upper() in "LH"):
+                        A[2, ij_idx] = 1
+                        A[2, ij_idx] = 1
+                else:
+                    if "chain_id" in res_info and res_info["chain_id"].upper() == other_res_info["chain_id"].upper():
+                        A[2, ij_idx] = 1
+                        A[2, ij_idx] = 1
 
-    A[3, :, :] = distance_matrix
+    A[3] = distances
 
     return A
 
@@ -351,7 +607,7 @@ def get_atom_encodings(residue_infos: List[Dict], structure_info: Dict):
     return np.array(atom_encoding), atom_names # (residue_type, protein_type, relative_chain_position, atom_type, residue_index)
 
 
-def get_atom_edge_encodings(distance_matrix: np.ndarray, atom_encodings: np.ndarray, distance_cutoff: int = 5) -> np.ndarray:
+def get_atom_edge_encodings(distances: np.ndarray, idx_is, idx_js, atom_encodings: np.ndarray, distance_cutoff: int = 5) -> np.ndarray:
     """ Convert the distance matrix and atom information to an adjacency tensor
     Information:
         A[0,:,:] = inverse pairwise distances - only if distance is below cutoff otherwise 0
@@ -361,26 +617,26 @@ def get_atom_edge_encodings(distance_matrix: np.ndarray, atom_encodings: np.ndar
 
 
     Args:
-        distance_matrix: matrix with node distances
+        distances: list with edge distances
+        idx_is: indices of the first node of the edge corresponding to distances
+        idx_js: indices of the second node of the edge corresponding to distances
         atom_encodings: matrix with atom encodings
         distance_cutoff: distance cutoff for interface
 
     Returns:
         np.ndarray: Tensor edge information about interface closeness, chain identity, protein identity, distances
     """
-    A = np.zeros((4, len(atom_encodings), len(atom_encodings))) # (contact, same_residue, same_protein, distance)
-
-    contact_map = distance_matrix < distance_cutoff
+    A = np.zeros((4, len(distances))) # (contact, same_residue, same_protein, distance)
 
     # scale distances
-    A[0, contact_map] = distance_matrix[contact_map] / distance_cutoff # 1 / (distance_matrix[contact_map] + 1)
+    A[0] = distances / distance_cutoff # 1 / (distance_matrix[contact_map] + 1)
 
     # same residue index
-    A[1, :, :] = (atom_encodings[:, -1, None] == atom_encodings[:, -1]).astype(float)
+    A[1, :, :] = (atom_encodings[idx_is, -1] == atom_encodings[idx_js, -1]).astype(float)
     # same protein
-    A[2, :, :] = (atom_encodings[:, 54, None] == atom_encodings[:, 54]).astype(float)
+    A[2, :, :] = (atom_encodings[idx_is, 54] == atom_encodings[idx_js, 54]).astype(float)
 
-    A[3, :, :] = distance_matrix
+    A[3, :, :] = distances
     return A
 
 

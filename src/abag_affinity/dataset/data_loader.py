@@ -320,6 +320,7 @@ class AffinityDataset(Dataset):
         if self.interface_hull_size is not None and self.interface_hull_size != "" and self.interface_hull_size != "None":
             Path(os.path.join(self.graph_dir.format(is_relaxed=relaxed), f"interface_hull_{self.interface_hull_size}")).mkdir(exist_ok=True,
                                                                                                    parents=True)
+        print('force recomputation', self.force_recomputation)
         graph_dicts2process = []
         deeprefine_graphs2process = []
         for df_idx, row in self.data_df.iterrows():

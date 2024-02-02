@@ -769,7 +769,7 @@ def get_skempi_corr(model: AffinityGNN, args: Namespace, tqdm_output: bool = Tru
     res_df["pdb"] = res_df["pdb"].apply(lambda v: v.split("-")[0])
     # split results by PDBs and compute separate correlations
 
-    metrics.update({f"grouped{k}": v for k, v in _compute_grouped_correlations(res_df).items()})
+    metrics.update({f"grouped_{k}": v for k, v in _compute_grouped_correlations(res_df).items()})
 
     res_df["grouped_correlations_pearson"] = res_df["pdb"].apply(metrics["grouped_pearson"].get)
     res_df["grouped_spearman_correlations"] = res_df["pdb"].apply(metrics["grouped_spearman"].get)
@@ -864,7 +864,8 @@ def _experimental_benchmark(model, args) -> Dict[str, Any]:
     all_metrics = {f"{dataset}_{metric}": value for dataset, metrics in
                    {"benchmark_test": benchmark_metrics, "skempi_test": skempi_metrics, "abag_test": test_metrics, "abag_train": train_metrics}.items()
                    for metric, value in metrics.items()}
-    for metric, value in all_metrics:
+
+    for metric, value in all_metrics.items():
         logger.info(f"{metric} >>> {value}")
 
     benchmark_df["Dataset"] = "benchmark"
@@ -883,7 +884,7 @@ def _experimental_benchmark(model, args) -> Dict[str, Any]:
 
     return all_metrics
 
-def run_and_log_benchmarks(model, args, wandb_inst=None, experimental_benchmark=True, synthetic_benchmark=True):
+def run_and_log_benchmarks(model, args, wandb_inst=None, experimental_benchmark=False, synthetic_benchmark=False):
     """
     Run all our benchmarks on the given model and report logs.
 

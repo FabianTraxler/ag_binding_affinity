@@ -94,7 +94,7 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, embeddings: Dict,
     structure_info, residue_infos, residue_atom_coordinates = get_residue_infos(structure)
 
     if node_type == "residue":
-        distances, closest_nodes = get_distances(residue_infos, residue_distance=True, ca_distance=ca_alpha_contact)
+        distances, idx_is, idx_js, closest_nodes = get_distances(residue_infos, distance_cutoff=distance_cutoff, residue_distance=True, ca_distance=ca_alpha_contact)
         assert len(closest_nodes) == len(residue_infos), "Number of closest nodes does not match number of residues"
         node_features = get_residue_encodings(residue_infos, structure_info)
 
@@ -107,14 +107,14 @@ def get_graph_dict(pdb_id: str, pdb_file_path: str, embeddings: Dict,
                 residue_infos[i]["matched_residue_index"] = matched_residue_index[i]
             # assert (matched_residue_index > 0).all()  # check if all residues have a match (could also just raise exception in get_residue_embeddings)
 
-        adj_tensor = get_residue_edge_encodings(distances, residue_infos, distance_cutoff=distance_cutoff)
+        adj_tensor = get_residue_edge_encodings(distances, idx_is, idx_js, residue_infos, distance_cutoff=distance_cutoff)
 
 
     elif node_type == "atom":
-        distances, closest_nodes = get_distances(residue_infos, residue_distance=False)
+        distances, idx_is, idx_js, closest_nodes = get_distances(residue_infos, distance_cutoff=distance_cutoff, residue_distance=False)
 
         node_features, _ = get_atom_encodings(residue_infos, structure_info)
-        adj_tensor = get_atom_edge_encodings(distances, node_features, distance_cutoff=distance_cutoff)
+        adj_tensor = get_atom_edge_encodings(distances, idx_is, idx_js, node_features, distance_cutoff=distance_cutoff)
 
     else:
         raise ValueError("Invalid graph_type: Either 'residue' or 'atom'")
