@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Tuple, Union, Optional, Callable
+from typing import Any, Dict, List, Tuple, Optional, Callable
 
 from scipy.stats import chi2
 
@@ -76,12 +76,12 @@ def get_label(data: Dict, device: torch.device) -> Dict:
             label_2 = (data["input"][1]["graph"][output_type] > data["input"][0]["graph"][output_type])
             label[f"{output_type}_prob"] = torch.stack((label_1.float(), label_2.float()), dim=-1)
             label[f"{output_type}_stronger_label"] = label_2.long()  # Index of the stronger binding complex
-            label[f"{output_type}"] = data["input"][0]["graph"][output_type].to(device).view(-1,1)
-            label[f"{output_type}2"] = data["input"][1]["graph"][output_type].to(device).view(-1,1)
+            label[f"{output_type}"] = data["input"][0]["graph"][output_type].float().to(device).view(-1,1)
+            label[f"{output_type}2"] = data["input"][1]["graph"][output_type].float().to(device).view(-1,1)
             label[f"{output_type}_difference"] = label[f"{output_type}"] - label[f"{output_type}2"]
         else:
             # We add an additional dimension to match the output (Batchsize, N-Channel=1)
-            label[output_type] = data["input"]["graph"][output_type].to(device).view(-1,1)
+            label[output_type] = data["input"]["graph"][output_type].float().to(device).view(-1,1)
 
     # TODO Try to return NLL values of data if available!
     return label
@@ -105,7 +105,8 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
         "relative_L2": partial(torch.nn.functional.mse_loss, reduction='sum'),
         "relative_RL2": lambda output, label: torch.sqrt(torch.nn.functional.mse_loss(output, label, reduction='sum') + 1e-10),
         "relative_ce": partial(torch.nn.functional.nll_loss, reduction='sum'),
-        "relative_cdf": lambda output, label: torch.nn.functional.nll_loss(output, label, reduction="sum")
+        "relative_cdf": lambda output, label: torch.nn.functional.nll_loss(output, label, reduction="sum"),
+        "cosinesim": lambda output, label: -1 * torch.nn.functional.cosine_similarity(output, label, dim=0, eps=1e-6).mean(),
     }
 
     for (criterion, weight) in loss_types:
@@ -124,6 +125,12 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
                 #     if valid_indices.sum() > 0:
                 #         losses.append(weight * loss_fn(output[f"{output_type}2"][valid_indices],
                 #                                    label[f"{output_type}2"][valid_indices]))
+            if criterion == "cosinesim":
+                valid_indices = ~torch.isnan(label[output_type])
+                if valid_indices.sum() > 1:
+                    losses.append(weight * loss_fn(output[output_type][valid_indices],
+                                                   label[output_type][valid_indices]))
+
             elif criterion == "NLL":
                 # This loss optimizes the predicted Likelihood jointly
                 valid_indices = ~torch.isnan(label[output_type])
@@ -155,7 +162,7 @@ def get_loss(loss_functions: str, label: Dict, output: Dict) -> torch.Tensor:
 
 
 def train_epoch(model: AffinityGNN, train_dataloader: DataLoader,
-                optimizer: torch.optim, device: torch.device = torch.device("cpu"), tqdm_output: bool = True) -> Tuple[AffinityGNN, float]:
+                optimizer: torch.optim.Optimizer, device: torch.device = torch.device("cpu"), tqdm_output: bool = True) -> Tuple[AffinityGNN, float]:
     """ Train model for one epoch given the train and validation dataloaders
 
     Args:
@@ -260,7 +267,10 @@ def validate_epochs(model: AffinityGNN, val_dataloaders: List[DataLoader], devic
 
 
         # We could have the same dateset with different losses in one validation, therefore, we need to add the loss?!
-        results[f"{val_dataloader.dataset.full_dataset_name}#{val_dataloader.dataset.loss_criterion}"] = {
+        # However, on wandb it would be nice to see the results together when training with different losses...
+
+        #results[f"{val_dataloader.dataset.full_dataset_name}#{val_dataloader.dataset.loss_criterion}"] = {
+        results[f"{val_dataloader.dataset.full_dataset_name}"] = {
             "val_loss": total_loss_val,
             "pearson_correlation": pearson_corr[0],
             "pearson_correlation_p": pearson_corr[1],
@@ -359,7 +369,7 @@ def bucket_learning(model: AffinityGNN, train_datasets: List[AffinityDataset], v
                              f"{args.wandb_name}/bucket_learning/val_set_{args.validation_set}")
     Path(plot_path).mkdir(exist_ok=True, parents=True)
 
-    dataset2optimize = args.target_dataset
+    dataset2optimize = args.target_dataset.split("#")[0]
 
     wandb_inst, wdb_config, use_wandb, run = configure(args, model.dataset_specific_layer)
 
@@ -557,7 +567,7 @@ def log_gradients(model: AffinityGNN):
 
 
 def evaluate_model(model: AffinityGNN, dataloader: DataLoader, args: Namespace, tqdm_output: bool = True,
-                   device: torch.device = torch.device("cpu"), plot_path: str = None) -> Tuple[float, float, float, float, pd.DataFrame]:
+                   device: torch.device = torch.device("cpu"), plot_path: Optional[str] = None) -> Tuple[Dict[str, Optional[float]], pd.DataFrame]:
     # TODO Why do we have different validations at different places (train_epoch, bucket_learning, ...)
     total_loss_val = 0
     all_predictions = np.array([])
@@ -615,75 +625,78 @@ def evaluate_model(model: AffinityGNN, dataloader: DataLoader, args: Namespace, 
                 "uncertainties": all_uncertainties,
                 "squared_error": np.square(np.subtract(all_labels, all_predictions))
             })
-    return pearson_corr, spearman_corr, val_loss, rmse, res_df
+    return {
+        "pearson": pearson_corr,
+        "spearman": spearman_corr,
+        "val_loss": val_loss,
+        "rmse": rmse
+    }, res_df
 
 
-def get_benchmark_score(model: AffinityGNN, args: Namespace, tqdm_output: bool = True, plot_path: str = None) -> Tuple[float, float, float, pd.DataFrame]:
+def get_benchmark_score(model: AffinityGNN, args: Namespace, tqdm_output: bool = True, plot_path: Optional[str] = None) -> Tuple[Dict[str, Optional[float]], pd.DataFrame]:
+    if not hasattr(get_benchmark_score, "dataset"):
+        get_benchmark_score.dataset = AffinityDataset(args.config, False, "AntibodyBenchmark", "L2",
+                                node_type=args.node_type,
+                                max_nodes=args.max_num_nodes,
+                                interface_distance_cutoff=args.interface_distance_cutoff,
+                                interface_hull_size=args.interface_hull_size,
+                                max_edge_distance=args.max_edge_distance,
+                                pretrained_model=args.pretrained_model,
+                                scale_values=args.scale_values,
+                                scale_min=args.scale_min,
+                                scale_max=args.scale_max,
+                                save_graphs=args.save_graphs,
+                                force_recomputation=args.force_recomputation,
+                                preprocess_data=args.preprocess_graph,
+                                preprocessed_to_scratch=args.preprocessed_to_scratch,
+                                num_threads=args.num_workers,
+                                load_embeddings=None if not args.embeddings_type else (args.embeddings_type, args.embeddings_path)
+                                )
 
-    dataset = AffinityDataset(args.config, False, "AntibodyBenchmark", "L2",
-                              node_type=args.node_type,
-                              max_nodes=args.max_num_nodes,
-                              interface_distance_cutoff=args.interface_distance_cutoff,
-                              interface_hull_size=args.interface_hull_size,
-                              max_edge_distance=args.max_edge_distance,
-                              pretrained_model=args.pretrained_model,
-                              scale_values=args.scale_values,
-                              scale_min=args.scale_min,
-                              scale_max=args.scale_max,
-                              relative_data=False,
-                              save_graphs=args.save_graphs,
-                              force_recomputation=args.force_recomputation,
-                              preprocess_data=args.preprocess_graph,
-                              preprocessed_to_scratch=args.preprocessed_to_scratch,
-                              num_threads=args.num_workers,
-                              load_embeddings=None if not args.embeddings_type else (args.embeddings_type, args.embeddings_path)
-                              )
-
-    dataloader = DL_torch(dataset, num_workers=args.num_workers, batch_size=1,
+    dataloader = DL_torch(get_benchmark_score.dataset, num_workers=args.num_workers, batch_size=1,
                               collate_fn=AffinityDataset.collate)
 
     use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
 
     return evaluate_model(model, dataloader, args=args, tqdm_output=tqdm_output, device=device,
-                          plot_path=plot_path)
+                                     plot_path=plot_path)
 
 
 def get_abag_test_score(model: AffinityGNN, args: Namespace, tqdm_output: bool = True, plot_path: Optional[str] = None,
-                        validation_set: Optional[int] = None) -> Tuple[float, float, float, pd.DataFrame]:
+                        validation_set: Optional[int] = None) -> Tuple[Dict[str, Optional[float]], pd.DataFrame]:
 
+    if not hasattr(get_abag_test_score, "dataset"):
+        summary_path, _ = get_data_paths(args.config, "abag_affinity")
+        summary_df = pd.read_csv(summary_path, index_col=0)
+        if validation_set is None:
+            summary_df = summary_df[summary_df["test"]]
+        elif validation_set < 0:
+            summary_df = summary_df[summary_df["validation"] != ((-1*validation_set) - 1)]
+        else:
+            summary_df = summary_df[summary_df["validation"] == validation_set]
 
-    summary_path, _ = get_data_paths(args.config, "abag_affinity")
-    summary_df = pd.read_csv(summary_path, index_col=0)
-    if validation_set is None:
-        summary_df = summary_df[summary_df["test"]]
-    elif validation_set < 0:
-        summary_df = summary_df[summary_df["validation"] != ((-1*validation_set) - 1)]
-    else:
-        summary_df = summary_df[summary_df["validation"] == validation_set]
+        test_pdbs_ids = summary_df.index.tolist()
 
-    test_pdbs_ids = summary_df.index.tolist()
+        get_abag_test_score.dataset = AffinityDataset(args.config, False, "abag_affinity", "L2", test_pdbs_ids,
+                                node_type=args.node_type,
+                                max_nodes=args.max_num_nodes,
+                                interface_distance_cutoff=args.interface_distance_cutoff,
+                                interface_hull_size=args.interface_hull_size,
+                                max_edge_distance=args.max_edge_distance,
+                                pretrained_model=args.pretrained_model,
+                                scale_values=args.scale_values,
+                                scale_min=args.scale_min,
+                                scale_max=args.scale_max,
+                                save_graphs=args.save_graphs,
+                                force_recomputation=args.force_recomputation,
+                                preprocess_data=args.preprocess_graph,
+                                preprocessed_to_scratch=args.preprocessed_to_scratch,
+                                num_threads=args.num_workers,
+                                load_embeddings=None if not args.embeddings_type else (args.embeddings_type, args.embeddings_path)
+                                )
 
-    dataset = AffinityDataset(args.config, False, "abag_affinity", "L2", test_pdbs_ids,
-                              node_type=args.node_type,
-                              max_nodes=args.max_num_nodes,
-                              interface_distance_cutoff=args.interface_distance_cutoff,
-                              interface_hull_size=args.interface_hull_size,
-                              max_edge_distance=args.max_edge_distance,
-                              pretrained_model=args.pretrained_model,
-                              scale_values=args.scale_values,
-                              scale_min=args.scale_min,
-                              scale_max=args.scale_max,
-                              relative_data=False,
-                              save_graphs=args.save_graphs,
-                              force_recomputation=args.force_recomputation,
-                              preprocess_data=args.preprocess_graph,
-                              preprocessed_to_scratch=args.preprocessed_to_scratch,
-                              num_threads=args.num_workers,
-                              load_embeddings=None if not args.embeddings_type else (args.embeddings_type, args.embeddings_path)
-                              )
-
-    dataloader = DL_torch(dataset, num_workers=args.num_workers, batch_size=1,
+    dataloader = DL_torch(get_abag_test_score.dataset, num_workers=args.num_workers, batch_size=1,
                               collate_fn=AffinityDataset.collate)
 
     use_cuda = args.cuda and torch.cuda.is_available()
@@ -705,118 +718,186 @@ def combine_pvalues(pvalues):
 
     return combined_pvalue
 
-def get_skempi_corr(model: AffinityGNN, args: Namespace, tqdm_output: bool = True, plot_path: str = None) -> Tuple[float, float, float, float, float, pd.DataFrame]:
+def _compute_grouped_correlations(res_df):
+    metrics = {}
+    metrics["pearson"] = res_df.groupby("pdb").apply(lambda group: stats.pearsonr(group.labels, group.prediction)[0])
+    metrics["pearson_weighted_mean"] = np.sum(res_df.groupby("pdb").apply(lambda group: stats.pearsonr(group.labels, group.prediction)[0] * len(group))) / len(res_df)
+    metrics["pearson_pval"] = combine_pvalues(res_df.groupby("pdb").apply(lambda group: stats.pearsonr(group.labels, group.prediction)[1]).values)
+
+    metrics["spearman"] = res_df.groupby("pdb").apply(lambda group: stats.spearmanr(group.labels, group.prediction)[0])
+    metrics["spearman_weighted_mean"] = np.sum(res_df.groupby("pdb").apply(lambda group: stats.spearmanr(group.labels, group.prediction)[0] * len(group))) / len(res_df)
+    metrics["spearman_pval"] = combine_pvalues(res_df.groupby("pdb").apply(lambda group: stats.spearmanr(group.labels, group.prediction)[1]).values)
+
+    return metrics
+
+
+def get_skempi_corr(model: AffinityGNN, args: Namespace, tqdm_output: bool = True, plot_path: str = None) -> Tuple[Dict[str, Optional[float]], pd.DataFrame]:
     """
     Take the available Skempi mutations for validation
 
     Note that the spearman-aggregated p-value is not reliable for small sample sizes (https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.spearmanr.html)
     """
+    if not hasattr(get_skempi_corr, "dataset"):
+        get_skempi_corr.dataset = AffinityDataset(args.config, False, "SKEMPI.v2", "L2",
+                                node_type=args.node_type,
+                                max_nodes=args.max_num_nodes,
+                                interface_distance_cutoff=args.interface_distance_cutoff,
+                                interface_hull_size=args.interface_hull_size,
+                                max_edge_distance=args.max_edge_distance,
+                                pretrained_model=args.pretrained_model,
+                                scale_values=args.scale_values,
+                                scale_min=args.scale_min,
+                                scale_max=args.scale_max,
+                                save_graphs=args.save_graphs,
+                                force_recomputation=args.force_recomputation,
+                                preprocess_data=args.preprocess_graph,
+                                preprocessed_to_scratch=args.preprocessed_to_scratch,
+                                num_threads=args.num_workers,
+                                load_embeddings=None if not args.embeddings_type else (args.embeddings_type, args.embeddings_path)
+                                )
 
-    dataset = AffinityDataset(args.config, False, "SKEMPI.v2", "L2",
-                              node_type=args.node_type,
-                              max_nodes=args.max_num_nodes,
-                              interface_distance_cutoff=args.interface_distance_cutoff,
-                              interface_hull_size=args.interface_hull_size,
-                              max_edge_distance=args.max_edge_distance,
-                              pretrained_model=args.pretrained_model,
-                              scale_values=args.scale_values,
-                              scale_min=args.scale_min,
-                              scale_max=args.scale_max,
-                              relative_data=False,
-                              save_graphs=args.save_graphs,
-                              force_recomputation=args.force_recomputation,
-                              preprocess_data=args.preprocess_graph,
-                              preprocessed_to_scratch=args.preprocessed_to_scratch,
-                              num_threads=args.num_workers,
-                              load_embeddings=None if not args.embeddings_type else (args.embeddings_type, args.embeddings_path)
-                              )
-
-    dataloader = DL_torch(dataset, num_workers=args.num_workers, batch_size=1,
+    dataloader = DL_torch(get_skempi_corr.dataset, num_workers=args.num_workers, batch_size=1,
                             collate_fn=AffinityDataset.collate)
 
     use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
-    pearson_corr, spearman_corr, val_loss, rmse, res_df = evaluate_model(model, dataloader, args=args, tqdm_output=tqdm_output, device=device,
+    metrics, res_df = evaluate_model(model, dataloader, args=args, tqdm_output=tqdm_output, device=device,
                         plot_path=plot_path)
 
     # take everything after dash (-)
     res_df["mutation"] = res_df["pdb"].apply(lambda v: v.split("-")[1])
     res_df["pdb"] = res_df["pdb"].apply(lambda v: v.split("-")[0])
     # split results by PDBs and compute separate correlations
-    grouped_correlations = res_df.groupby("pdb").apply(lambda group: stats.pearsonr(group.labels, group.prediction)[0])
-    grouped_correlations_weighted_mean = np.sum(res_df.groupby("pdb").apply(lambda group: stats.pearsonr(group.labels, group.prediction)[0] * len(group))) / len(res_df)
-    grouped_correlations_pval = combine_pvalues(res_df.groupby("pdb").apply(lambda group: stats.pearsonr(group.labels, group.prediction)[1]).values)
 
-    grouped_spearman_correlations = res_df.groupby("pdb").apply(lambda group: stats.spearmanr(group.labels, group.prediction)[0])
-    grouped_spearman_correlations_weighted_mean = np.sum(res_df.groupby("pdb").apply(lambda group: stats.spearmanr(group.labels, group.prediction)[0] * len(group))) / len(res_df)
-    grouped_spearman_correlations_pval = combine_pvalues(res_df.groupby("pdb").apply(lambda group: stats.spearmanr(group.labels, group.prediction)[1]).values)
+    metrics.update({f"grouped_{k}": v for k, v in _compute_grouped_correlations(res_df).items()})
 
-    res_df["grouped_correlations"] = res_df["pdb"].apply(grouped_correlations.get)
-    res_df["grouped_spearman_correlations"] = res_df["pdb"].apply(grouped_spearman_correlations.get)
+    res_df["grouped_correlations_pearson"] = res_df["pdb"].apply(metrics["grouped_pearson"].get)
+    res_df["grouped_spearman_correlations"] = res_df["pdb"].apply(metrics["grouped_spearman"].get)
 
-    return grouped_correlations_weighted_mean, grouped_correlations_pval, grouped_spearman_correlations_weighted_mean, grouped_spearman_correlations_pval, pearson_corr, spearman_corr, val_loss, rmse, res_df
+    return metrics, res_df
 
     # results.append(res)
 
     # return np.mean([v[0] for v in results]), np.mean([v[1] for v in results])
 
 
-def run_and_log_benchmarks(model, args, wandb_inst=None):
+def _synthetic_benchmark(model, args, validation_i=1):
     """
-    Run all our benchmarks on the given model.
-    """
-    # Run benchmarks
-    benchmark_pearson, benchmark_spearman, benchmark_loss, benchmark_rmse, benchmark_df = get_benchmark_score(model, args, tqdm_output=args.tqdm_output)
 
-    test_skempi_grouped_corrs, test_skempi_grouped_corr_pval, test_skempi_grouped_spearman_corrs, grouped_spearman_pval, test_skempi_score, test_skempi_spearman_score, test_loss_skempi, rmse_skempi, test_skempi_df = get_skempi_corr(model, args,
-                                                                                                     tqdm_output=args.tqdm_output)
+    Args:
+        validation_i:  `0` is test
+
+    """
+
+    # Buffered dataset generation
+    if not hasattr(_synthetic_benchmark, "test_set"):
+
+        summary_path, _ = get_data_paths(args.config, "synthetic_ddg")
+        summary_df = pd.read_csv(summary_path, index_col=0)
+
+        validation_pdbs_ids = summary_df[summary_df["validation"] == validation_i].index.tolist()
+        test_pdbs_ids = summary_df[summary_df["test"]].index.tolist()
+
+        common_args = dict(
+            config=args.config, is_relaxed=False, dataset_name="synthetic_ddg", loss_criterion="L2",
+            node_type=args.node_type,
+            max_nodes=args.max_num_nodes,
+            interface_distance_cutoff=args.interface_distance_cutoff,
+            interface_hull_size=args.interface_hull_size,
+            max_edge_distance=args.max_edge_distance,
+            pretrained_model=args.pretrained_model,
+            scale_values=args.scale_values,
+            scale_min=args.scale_min,
+            scale_max=args.scale_max,
+            save_graphs=args.save_graphs,
+            force_recomputation=args.force_recomputation,
+            preprocess_data=args.preprocess_graph,
+            preprocessed_to_scratch=args.preprocessed_to_scratch,
+            num_threads=args.num_workers,
+            load_embeddings=None if not args.embeddings_type else (args.embeddings_type, args.embeddings_path)
+        )
+
+        test_set = AffinityDataset(**common_args, pdb_ids=test_pdbs_ids)
+        validation_set = AffinityDataset(**common_args, pdb_ids=validation_pdbs_ids)
+
+        _synthetic_benchmark.test_loader = DL_torch(test_set, num_workers=args.num_workers, batch_size=1,
+                                                    collate_fn=AffinityDataset.collate)
+        _synthetic_benchmark.validation_loader = DL_torch(validation_set, num_workers=args.num_workers, batch_size=1,
+                                                    collate_fn=AffinityDataset.collate)
+
+    # Run the model predictions and compute metrics
+    use_cuda = args.cuda and torch.cuda.is_available()
+    device = torch.device("cuda" if use_cuda else "cpu")
+
+    wandb_benchmark_log = {}
+    for dl_name, dataloader in zip(["test", "validation"], [_synthetic_benchmark.test_loader, _synthetic_benchmark.validation_loader]):
+        metrics, res_df = evaluate_model(model, dataloader, args=args, tqdm_output=args.tqdm_output, device=device, plot_path=None)
+        wandb_benchmark_log.update({f"{dl_name}_{key}": value for key, value in metrics.items()})
+
+        # Compute additional grouped metrics
+        grouped_mean_corrs = _compute_grouped_correlations(res_df)
+        wandb_benchmark_log.update({f"{dl_name}_grouped_{key}": value for key, value in grouped_mean_corrs.items()})
+
+    return wandb_benchmark_log
+
+
+def _experimental_benchmark(model, args) -> Dict[str, Any]:
+    # Run benchmarks
+    benchmark_metrics, benchmark_df = get_benchmark_score(model, args, tqdm_output=args.tqdm_output)
+
+    skempi_metrics, skempi_df = get_skempi_corr(model, args, tqdm_output=args.tqdm_output)
+
     abag_test_plot_path = os.path.join(args.config["plot_path"], f"abag_affinity_test_cv{args.validation_set}.png")
 
-    test_pearson, test_spearman, test_loss, test_rmse, test_df = get_abag_test_score(model, args, tqdm_output=args.tqdm_output,
+    test_metrics, test_df = get_abag_test_score(model, args, tqdm_output=args.tqdm_output,
                                                            plot_path=abag_test_plot_path,
                                                            validation_set=args.validation_set)
 
     # When a negative validation set is provided, we use all but the corresponding set.
     # As we have to deal with the case validation_set==0 we first add 1 before flipping the sign
     train_set_indicator = (args.validation_set+1)*-1 if args.validation_set is not None else -1
-    train_pearson, train_spearman, train_loss, train_rmse, train_df = get_abag_test_score(model, args, tqdm_output=args.tqdm_output,
+    train_metrics, train_df = get_abag_test_score(model, args, tqdm_output=args.tqdm_output,
                                                            plot_path=abag_test_plot_path,
                                                            validation_set=train_set_indicator)
-    logger.info(f"ABAG Train pearson >>> {train_pearson}")
-    logger.info(f"ABAG Test pearson >>> {test_pearson}")
-    logger.info(f"Benchmark pearson >>> {benchmark_pearson}")
 
-    logger.info(f"ABAG Train spearman >>> {train_spearman}")
-    logger.info(f"ABAG Test spearman >>> {test_spearman}")
-    logger.info(f"Benchmark spearman >>> {benchmark_spearman}")
+    # Log all metrics
+    all_metrics = {f"{dataset}_{metric}": value for dataset, metrics in
+                   {"benchmark_test": benchmark_metrics, "skempi_test": skempi_metrics, "abag_test": test_metrics, "abag_train": train_metrics}.items()
+                   for metric, value in metrics.items()}
 
-    logger.info(f"SKEMPI pearson results >>> {test_skempi_score}")
-    logger.info(f"SKEMPI spearman testset results >>> {test_skempi_spearman_score}")
-    logger.info(f"Mean SKEMPI correlations >>> {np.mean(test_skempi_grouped_corrs)}")
-    logger.info(f"Aggregated SKEMPI pearson p-value >>> {test_skempi_grouped_corr_pval}")
-    logger.info(f"Mean SKEMPI spearman correlations >>> {np.mean(test_skempi_grouped_spearman_corrs)}")
-    logger.info(f"Aggregated SKEMPI spearman p-value >>> {grouped_spearman_pval}")
+    for metric, value in all_metrics.items():
+        logger.info(f"{metric} >>> {value}")
 
     benchmark_df["Dataset"] = "benchmark"
-    test_skempi_df["Dataset"] = "skempi"
+    skempi_df["Dataset"] = "skempi"
     test_df["Dataset"] = "abag_test"
     train_df["Dataset"] = "abag_train"
-    full_df = pd.concat([test_df, benchmark_df, test_skempi_df, train_df])
-
-    wandb_benchmark_log = {"abag_test_pearson": test_pearson, "abag_test_spearman": test_spearman, "abag_test_loss": test_loss, "abag_test_rmse": test_rmse,
-                           "abag_train_pearson": train_pearson, "abag_train_spearman": train_spearman, "abag_train_loss": train_loss, "abag_train_rmse": train_rmse,
-                           "skempi_test_pearson_grouped_mean": np.mean(test_skempi_grouped_corrs), "skempi_test_pearson_grouped_pval": test_skempi_grouped_corr_pval,
-                           "skempi_test_spearman_grouped_mean": np.mean(test_skempi_grouped_spearman_corrs), "skempi_test_spearman_grouped_pval": grouped_spearman_pval,
-                           "skempi_test_pearson": test_skempi_score, "skempi_test_spearman": test_skempi_spearman_score, "skempi_test_loss": test_loss_skempi, "skempi_rmse": rmse_skempi,
-                           "benchmark_test_pearson": benchmark_pearson, "benchmark_test_spearman": benchmark_spearman, "benchmark_test_loss": benchmark_loss, "benchmark_rmse": benchmark_rmse,
-                           "Full_Predictions": wandb.Table(dataframe=full_df)}
+    full_df = pd.concat([test_df, benchmark_df, skempi_df, train_df])
+    all_metrics["Full_Predictions"] = wandb.Table(dataframe=full_df)
 
     if "uncertainties" in full_df.columns:
-        wandb_benchmark_log.update({"abag_test_uncertainty": np.mean(test_df["uncertainties"]),
-                                "abag_train_uncertainty": np.mean(train_df["uncertainties"]),
-                                "benchmark_test_uncertainty": np.mean(benchmark_df["uncertainties"]),
-                                "skempi_test_uncertainty": np.mean(test_skempi_df["uncertainties"]),
-                                })
+        all_metrics.update({"abag_test_uncertainty": np.mean(test_df["uncertainties"]),
+                            "abag_train_uncertainty": np.mean(train_df["uncertainties"]),
+                            "benchmark_test_uncertainty": np.mean(benchmark_df["uncertainties"]),
+                            "skempi_test_uncertainty": np.mean(skempi_df["uncertainties"]),
+                            })
+
+    return all_metrics
+
+def run_and_log_benchmarks(model, args, wandb_inst=None, experimental_benchmark=False, synthetic_benchmark=False):
+    """
+    Run all our benchmarks on the given model and report logs.
+
+    Datasets are cached by binding them to their respective functions (better would be to use a class)
+    """
+
+    wandb_benchmark_log = {}
+
+    if experimental_benchmark:
+        wandb_benchmark_log.update(_experimental_benchmark(model, args))
+    if synthetic_benchmark:
+        wandb_benchmark_log.update(_synthetic_benchmark(model, args))
+
 
     if wandb_inst is not None:
         wandb_inst.log(wandb_benchmark_log, commit=True)

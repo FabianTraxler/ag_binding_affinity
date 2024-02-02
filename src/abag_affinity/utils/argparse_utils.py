@@ -73,7 +73,7 @@ def parse_args(artifical_args=None) -> Namespace:
         """
         NOTE: we could also add all possible dataset names
         """
-        pattern = r'^[A-Za-z0-9-_.]+#(L1|L2|RL2|NLL|relative_L1|relative_L2|relative_RL2|relative_ce|relative_cdf)(-[0-9.]+)?(\+(L1|L2|RL2|NLL|relative_L1|relative_L2|relative_RL2|relative_ce|relative_cdf)(-[0-9.]+)?)*$'
+        pattern = r'^[A-Za-z0-9-_.]+#(L1|L2|RL2|NLL|relative_L1|relative_L2|relative_RL2|relative_ce|relative_cdf|cosinesim)(-[0-9.]+)?(\+(L1|L2|RL2|NLL|relative_L1|relative_L2|relative_RL2|relative_ce|relative_cdf|cosinesim)(-[0-9.]+)?)*$'
         if not re.match(pattern, value):
             raise ArgumentTypeError(f"Invalid value: {value}. Expected format: DATASET#LOSS1-LAMBDA1+LOSS2-LAMBDA2")
         return value
@@ -83,6 +83,9 @@ def parse_args(artifical_args=None) -> Namespace:
     parser.add_argument("-tld", "--transfer_learning_datasets", type=validate_dataset_string,
                         help='Datasets used for transfer-learning in addition to goal_dataset', default=[], nargs='+')
 
+    # Add the `relative_sampling_strategy` argument with specified choices and default value
+    optional.add_argument("--relative_sampling_strategy", type=str, choices=["all_pairs", "same_base_complex"], default="all_pairs", help="Strategy for sampling relative pairs for training. `strong_label_difference` is for E-values")
+
     optional.add_argument("--relaxed_pdbs", choices=["True", "False", "both"], help="Use the relaxed pdbs for training "
                                                                                "and validation", default="False")
     # -train strategy
@@ -90,7 +93,7 @@ def parse_args(artifical_args=None) -> Namespace:
                           choices=["bucket_train", "train_transferlearnings_validate_target"],
                           default="bucket_train")
     optional.add_argument("--bucket_size_mode", type=str, help="Mode to determine the size of the training buckets",
-                          default="geometric_mean", choices=["min", "geometric_mean", "double_geometric_mean"])
+                          default="geometric_mean", choices=["min", "geometric_mean", "double_geometric_mean", "full"])
     optional.add_argument("-m", "--pretrained_model", type=str,
                           help='Name of the published/pretrained model to use for node embeddings',
                           choices=["", "DeepRefine", "Binding_DDG", "IPA", "Diffusion"], default="")
@@ -296,6 +299,9 @@ def check_and_complement_args(args: Namespace, args_dict: dict) -> Namespace:
         if param == "transfer_learning_datasets" and isinstance(param_value, str):
             if ";" in param_value:
                 new_args.__dict__[param] = param_value.split(";")
+            elif not param_value:
+                # We need to filter empty dataset names that might arise from sweeps!
+                new_args.__dict__[param] = []
             else:
                 new_args.__dict__[param] = [param_value]
             continue

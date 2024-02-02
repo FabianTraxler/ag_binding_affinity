@@ -46,7 +46,7 @@ class AffinityDataset(Dataset):
                  max_edge_distance: int = 5,
                  pretrained_model: str = "",
                  scale_values: bool = True, scale_min: int = 0, scale_max: int = 16,
-                 relative_data: bool = False,
+                 relative_data: Optional[str] = None,
                  save_graphs: bool = False, force_recomputation: bool = False,
                  preprocess_data: bool = False,
                  preprocessed_to_scratch: Optional[str] = None,
@@ -73,7 +73,7 @@ class AffinityDataset(Dataset):
             scale_values: Boolean indicator if affinity values should be scaled
             scale_min: Minimum value of scaling range
             scale_max: Maximum value of scaling range
-            relative_data: Boolean indicator if this dataset is relative
+            relative_data: Indicator if this dataset is relative and how relative pairs should be sampled
             save_graphs: Boolean indicator if processed graphs are stored to disc
             force_recomputation: Boolean indicator if graphs are newly computed even if they are found on disc
             preprocess_data: Boolean indicator if data should be processed after class initialization
@@ -199,7 +199,17 @@ class AffinityDataset(Dataset):
         assert self.relative_data, "This function is only available for relative data"
         all_data_points = []
         n_skipped_pdbs = 0
-        for pdb_id in self.pdb_ids:
+
+
+        if self.dataset_name != "synthetic_ddg_rel":
+            # We normally want matching pairs for each pdb id
+            pdb_to_iterate = self.pdb_ids
+        else:
+            # for synthetic_ddg_rel this becomes crazy...
+            # Therefore, we restrict us to compute only for WT
+            pdb_to_iterate = self.data_df["pdb"].unique()
+
+        for pdb_id in pdb_to_iterate: #self.pdb_ids:
             other_pdb_ids = self.get_compatible_pairs(pdb_id)
             if other_pdb_ids is None:
                 # do not use this pdb
@@ -236,6 +246,18 @@ class AffinityDataset(Dataset):
             valid_pairs = (kd_dists - 2*kd_std) >= 0
             valid_partners = np.where(valid_pairs)[0]
             possible_partners = self.data_df.index[valid_partners].tolist()
+        elif "synthetic_ddg" in self.dataset_name:
+            if self.relative_data == "same_base_complex":
+                # This is already ~ 100.000*600*60Bytes = 3.6Gb of Data
+                pdb = self.data_df.loc[pdb_id, "pdb"]
+                possible_partners = self.data_df.index[self.data_df.pdb == pdb].difference([pdb_id]).tolist()
+            elif self.relative_data == "all_pairs":  # sample across base complexes
+                # Allowing all partners for synthetic_ddg is a bit too much overhead of
+                # storing 100k nearly identical lists of 100k values each (600GB of values)
+                # As a quick fix, just select a subset already here: (e.g. 400 mostly greater than N Epochs)
+                possible_partners = random.sample(self.data_df.index.difference([pdb_id]).tolist(), k=min(400, len(self.data_df)-1))
+            else:
+                raise ValueError(f"Wrong relative sampling strategy given - expected one of (same_base_complex, all_pairs) but got {self.relative_sampling_strategy}")
         elif self.affinity_type == "-log(Kd)":
             other_mutations = self.data_df[(self.data_df["pdb"] == pdb_file) & (self.data_df.index != pdb_id)]
             possible_partners = other_mutations.index.tolist()
@@ -298,6 +320,7 @@ class AffinityDataset(Dataset):
         if self.interface_hull_size is not None and self.interface_hull_size != "" and self.interface_hull_size != "None":
             Path(os.path.join(self.graph_dir.format(is_relaxed=relaxed), f"interface_hull_{self.interface_hull_size}")).mkdir(exist_ok=True,
                                                                                                    parents=True)
+        print('force recomputation', self.force_recomputation)
         graph_dicts2process = []
         deeprefine_graphs2process = []
         for df_idx, row in self.data_df.iterrows():
@@ -350,6 +373,7 @@ class AffinityDataset(Dataset):
                                          save_path=out_path,
                                          relaxed=self.is_relaxed
                                         )
+        print(f"Preprocessing {len(graph_dicts2process)} graphs with and saving them to {self.processed_graph_files}")
         submit_jobs(preload_graph_dict, graph_dicts2process, self.num_threads)
 
         if self.pretrained_model == "DeepRefine":
@@ -428,7 +452,7 @@ class AffinityDataset(Dataset):
             else:
                 nll_values = np.full_like(nll_values, 0.5)
         elif summary_df.shape[0]==0:
-            logging.warning(f"Somehow, we have and empty dataset {self.dataset_name} {self.publication}")
+            logging.warning(f"Empty dataset: {self.dataset_name} {self.publication}")
             nll_values = 0.5 * np.ones(summary_df.shape[0])
         else:
             nll_values = 0.5 * np.ones(summary_df.shape[0])

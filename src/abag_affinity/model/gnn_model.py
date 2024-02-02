@@ -120,7 +120,8 @@ class AffinityGNN(pl.LightningModule):
     def __init__(self, node_feat_dim: int, edge_feat_dim: int,
                  args: argparse.Namespace,  # provide args so they can be saved by the LightningModule (hparams) and for DatasetAdjustment
                  num_nodes: int = None,
-                 pretrained_model: str = "", pretrained_model_path: str = None,
+                 pretrained_model: str = "",
+                 pretrained_model_path: Optional[str] = None,
                  gnn_type: str = "5A-proximity",
                  layer_type: str = "GAT", num_gat_heads: int = 3, num_gnn_layers: int = 3,
                  channel_halving: bool = True, channel_doubling: bool = False,

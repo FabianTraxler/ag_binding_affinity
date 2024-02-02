@@ -1,0 +1,16 @@
+name: anarci
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - openmm
+  - pdbfixer
+  - hmmer=3.3.2
+  - muscle
+  - biopython
+  - pip
+  - python
+  - git
+  - pip:
+    - git+https://github.com/oxpig/ANARCI#egg=anarci
